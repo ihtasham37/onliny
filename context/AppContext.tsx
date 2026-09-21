@@ -271,9 +271,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [isFirebaseLiveMode, setIsFirebaseLiveMode] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('ali_cart_firebase_mode') === 'true';
+      const saved = localStorage.getItem('ali_cart_firebase_mode');
+      return saved === null ? true : saved === 'true';
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -762,70 +763,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadCatalog = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
 
-    const isLive = localStorage.getItem('ali_cart_firebase_mode') === 'true';
+    const isLive = localStorage.getItem('ali_cart_firebase_mode') !== 'false';
 
-    // In Static / Offline Mode (when isLive is false and not force refreshed), NEVER read Firestore!
-    if (!isLive && !forceRefresh) {
-      try {
-        // 1. Try session cache
-        const cached = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && Array.isArray(parsed.products) && parsed.products.length > 0) {
-            applyBundleData(parsed);
-            setIsLoading(false);
-            return;
-          }
+    // 1. Instant Cache Render (Stale-While-Revalidate for 0ms initial load)
+    try {
+      const cached = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.products) && parsed.products.length > 0) {
+          applyBundleData(parsed);
+          setIsLoading(false);
         }
-
-        // 2. Try localStorage snapshot
+      } else {
         const localCached = localStorage.getItem(CATALOG_LOCAL_CACHE_KEY);
         if (localCached) {
           const parsedLocal = JSON.parse(localCached);
           if (parsedLocal?.data?.products && parsedLocal.data.products.length > 0) {
             applyBundleData(parsedLocal.data);
-            try {
-              sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(parsedLocal.data));
-            } catch (e) {}
             setIsLoading(false);
-            return;
           }
         }
-
-        // 3. Fallback to bundled INITIAL_STATIC_CATALOG
-        applyBundleData(INITIAL_STATIC_CATALOG);
-        try {
-          sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(INITIAL_STATIC_CATALOG));
-          localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: INITIAL_STATIC_CATALOG }));
-        } catch (e) {}
-        setIsLoading(false);
-        return;
-      } catch (e) {
-        console.warn("Static catalog load error, applying bundled fallback:", e);
-        applyBundleData(INITIAL_STATIC_CATALOG);
-        setIsLoading(false);
-        return;
       }
-    }
+    } catch (e) {}
 
-    // In Live Mode (or explicit refresh): Fetch from Firestore
-    try {
-      const bundleSnap = await getDoc(doc(db, 'settings', 'catalog_bundle'));
-      if (bundleSnap.exists()) {
-        const bundleData = bundleSnap.data() as CatalogBundle;
-        applyBundleData(bundleData);
-        try {
-          sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleData));
-          localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleData }));
-        } catch (e) {}
-        setIsLoading(false);
-        return;
-      }
-    } catch (err) {
-      console.warn("Could not fetch catalog_bundle doc, falling back to one-time collection fetch:", err);
-    }
-
-    // Fallback: If catalog_bundle doc has not yet been initialized in Firestore
+    // 2. Fetch Live Data from Firestore
     try {
       const [settingsSnap, productsSnap, couponsSnap, bannersSnap, challansSnap, updatesSnap, vendorsSnap] = await Promise.all([
         getDoc(doc(db, 'settings', 'main')),
@@ -852,8 +813,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         vMap[d.id] = { ...u, uid: d.id };
       });
 
+      // If Firestore contains products, prioritize real Firestore items over static defaults
+      const finalProducts = loadedProducts.length > 0 ? loadedProducts : INITIAL_STATIC_CATALOG.products;
+
       const compiledBundle: CatalogBundle = {
-        products: loadedProducts.length > 0 ? loadedProducts : INITIAL_STATIC_CATALOG.products,
+        products: finalProducts,
         settings: loadedSettings || INITIAL_STATIC_CATALOG.settings,
         banners: loadedBanners,
         coupons: loadedCoupons,
@@ -870,15 +834,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: compiledBundle }));
       } catch (e) {}
 
-      // Write bundle so all future visits only take 1 read
+      // Keep catalog_bundle doc updated in Firestore
       try {
         await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(compiledBundle), { merge: true });
-      } catch (writeErr) {
-        // Ignored if permissions don't allow unauth write
-      }
+      } catch (writeErr) {}
     } catch (fallbackErr) {
-      console.error("Error loading fallback catalog:", fallbackErr);
-      applyBundleData(INITIAL_STATIC_CATALOG);
+      console.warn("Error fetching live Firestore catalog, keeping cached data or static fallback:", fallbackErr);
+      // Fallback only if no products have been loaded
+      if (!sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY) && !localStorage.getItem(CATALOG_LOCAL_CACHE_KEY)) {
+        applyBundleData(INITIAL_STATIC_CATALOG);
+      }
     } finally {
       setIsLoading(false);
     }
