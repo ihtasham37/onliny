@@ -612,9 +612,9 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
                                 <Link 
                                     key={subCat.id} 
                                     to={`/category/${subCat.id}`} 
-                                    className="group shrink-0 flex flex-col items-center gap-1.5 w-20 sm:w-24 text-center snap-start transition-transform active:scale-95"
+                                    className="group shrink-0 flex flex-col items-center gap-1.5 w-20 sm:w-24 md:w-28 lg:w-32 text-center snap-start transition-transform active:scale-95"
                                 >
-                                    <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl overflow-hidden border-2 border-rose-100 bg-white p-0.5 shadow-2xs group-hover:shadow-md group-hover:border-rose-400 transition-all flex items-center justify-center">
+                                    <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 rounded-2xl overflow-hidden border-2 border-rose-100 bg-white p-0.5 shadow-2xs group-hover:shadow-md group-hover:border-rose-400 transition-all flex items-center justify-center">
                                         {subCat.imageUrl ? (
                                             <MediaPreview 
                                                 src={subCat.imageUrl} 
@@ -623,11 +623,11 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
                                             />
                                         ) : (
                                             <div className="w-full h-full bg-gradient-to-br from-rose-50 to-amber-50 rounded-xl flex items-center justify-center text-rose-500">
-                                                <Icons.sparkles className="w-6 h-6" />
+                                                <Icons.sparkles className="w-6 h-6 lg:w-10 lg:h-10" />
                                             </div>
                                         )}
                                     </div>
-                                    <span className="text-[11px] sm:text-xs font-bold text-slate-800 group-hover:text-rose-600 line-clamp-1 max-w-full leading-tight">
+                                    <span className="text-[11px] sm:text-xs lg:text-sm font-bold text-slate-800 group-hover:text-rose-600 line-clamp-1 max-w-full leading-tight">
                                         {subCat.name}
                                     </span>
                                     {count > 0 && (
@@ -706,7 +706,7 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
                                 >
                                     {row.map((item, itemIndex) => {
                                         const key = `row-${rowIndex}-product-${item.id}-${itemIndex}`;
-                                        const wrapperClasses = "w-2/5 sm:w-1/3 md:w-1/4 lg:w-1/5 flex-shrink-0";
+                                        const wrapperClasses = "w-[42%] sm:w-[30%] md:w-[23%] lg:w-[calc(20%-9.6px)] flex-shrink-0";
                                         return (
                                             <div key={key} className={wrapperClasses}>
                                                 <ProductCard product={item} />

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'onliny-pwa-v6';
+const CACHE_NAME = 'onliny-pwa-v7';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -40,10 +40,35 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first strategy for dynamic store content, fallback to cache
+  const url = new URL(event.request.url);
+
+  // For JS, CSS, or API assets, NEVER fall back to index.html on failure or 404
+  const isAsset = url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || url.pathname.includes('/assets/');
+  const isApi = url.pathname.startsWith('/api/');
+
+  if (isAsset || isApi) {
+    event.respondWith(
+      fetch(event.request).then((res) => {
+        // If 404 for a JS asset, don't cache it
+        return res;
+      }).catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        return new Response('Asset Not Found', { status: 404, statusText: 'Not Found' });
+      })
+    );
+    return;
+  }
+
+  // Network-first strategy for dynamic page navigation
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request).then(cached => cached || caches.match('/'));
+    fetch(event.request).catch(async () => {
+      const cached = await caches.match(event.request);
+      if (cached) return cached;
+      const indexHtml = await caches.match('/');
+      if (indexHtml) return indexHtml;
+      return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
     })
   );
 });
+

@@ -43,7 +43,7 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
       });
     }
 
-    const apiKey = env.GEMINI_API_KEY || "";
+    const apiKey = env.GEMINI_API_KEY || (typeof process !== "undefined" ? process.env?.GEMINI_API_KEY : "") || "";
     if (!apiKey) {
       return new Response(
         JSON.stringify({
@@ -56,7 +56,7 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
 
     const prompt = `Aap ek e-commerce search query optimizer hain. User query: "${query}". Return valid JSON with keys: "corrected_query", "synonyms" (array of strings), "category" (string).`;
 
-    const candidateModels = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
+    const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
     let geminiData: any = null;
 
     for (const model of candidateModels) {

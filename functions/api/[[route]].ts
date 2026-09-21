@@ -77,9 +77,57 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         if (!order) {
           return jsonResponse({ success: false, error: "Missing order payload" }, 400);
         }
+
+        const appName = env.APP_NAME || order.storeName || "onliny";
+        const adminEmail = (env.ADMIN_NOTIFICATION_EMAIL || env.GMAIL_USER || "ali10cart@gmail.com").trim();
+        const customerEmail = (order.email || "").trim();
+        const orderIdShort = String(order.id || "").slice(-6).toUpperCase();
+        const formattedTotal = Number(order.total || 0).toLocaleString();
+
+        const recipients = new Set<string>();
+        if (adminEmail) recipients.add(adminEmail);
+        if (customerEmail) recipients.add(customerEmail);
+        const recipientList = Array.from(recipients);
+
+        let sent = false;
+        let provider = "None";
+
+        if (env.RESEND_API_KEY) {
+          try {
+            const r = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                from: `${appName} <onboarding@resend.dev>`,
+                to: recipientList,
+                subject: `🛍️ Order #${orderIdShort} Confirmation - Rs. ${formattedTotal}`,
+                html: `<p>New order #${orderIdShort} placed by ${order.customerName} for Rs. ${formattedTotal}</p>`,
+              }),
+            });
+            if (r.ok) { sent = true; provider = "Resend"; }
+          } catch (e) {}
+        }
+
+        if (!sent) {
+          try {
+            const mc = await fetch("https://api.mailchannels.net/tx/v1/send", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                personalizations: [{ to: recipientList.map(e => ({ email: e })) }],
+                from: { email: "no-reply@onliny.co.uk", name: appName },
+                subject: `🛍️ Order #${orderIdShort} Confirmation - Rs. ${formattedTotal}`,
+                content: [{ type: "text/html", value: `<h3>Order #${orderIdShort} received from ${order.customerName}</h3><p>Total: Rs. ${formattedTotal}</p><p>Address: ${order.customerAddress}, ${order.city}</p>` }],
+              }),
+            });
+            if (mc.ok || mc.status === 202) { sent = true; provider = "MailChannels"; }
+          } catch (e) {}
+        }
+
         return jsonResponse({
           success: true,
-          message: "Order received on edge function successfully",
+          message: `Order notification dispatched via ${provider}`,
+          recipients: recipientList,
           orderId: order.id,
         });
       } catch (err: any) {
@@ -231,7 +279,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const prompt = `Aap ek e-commerce search query optimizer hain. User query: "${query}". Return valid JSON with keys: "corrected_query", "synonyms" (array of strings), "category" (string).`;
 
       try {
-        const candidateModels = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
+        const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
         let geminiData: any = null;
 
         for (const model of candidateModels) {
@@ -349,7 +397,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const prompt = `You are an e-commerce search ranker. Query: "${query}". Candidate Products: ${JSON.stringify(candidateDocs)}. Return JSON matching keys: detectedIntent (string), detectedCategory (string), suggestedKeywords (array of strings), aiSummary (string in Roman Urdu / English), rankedProductIds (array of objects with id and matchScore).`;
 
       try {
-        const candidateModels = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
+        const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
         let geminiData: any = null;
 
         for (const model of candidateModels) {
@@ -637,7 +685,7 @@ STRICT RULES:
 ${preferredType ? `HINT: The current screen prefers '${preferredType}'.` : ""}
 `;
 
-      const candidateModels = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
+      const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
       let geminiData: any = null;
 
       for (const model of candidateModels) {

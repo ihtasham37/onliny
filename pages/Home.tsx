@@ -221,11 +221,15 @@ const Home = () => {
 
   // Left & Right Side Columns (Desktop auto-sliding columns strictly constrained to banner height)
   const leftSideProducts = useMemo(() => {
-    return shuffledProducts.slice(0, 8);
+    if (shuffledProducts.length === 0) return [];
+    if (shuffledProducts.length <= 4) return shuffledProducts;
+    return shuffledProducts.slice(0, Math.ceil(shuffledProducts.length / 2));
   }, [shuffledProducts]);
 
   const rightSideProducts = useMemo(() => {
-    return shuffledProducts.slice(8, 16);
+    if (shuffledProducts.length === 0) return [];
+    if (shuffledProducts.length <= 4) return [...shuffledProducts].reverse();
+    return shuffledProducts.slice(Math.ceil(shuffledProducts.length / 2));
   }, [shuffledProducts]);
 
   const displayItems = useMemo(() => {
@@ -511,7 +515,7 @@ const Home = () => {
         </div>
 
         {/* Horizontal Scrollable Glowing Circular Categories */}
-        <div className="flex items-center gap-3.5 sm:gap-5 md:gap-6 overflow-x-auto pb-1.5 pt-0.5 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-3.5 sm:gap-5 md:gap-6 lg:gap-8 xl:gap-10 overflow-x-auto pb-2 pt-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {categoriesToShow.map((cat) => {
             const avatarUrl = getCategoryAvatar(cat.name, cat.imageUrl);
 
@@ -519,11 +523,11 @@ const Home = () => {
               <Link
                 key={cat.id}
                 to={`/category/${encodeURIComponent(cat.id)}`}
-                className="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer text-center outline-none"
+                className="flex flex-col items-center gap-2 shrink-0 group cursor-pointer text-center outline-none"
               >
                 {/* Shining Glowing Circular Avatar Container */}
-                <div className="relative p-[3px] rounded-full bg-gradient-to-tr from-pink-500 via-rose-400 to-amber-300 shadow-[0_0_15px_rgba(244,63,94,0.4)] group-hover:shadow-[0_0_25px_rgba(244,63,94,0.75)] group-hover:scale-110 transition-all duration-300 ring-2 ring-pink-300/50 ring-offset-2 ring-offset-white">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 rounded-full overflow-hidden relative bg-slate-100 before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-tr before:from-transparent before:via-white/45 before:to-transparent before:opacity-80 group-hover:before:opacity-100 before:pointer-events-none before:z-10">
+                <div className="relative p-[3px] md:p-[4px] lg:p-[5px] rounded-full bg-gradient-to-tr from-pink-500 via-rose-400 to-amber-300 shadow-[0_0_15px_rgba(244,63,94,0.4)] group-hover:shadow-[0_0_30px_rgba(244,63,94,0.85)] group-hover:scale-110 transition-all duration-300 ring-2 ring-pink-300/50 ring-offset-2 ring-offset-white">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-28 lg:h-28 xl:w-32 xl:h-32 rounded-full overflow-hidden relative bg-slate-100 before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-tr before:from-transparent before:via-white/45 before:to-transparent before:opacity-80 group-hover:before:opacity-100 before:pointer-events-none before:z-10">
                     <img
                       src={avatarUrl}
                       alt={cat.name}
@@ -534,7 +538,7 @@ const Home = () => {
                 </div>
 
                 {/* Category Label */}
-                <span className="text-xs font-semibold text-slate-800 group-hover:text-pink-600 transition-colors tracking-tight text-center max-w-[72px] sm:max-w-[85px] truncate">
+                <span className="text-xs sm:text-xs md:text-sm lg:text-base font-extrabold text-slate-800 group-hover:text-pink-600 transition-colors tracking-tight text-center max-w-[72px] sm:max-w-[85px] md:max-w-[105px] lg:max-w-[135px] xl:max-w-[155px] truncate">
                   {cat.name}
                 </span>
               </Link>
@@ -554,8 +558,8 @@ const Home = () => {
                     <div key={`row-${rowIndex}`} className="flex overflow-x-auto gap-3 pb-3 -mx-4 px-4 cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                         {row.map((item, itemIndex) => {
                             const key = 'code' in item ? `row-${rowIndex}-coupon-${item.id}-${itemIndex}` : `row-${rowIndex}-product-${item.id}`;
-                            // Responsive widths: 2.5 on mobile, 3 on sm, 4 on md, 5 on lg
-                            const wrapperClasses = "w-2/5 sm:w-1/3 md:w-1/4 lg:w-1/5 flex-shrink-0";
+                            // Responsive widths: 2.5 on mobile, 3 on sm, 4 on md, exactly 5 on lg/xl
+                            const wrapperClasses = "w-[42%] sm:w-[30%] md:w-[23%] lg:w-[calc(20%-9.6px)] flex-shrink-0";
 
                             return (
                                 <div key={key} className={wrapperClasses}>

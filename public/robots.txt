@@ -1,19 +1,15 @@
-# SEO Robots.txt for onliny (onliny.co.uk)
+# SEO Robots.txt
+# Generated during build for Cloudflare Pages
+
 User-agent: *
 Allow: /
 Allow: /categories
-Allow: /category/*
-Allow: /product/*
 Allow: /search
+Allow: /updates
 Allow: /blog
-Allow: /blog/*
 Allow: /track-order
 Allow: /community
 Allow: /more
-Allow: /privacy-policy
-Allow: /refund-policy
-Allow: /terms
-Allow: /about
 
 # Disallow Private & Administrative Routes
 Disallow: /admin
@@ -28,4 +24,4 @@ Disallow: /order-success
 Crawl-delay: 1
 
 # Canonical Sitemap
-Sitemap: https://onliny.co.uk/sitemap.xml
+Sitemap: https://zivio.pages.dev/sitemap.xml

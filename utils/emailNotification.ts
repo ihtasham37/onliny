@@ -258,15 +258,20 @@ export const sendOrderNotificationEmail = async (
     `;
 
     const sender = (creds.gmailUser || process.env.GMAIL_USER || targetEmail).trim();
+    const recipientList = new Set<string>();
+    if (targetEmail) recipientList.add(targetEmail);
+    if (order.email && order.email.trim()) recipientList.add(order.email.trim());
+
+    const finalTo = Array.from(recipientList).join(', ');
 
     const info = await transporter.sendMail({
       from: `"${appName}" <${sender}>`,
-      to: targetEmail,
+      to: finalTo,
       subject: `🔔 New Order #Rs.${Number(order.total).toLocaleString()} from ${order.customerName} - ${appName}`,
       html: htmlContent,
     });
 
-    console.log(`[Email Notification] Order email sent to ${targetEmail}. MessageId: ${info.messageId}`);
+    console.log(`[Email Notification] Order email sent to ${finalTo}. MessageId: ${info.messageId}`);
     return {
       success: true,
       configured: true,

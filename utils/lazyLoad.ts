@@ -14,25 +14,27 @@ export const lazyRetry = <T extends ComponentType<any>>(
       return await importFn();
     } catch (error: any) {
       console.error(`Failed to load ${name}:`, error);
-      
-      // Check session storage to prevent infinite reload loops
-      const pageHasAlreadyBeenForceRefreshed = JSON.parse(
-        window.sessionStorage.getItem(`retry-${name}-refreshed`) || 'false'
-      );
 
-      const isChunkLoadError = 
-        error?.name === 'ChunkLoadError' || 
+      const isChunkLoadError =
+        error?.name === 'ChunkLoadError' ||
         error?.message?.includes('Loading chunk') ||
-        error?.message?.includes('Failed to fetch dynamically imported module');
+        error?.message?.includes('Failed to fetch dynamically imported module') ||
+        error?.message?.includes('Importing a module script failed') ||
+        error?.message?.includes('error loading dynamically imported module');
 
-      // Only attempt a single reload if it is genuinely a missing chunk in production
-      if (!pageHasAlreadyBeenForceRefreshed && isChunkLoadError && !import.meta.env.DEV) {
-        window.sessionStorage.setItem(`retry-${name}-refreshed`, 'true');
-        window.location.reload();
-        return new Promise(() => {});
+      if (isChunkLoadError) {
+        const lastRefreshed = sessionStorage.getItem(`retry-${name}-timestamp`);
+        const now = Date.now();
+
+        // If never refreshed before or last refresh was over 15s ago, refresh cleanly
+        if (!lastRefreshed || now - parseInt(lastRefreshed, 10) > 15000) {
+          sessionStorage.setItem(`retry-${name}-timestamp`, now.toString());
+          window.location.reload();
+          return new Promise(() => {});
+        }
       }
 
-      // If not a chunk load error or already refreshed, let Error Boundary handle it gracefully without crashing/reloading
+      // If already refreshed recently or another error, throw to Error Boundary
       throw error;
     }
   });

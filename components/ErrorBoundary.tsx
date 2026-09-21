@@ -32,14 +32,43 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error in React component:", error, errorInfo);
+
+    const errMsg = error?.message || '';
+    const isChunkError =
+      error?.name === 'ChunkLoadError' ||
+      errMsg.includes('Loading chunk') ||
+      errMsg.includes('Failed to fetch dynamically imported module') ||
+      errMsg.includes('Importing a module script failed') ||
+      errMsg.includes('error loading dynamically imported module');
+
+    if (isChunkError && typeof window !== 'undefined') {
+      const lastAutoReload = window.sessionStorage.getItem('eb-auto-reload-time');
+      const now = Date.now();
+      if (!lastAutoReload || now - parseInt(lastAutoReload, 10) > 15000) {
+        window.sessionStorage.setItem('eb-auto-reload-time', now.toString());
+        window.location.reload();
+      }
+    }
   }
 
   handleReload = () => {
-    // Clear cache-busting reload flag if present from lazyRetry
-    Object.keys(window.sessionStorage).forEach(key => {
-        if(key.startsWith('retry-')) window.sessionStorage.removeItem(key);
-    });
-    window.location.reload();
+    try {
+      Object.keys(window.sessionStorage).forEach(key => {
+        if (key.startsWith('retry-') || key.startsWith('eb-')) {
+          window.sessionStorage.removeItem(key);
+        }
+      });
+      // Clear service worker caches if supported
+      if ('caches' in window) {
+        window.caches.keys().then(names => {
+          names.forEach(name => window.caches.delete(name));
+        }).catch(() => {});
+      }
+    } catch (e) {}
+
+    // Hard reload with cache buster
+    const targetUrl = window.location.pathname + window.location.search + (window.location.hash || '');
+    window.location.href = targetUrl;
   };
 
   render() {
