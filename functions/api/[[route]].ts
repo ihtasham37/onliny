@@ -237,10 +237,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         for (const model of candidateModels) {
           try {
             const geminiRes = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                  "Content-Type": "application/json",
+                  "x-goog-api-key": apiKey,
+                },
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: prompt }] }],
                   generationConfig: {
@@ -352,10 +355,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         for (const model of candidateModels) {
           try {
             const geminiRes = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                  "Content-Type": "application/json",
+                  "x-goog-api-key": apiKey,
+                },
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: prompt }] }],
                   generationConfig: { responseMimeType: "application/json" },
@@ -637,10 +643,13 @@ ${preferredType ? `HINT: The current screen prefers '${preferredType}'.` : ""}
       for (const model of candidateModels) {
         try {
           const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
             {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                "x-goog-api-key": apiKey,
+              },
               body: JSON.stringify({
                 contents: [{ parts: [{ text: `${systemPrompt}\n\nUser Input: ${trimmedInput}` }] }],
                 generationConfig: { responseMimeType: "application/json" }
