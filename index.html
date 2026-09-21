@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: light;">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="shortcut icon" href="/pwa-192x192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#be185d" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="onliny" />
+
+    <!-- Google Fonts for Luxury Boutique Theme -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Playfair+Display:ital,wght@0,500..800;1,500..800&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+      // Dynamic manifest early detection from URL before React renders
+      (function() {
+        try {
+          var fullPath = window.location.pathname + window.location.hash;
+          var searchParams = new URLSearchParams(window.location.search || '');
+          var vendorMatch = fullPath.match(/(?:\/store\/v\/|\/vendor-store\/)([^/?#]+)/);
+          var vendorId = (vendorMatch && vendorMatch[1]) ? decodeURIComponent(vendorMatch[1]) : (searchParams.get('vendor') || searchParams.get('v'));
+          var catMatch = fullPath.match(/(?:\/store\/c\/|\/standalone\/)([^/?#]+)/);
+          var catId = (catMatch && catMatch[1]) ? decodeURIComponent(catMatch[1]) : (searchParams.get('category') || searchParams.get('cat') || searchParams.get('store'));
+          
+          var manifestLink = document.querySelector('link[rel="manifest"]');
+          if (manifestLink) {
+            if (vendorId) {
+              manifestLink.setAttribute('href', '/manifest.json?vendor=' + encodeURIComponent(vendorId));
+            } else if (catId) {
+              manifestLink.setAttribute('href', '/manifest.json?category=' + encodeURIComponent(catId));
+            }
+          }
+        } catch(e) {}
+      })();
+
+      // Register Service Worker immediately for instant PWA installation recognition by Chrome
+      if ('serviceWorker' in navigator) {
+        try {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
+            reg.update().catch(function() {});
+          }).catch(function(err) {
+            console.warn('PWA ServiceWorker registration:', err);
+          });
+        } catch(e) {}
+      }
+
+      // Intercept PWA install prompt early before React components mount
+      window.deferredPWAInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        window.deferredPWAInstallPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa-prompt-ready', { detail: e }));
+      });
+      window.addEventListener('appinstalled', function() {
+        window.deferredPWAInstallPrompt = null;
+        window.dispatchEvent(new CustomEvent('pwa-app-installed'));
+      });
+    </script>
+    
+    <!-- Primary Meta Tags for onliny (onliny.co.uk) -->
+    <title>onliny - Online Shopping Pakistan | Baby Clothing, Boy Clothes, Gifts & Women Fashion | COD</title>
+    <meta name="title" content="onliny - Online Shopping Pakistan | Baby Clothing, Boy Clothes, Gifts & Women Fashion | COD" />
+    <meta name="description" content="Shop baby clothing, boy clothes, romantic girlfriend gifts, boyfriend gifts, couples hampers, and women's fashion on onliny (onliny.co.uk). Fast Cash on Delivery across Pakistan & 7-day easy returns!" />
+    <meta name="keywords" content="onliny, onliny.co.uk, baby clothing Pakistan, baby clothes, infant wear, newborn outfits, baba suit, boy clothing, boy clothes Pakistan, boys kurtas, boys shirts, girlfriend gifts, gifts for girlfriend, romantic girlfriend gifts, anniversary gifts for her, boyfriend gifts, gifts for boyfriend, gifts for him, couple gifts Pakistan, surprise gift hampers, birthday gifts, online shopping Pakistan, women fashion, lawn suits, stitched suits, COD Pakistan" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://onliny.co.uk/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="onliny" />
+    <meta property="og:url" content="https://onliny.co.uk/" />
+    <meta property="og:title" content="onliny - Online Shopping Pakistan | Baby Clothing, Boy Clothes, Gifts & Women Fashion | COD" />
+    <meta property="og:description" content="Shop baby clothing, boy clothes, romantic girlfriend gifts, boyfriend gifts, couples hampers, and women's fashion on onliny (onliny.co.uk). Fast Cash on Delivery across Pakistan & 7-day easy returns!" />
+    <meta property="og:image" content="https://onliny.co.uk/pwa-512x512.png" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@onliny" />
+    <meta name="twitter:url" content="https://onliny.co.uk/" />
+    <meta name="twitter:title" content="onliny - Online Shopping Pakistan | Baby Clothing, Boy Clothes, Gifts & Women Fashion | COD" />
+    <meta name="twitter:description" content="Shop baby clothing, boy clothes, girlfriend & boyfriend gifts, and women's fashion on onliny.co.uk. Fast nationwide delivery & 7-day hassle-free returns." />
+    <meta name="twitter:image" content="https://onliny.co.uk/pwa-512x512.png" />
+
+    <!-- Schema.org Organization, Store & WebSite JSON-LD for Google Rich Snippets -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://onliny.co.uk/#organization",
+          "name": "onliny",
+          "url": "https://onliny.co.uk",
+          "logo": "https://onliny.co.uk/pwa-512x512.png",
+          "email": "ali10cart@gmail.com",
+          "sameAs": []
+        },
+        {
+          "@type": "Store",
+          "@id": "https://onliny.co.uk/#store",
+          "name": "onliny",
+          "url": "https://onliny.co.uk",
+          "logo": "https://onliny.co.uk/pwa-512x512.png",
+          "email": "ali10cart@gmail.com",
+          "description": "Online shopping store in Pakistan specializing in baby clothing, boy clothing, romantic girlfriend and boyfriend gifts, couple gift hampers, and women's fashion with Cash on Delivery.",
+          "priceRange": "PKR",
+          "hasOfferCatalog": {
+            "@type": "OfferCatalog",
+            "name": "Featured Categories",
+            "itemListElement": [
+              { "@type": "OfferCatalog", "name": "Baby Clothing" },
+              { "@type": "OfferCatalog", "name": "Boy Clothing" },
+              { "@type": "OfferCatalog", "name": "Gifts for Girlfriend" },
+              { "@type": "OfferCatalog", "name": "Gifts for Boyfriend" },
+              { "@type": "OfferCatalog", "name": "Couple Gifts & Hampers" },
+              { "@type": "OfferCatalog", "name": "Women & Girls Fashion" }
+            ]
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://onliny.co.uk/#website",
+          "url": "https://onliny.co.uk",
+          "name": "onliny",
+          "publisher": {
+            "@id": "https://onliny.co.uk/#organization"
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://onliny.co.uk/#/search?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
+        }
+      ]
+    }
+    </script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

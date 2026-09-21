@@ -1,0 +1,43 @@
+{
+  "id": "/?source=pwa",
+  "name": "onliny - Online Shopping Pakistan",
+  "short_name": "onliny",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#be185d",
+  "description": "onliny - Pakistan's premier online shopping destination for fashion, baby clothing, and fast cash on delivery.",
+  "prefer_related_applications": false,
+  "categories": ["shopping", "lifestyle"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "onliny Store"
+    }
+  ]
+}

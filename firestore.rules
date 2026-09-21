@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && (getUserData().role == 'admin' || request.auth.token.email == 'admin@example.com');
+    }
+    
+    function isVendor() {
+      return isSignedIn() && getUserData().role == 'vendor';
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Products collection
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isAdmin() || isVendor();
+      allow update, delete: if isAdmin() || (isVendor() && resource.data.vendorId == request.auth.uid);
+    }
+
+    // Orders collection
+    match /orders/{orderId} {
+      allow read: if true; // Tracking uses phone/email check in frontend
+      allow create: if true;
+      allow update, delete: if isAdmin() || isVendor();
+    }
+    
+    // Settings, Coupons, Banners, etc.
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin() || isVendor();
+    }
+    
+    match /coupons/{docId} {
+      allow read: if true;
+      allow write: if isAdmin() || isVendor();
+    }
+    
+    match /banners/{docId} {
+      allow read: if true;
+      allow write: if isAdmin() || isVendor();
+    }
+    
+    match /updatePosts/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /chatMessages/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

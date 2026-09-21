@@ -1,0 +1,158 @@
+import { CatalogBundle } from '../context/AppContext';
+import { Product, Settings, Banner, Coupon } from '../types';
+
+export const INITIAL_STATIC_CATALOG: CatalogBundle = {
+  products: [
+    {
+      id: "prod-fleece-girls-tracksuit",
+      name: "Black Fleece Tracksuit for Girls - Premium Winter Wear",
+      description: "Super soft premium black fleece tracksuit for girls with cozy inner lining, relaxed streetwear fit, elastic waistband and matching jacket.",
+      price: 2040,
+      oldPrice: 2550,
+      category: "Child",
+      images: [
+        "https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=800&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?w=800&auto=format&fit=crop&q=80"
+      ],
+      isVisible: true,
+      freeDelivery: true,
+      shopName: "onliny",
+      createdAt: 1726000000000
+    },
+    {
+      id: "prod-winter-baby-romper",
+      name: "Cozy Cotton Knit Baby Romper with Hood",
+      description: "Ultra-comfortable, breathable warm cotton knit romper for infants and toddlers with cute bear ears hood.",
+      price: 1850,
+      oldPrice: 2200,
+      category: "Baby",
+      images: [
+        "https://images.unsplash.com/photo-1522771930-78848d9293e8?w=800&auto=format&fit=crop&q=80"
+      ],
+      isVisible: true,
+      freeDelivery: true,
+      shopName: "onliny",
+      createdAt: 1726000100000
+    },
+    {
+      id: "prod-boyfriend-luxury-gift-set",
+      name: "Gentleman's Leather Wallet, Belt & Fragrance Hamper",
+      description: "Sophisticated gift set for boyfriends and husbands including genuine leather bifold wallet, classic buckle belt, and premium long-lasting perfume.",
+      price: 3499,
+      oldPrice: 4200,
+      category: "Boyfriend Gifts",
+      images: [
+        "https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&auto=format&fit=crop&q=80"
+      ],
+      isVisible: true,
+      freeDelivery: false,
+      shopName: "onliny",
+      createdAt: 1726000200000
+    },
+    {
+      id: "prod-girlfriend-romantic-hamper",
+      name: "Romantic Rose Gold Pendant & Scented Candle Gift Box",
+      description: "Elegant heart pendant necklace presented in a luxury velvet keepsake jewelry box with scented soy candle and personalized greetings card.",
+      price: 2890,
+      oldPrice: 3500,
+      category: "Girlfriend Gifts",
+      images: [
+        "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&auto=format&fit=crop&q=80"
+      ],
+      isVisible: true,
+      freeDelivery: true,
+      shopName: "onliny",
+      createdAt: 1726000300000
+    },
+    {
+      id: "prod-boys-denim-jacket",
+      name: "Boys Vintage Washed Denim Jacket with Sherpa Collar",
+      description: "Classic rugged vintage wash denim jacket designed for boys with warm sherpa fleece interior lining and dual chest pockets.",
+      price: 2450,
+      oldPrice: 2990,
+      category: "Boy Clothes",
+      images: [
+        "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=800&auto=format&fit=crop&q=80"
+      ],
+      isVisible: true,
+      freeDelivery: true,
+      shopName: "onliny",
+      createdAt: 1726000400000
+    },
+    {
+      id: "prod-couple-matching-hoodies",
+      name: "Soulmate Minimalist Matching Couple Hoodies (Set of 2)",
+      description: "Premium fleece matching hoodies for couples with embroidered Roman numeral dates on the wrist and subtle chest design.",
+      price: 4600,
+      oldPrice: 5800,
+      category: "Romantic Couple Sets",
+      images: [
+        "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800&auto=format&fit=crop&q=80"
+      ],
+      isVisible: true,
+      freeDelivery: true,
+      shopName: "onliny",
+      createdAt: 1726000500000
+    }
+  ],
+  settings: {
+    appName: "onliny",
+    storeDomain: "https://onliny.co.uk",
+    logoUrl: "",
+    storeBannerUrl: "",
+    bannerUrls: [],
+    shippingFee: 199,
+    whatsappNumber: "03026947034",
+    adminEmail: "aliihtasham20@gmail.com",
+    paymentMethods: [
+      { id: "cod", name: "Cash on Delivery (COD)", details: "Pay with cash upon package arrival anywhere in Pakistan" }
+    ],
+    sizeCategories: [
+      {
+        categoryName: "Standard Sizes",
+        sizes: ["S", "M", "L", "XL"]
+      }
+    ],
+    categories: [
+      { id: "Baby", name: "Baby Clothing", parentId: null, imageUrl: "https://images.unsplash.com/photo-1522771930-78848d9293e8?w=500&auto=format&fit=crop&q=80", isVisible: true },
+      { id: "Boy Clothes", name: "Boy Clothes", parentId: null, imageUrl: "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=500&auto=format&fit=crop&q=80", isVisible: true },
+      { id: "Child", name: "Girls & Kids Wear", parentId: null, imageUrl: "https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=500&auto=format&fit=crop&q=80", isVisible: true },
+      { id: "Girlfriend Gifts", name: "Girlfriend Gifts", parentId: null, imageUrl: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&auto=format&fit=crop&q=80", isVisible: true },
+      { id: "Boyfriend Gifts", name: "Boyfriend Gifts", parentId: null, imageUrl: "https://images.unsplash.com/photo-1627123424574-724758594e93?w=500&auto=format&fit=crop&q=80", isVisible: true },
+      { id: "Romantic Couple Sets", name: "Romantic Hampers", parentId: null, imageUrl: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&auto=format&fit=crop&q=80", isVisible: true }
+    ],
+    showJoinCommunity: true,
+    showLatestUpdates: true,
+    showGetApp: false,
+    showContactWhatsapp: true,
+    showContactEmail: true,
+    showVendorPortal: true,
+    playStoreUrl: "",
+    adminNotificationEmail: "aliihtasham20@gmail.com",
+    gmailUser: "",
+    gmailAppPassword: "",
+    enableOrderEmailAlerts: true
+  } as Settings,
+  banners: [],
+  coupons: [
+    {
+      id: "coupon-welcome10",
+      code: "WELCOME10",
+      description: "Get 10% discount on entire store order",
+      discountType: "percentage",
+      discountValue: 10,
+      minBill: 1000,
+      minProducts: 1,
+      freeShipping: false,
+      assignment: "both",
+      validFrom: 1700000000000,
+      validTo: 1800000000000,
+      createdAt: 1726000000000
+    }
+  ],
+  updatePosts: [],
+  challans: [],
+  vendorsStatus: {},
+  vendorsMap: {},
+  lastUpdated: Date.now()
+};

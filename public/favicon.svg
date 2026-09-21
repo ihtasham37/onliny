@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f43f5e" />
+      <stop offset="50%" stop-color="#e11d48" />
+      <stop offset="100%" stop-color="#be123c" />
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="240" fill="url(#grad)" stroke="#ffe4e6" stroke-width="16" />
+  <circle cx="256" cy="256" r="200" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="4" stroke-dasharray="8 8" />
+  <!-- Shopping Luxury Diamond Bag Crown -->
+  <path d="M176 210 V170 C176 125.8 211.8 90 256 90 C300.2 90 336 125.8 336 170 V210" fill="none" stroke="url(#gold)" stroke-width="24" stroke-linecap="round" />
+  <path d="M128 200 H384 L360 410 C358 425 345 436 330 436 H182 C167 436 154 425 152 410 Z" fill="#ffffff" fill-opacity="0.95" />
+  <path d="M256 250 L286 310 L350 320 L304 364 L315 428 L256 397 L197 428 L208 364 L162 320 L226 310 Z" fill="url(#grad)" opacity="0.9" />
+</svg>

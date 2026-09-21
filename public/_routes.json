@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "include": [
+    "/api/*",
+    "/share"
+  ],
+  "exclude": [
+    "/assets/*",
+    "/favicon.svg",
+    "/manifest.json",
+    "/service-worker.js",
+    "/sw.js",
+    "/robots.txt",
+    "/sitemap.xml",
+    "/pwa-*.png",
+    "/apple-touch-icon.png"
+  ]
+}

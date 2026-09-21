@@ -1,0 +1,4 @@
+# Cloudflare Pages & Netlify Single Page Application (SPA) Routing Rule
+# Ensures all deep routes (e.g. /product/:id, /categories, /track-order) serve index.html with HTTP 200
+
+/*    /index.html   200

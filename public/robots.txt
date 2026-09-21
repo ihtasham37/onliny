@@ -1,0 +1,31 @@
+# SEO Robots.txt for onliny (onliny.co.uk)
+User-agent: *
+Allow: /
+Allow: /categories
+Allow: /category/*
+Allow: /product/*
+Allow: /search
+Allow: /blog
+Allow: /blog/*
+Allow: /track-order
+Allow: /community
+Allow: /more
+Allow: /privacy-policy
+Allow: /refund-policy
+Allow: /terms
+Allow: /about
+
+# Disallow Private & Administrative Routes
+Disallow: /admin
+Disallow: /admin/
+Disallow: /admin/*
+Disallow: /vendor/dashboard
+Disallow: /vendor/*
+Disallow: /checkout
+Disallow: /order-success
+
+# Crawl-delay for crawler protection
+Crawl-delay: 1
+
+# Canonical Sitemap
+Sitemap: https://onliny.co.uk/sitemap.xml

@@ -1,0 +1,8 @@
+{
+  "name": "onliny",
+  "description": "Onliny - Pakistan's premier online shopping destination for baby clothing, boy clothing, romantic girlfriend & boyfriend gifts, couple hampers, and women's fashion with fast cash on delivery.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
