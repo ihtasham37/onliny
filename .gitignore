@@ -1,16 +1,22 @@
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
-
 # Environment variables & secrets (Never commit to git/github)
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 .env*.local
 *.env
+*.pem
+*.key
+credentials*.json
+service-account*.json
+firebase-admin*.json
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
 
 # Build outputs
 dist/
@@ -20,7 +26,9 @@ build/
 .vercel
 .netlify
 
-# Temporary uploads & logs
+# Prompt history & logs
+migrated_prompt_history/
+.aistudio/
 uploads/
 /tmp
 *.log

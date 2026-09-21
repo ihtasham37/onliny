@@ -46,28 +46,30 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
       });
     }
 
-    const cloudName = env.CLOUDINARY_CLOUD_NAME || "daafqfrqh";
-    const uploadPreset = env.CLOUDINARY_UPLOAD_PRESET || "atrya_preset";
+    const cloudName = env.CLOUDINARY_CLOUD_NAME || "";
+    const uploadPreset = env.CLOUDINARY_UPLOAD_PRESET || "";
 
-    const cldFormData = new FormData();
-    cldFormData.append("file", file);
-    cldFormData.append("upload_preset", uploadPreset);
-    cldFormData.append("folder", "atrya_shop");
+    if (cloudName && uploadPreset) {
+      const cldFormData = new FormData();
+      cldFormData.append("file", file);
+      cldFormData.append("upload_preset", uploadPreset);
+      cldFormData.append("folder", "atrya_shop");
 
-    const cldRes = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
-      {
-        method: "POST",
-        body: cldFormData,
-      }
-    );
+      const cldRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+        {
+          method: "POST",
+          body: cldFormData,
+        }
+      );
 
-    if (cldRes.ok) {
-      const cldData = (await cldRes.json()) as any;
-      if (cldData && cldData.secure_url) {
-        return new Response(JSON.stringify({ url: cldData.secure_url }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (cldRes.ok) {
+        const cldData = (await cldRes.json()) as any;
+        if (cldData && cldData.secure_url) {
+          return new Response(JSON.stringify({ url: cldData.secure_url }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 

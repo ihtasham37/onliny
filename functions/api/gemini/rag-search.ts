@@ -79,7 +79,7 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
       .sort((a: any, b: any) => b.initialScore - a.initialScore)
       .slice(0, 30);
 
-    const apiKey = env.GEMINI_API_KEY || "AIzaSyDlLGz_GjqXXlQ7o8333ZqDgSmdcxKO_HA";
+    const apiKey = env.GEMINI_API_KEY || "";
     if (!apiKey) {
       return new Response(
         JSON.stringify({

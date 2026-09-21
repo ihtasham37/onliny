@@ -111,9 +111,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           return jsonResponse({ success: false, error: "No file provided in form data" }, 400);
         }
 
-        const cloudName = env.CLOUDINARY_CLOUD_NAME || "daafqfrqh";
-        const apiKey = env.CLOUDINARY_API_KEY || "551261625733394";
-        const apiSecret = env.CLOUDINARY_API_SECRET || "7k8Cn1_vuMPuD3wv8KY79AJcxCw";
+        const cloudName = env.CLOUDINARY_CLOUD_NAME || "";
+        const apiKey = env.CLOUDINARY_API_KEY || "";
+        const apiSecret = env.CLOUDINARY_API_SECRET || "";
 
         // Try signed Cloudinary upload if credentials are present
         if (cloudName && apiKey && apiSecret) {
@@ -179,9 +179,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const body = (await request.json().catch(() => ({}))) as any;
         const fileUrl = body?.fileUrl;
 
-        const cloudName = env.CLOUDINARY_CLOUD_NAME || "daafqfrqh";
-        const apiKey = env.CLOUDINARY_API_KEY || "551261625733394";
-        const apiSecret = env.CLOUDINARY_API_SECRET || "7k8Cn1_vuMPuD3wv8KY79AJcxCw";
+        const cloudName = env.CLOUDINARY_CLOUD_NAME || "";
+        const apiKey = env.CLOUDINARY_API_KEY || "";
+        const apiSecret = env.CLOUDINARY_API_SECRET || "";
 
         if (fileUrl && fileUrl.includes("cloudinary") && cloudName && apiKey && apiSecret) {
           const publicIdMatch = fileUrl.match(/\/atrya_shop\/(.+)\./);
@@ -220,7 +220,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return jsonResponse({ success: false, error: "Missing query" }, 400);
       }
 
-      const apiKey = env.GEMINI_API_KEY || "AIzaSyDlLGz_GjqXXlQ7o8333ZqDgSmdcxKO_HA";
+      const apiKey = env.GEMINI_API_KEY || "";
       if (!apiKey) {
         return jsonResponse({
           success: true,
@@ -324,7 +324,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         .sort((a: any, b: any) => b.initialScore - a.initialScore)
         .slice(0, 30);
 
-      const apiKey = env.GEMINI_API_KEY || "AIzaSyDlLGz_GjqXXlQ7o8333ZqDgSmdcxKO_HA";
+      const apiKey = env.GEMINI_API_KEY || "";
       if (!apiKey) {
         return jsonResponse({
           success: true,
@@ -589,7 +589,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         } catch (crawlerErr) {}
       }
 
-      const apiKey = env.GEMINI_API_KEY || "AIzaSyDlLGz_GjqXXlQ7o8333ZqDgSmdcxKO_HA";
+      const apiKey = env.GEMINI_API_KEY || "";
 
       const systemPrompt = `You are an intelligent E-commerce AI Assistant built inside an online store app.
 

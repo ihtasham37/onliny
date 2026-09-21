@@ -43,7 +43,7 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
       });
     }
 
-    const apiKey = env.GEMINI_API_KEY || "AIzaSyDlLGz_GjqXXlQ7o8333ZqDgSmdcxKO_HA";
+    const apiKey = env.GEMINI_API_KEY || "";
     if (!apiKey) {
       return new Response(
         JSON.stringify({

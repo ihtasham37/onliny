@@ -42,17 +42,17 @@ Jab Cloudflare repository select karega, yeh settings set karein:
 | Variable Name | Value / Description |
 | :--- | :--- |
 | `NODE_VERSION` | `20` |
-| `VITE_FIREBASE_API_KEY` | `AIzaSyCnVWIVy4szPh5mtgqZR7o7FU1NdZKhDBM` |
-| `VITE_FIREBASE_AUTH_DOMAIN` | `e-commerse-ca95f.firebaseapp.com` |
-| `VITE_FIREBASE_DATABASE_URL` | `https://e-commerse-ca95f-default-rtdb.firebaseio.com` |
-| `VITE_FIREBASE_PROJECT_ID` | `e-commerse-ca95f` |
-| `VITE_FIREBASE_STORAGE_BUCKET` | `e-commerse-ca95f.firebasestorage.app` |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | `186543384543` |
-| `VITE_FIREBASE_APP_ID` | `1:186543384543:web:db1bc7a80f750f994c066a` |
-| `GEMINI_API_KEY` | `AIzaSyDlLGz_GjqXXlQ7o8333ZqDgSmdcxKO_HA` |
-| `CLOUDINARY_CLOUD_NAME` | `daafqfrqh` |
-| `CLOUDINARY_API_KEY` | `551261625733394` |
-| `CLOUDINARY_API_SECRET` | `7k8Cn1_vuMPuD3wv8KY79AJcxCw` |
+| `VITE_FIREBASE_API_KEY` | `your_firebase_api_key` |
+| `VITE_FIREBASE_AUTH_DOMAIN` | `your_project_id.firebaseapp.com` |
+| `VITE_FIREBASE_DATABASE_URL` | `https://your_project_id-default-rtdb.firebaseio.com` |
+| `VITE_FIREBASE_PROJECT_ID` | `your_project_id` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `your_project_id.firebasestorage.app` |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | `your_messaging_sender_id` |
+| `VITE_FIREBASE_APP_ID` | `your_firebase_app_id` |
+| `GEMINI_API_KEY` | `your_gemini_api_key` |
+| `CLOUDINARY_CLOUD_NAME` | `your_cloudinary_cloud_name` |
+| `CLOUDINARY_API_KEY` | `your_cloudinary_api_key` |
+| `CLOUDINARY_API_SECRET` | `your_cloudinary_api_secret` |
 
 ---
 

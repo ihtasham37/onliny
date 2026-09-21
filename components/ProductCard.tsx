@@ -149,8 +149,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
           {/* Floating Round Cart Button with festive sparkle marks */}
           <div className="relative shrink-0 ml-1.5">
-            {/* Festive pink sparkle dashes above button */}
-            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-pink-400 absolute -top-2 right-1.5 pointer-events-none opacity-80" fill="none">
+            {/* Sparkle dashes above button */}
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-slate-400 absolute -top-2 right-1.5 pointer-events-none opacity-80" fill="none">
               <path d="M12 2v3M5.5 5.5l2 2M18.5 5.5l-2 2" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
             </svg>
 
@@ -160,7 +160,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-white shadow-md transition-all duration-200 cursor-pointer ${
                 justAdded 
                   ? 'bg-emerald-600 shadow-emerald-500/30 scale-105' 
-                  : 'bg-[#e60067] hover:bg-[#c70058] shadow-pink-500/35 hover:shadow-pink-500/50 hover:scale-105 active:scale-95'
+                  : 'bg-slate-900 hover:bg-black shadow-slate-900/30 hover:shadow-slate-900/50 hover:scale-105 active:scale-95'
               }`}
               title={justAdded ? "Added!" : "Add to Cart"}
             >
