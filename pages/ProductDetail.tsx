@@ -559,7 +559,9 @@ const ProductDetail = () => {
             
             <div className="flex items-baseline gap-2">
                 <p className="text-2xl font-black text-rose-700 tracking-tight">{formatCurrency(product.price)}</p>
-                {product.oldPrice && <p className="text-sm text-slate-400 line-through">{formatCurrency(product.oldPrice)}</p>}
+                {Number(product.oldPrice || 0) > Number(product.price) ? (
+                  <p className="text-sm text-slate-400 line-through">{formatCurrency(product.oldPrice!)}</p>
+                ) : null}
             </div>
 
             {productSizeCategories.length > 0 && (

@@ -119,7 +119,12 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
 
     const prompt = `You are an e-commerce search ranker. Query: "${query}". Candidate Products: ${JSON.stringify(candidateDocs)}. Return JSON matching keys: detectedIntent (string), detectedCategory (string), suggestedKeywords (array of strings), aiSummary (string in Roman Urdu / English), rankedProductIds (array of objects with id and matchScore).`;
 
-    const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
+    const candidateModels = [
+      "gemini-3.8-flash",
+      "gemini-flash-latest",
+      "gemini-3.1-flash-lite",
+      "gemini-3.1-pro-preview",
+    ];
     let geminiData: any = null;
 
     for (const model of candidateModels) {
@@ -144,9 +149,12 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
           if (geminiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
             break;
           }
+        } else if (geminiRes.status === 429) {
+          // Quota exhausted on free tier, skip further calls and use instant local ranking
+          break;
         }
       } catch (callErr) {
-        console.warn(`Error calling Gemini model ${model}:`, callErr);
+        break;
       }
     }
 

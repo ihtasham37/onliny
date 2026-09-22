@@ -60,8 +60,8 @@ export const BannerProductShowcase: React.FC<BannerProductShowcaseProps> = ({
             {/* Scrollable / Responsive Products Row */}
             <div className="flex gap-2.5 sm:gap-3 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-rose-200">
                 {resolvedProducts.map(({ item, product }) => {
-                    const discountPercent = product.oldPrice && product.oldPrice > product.price
-                        ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)
+                    const discountPercent = (Number(product.oldPrice || 0) > Number(product.price))
+                        ? Math.round(((Number(product.oldPrice) - Number(product.price)) / Number(product.oldPrice)) * 100)
                         : 0;
 
                     const displayDiscount = item.customDiscountBadge || (discountPercent > 0 ? `${discountPercent}% OFF` : null);
@@ -102,11 +102,11 @@ export const BannerProductShowcase: React.FC<BannerProductShowcaseProps> = ({
                                     <span className="text-xs sm:text-sm font-black text-rose-700">
                                         {formatCurrency(product.price)}
                                     </span>
-                                    {product.oldPrice && product.oldPrice > product.price && (
+                                    {Number(product.oldPrice || 0) > Number(product.price) ? (
                                         <span className="text-[10px] text-slate-400 line-through">
-                                            {formatCurrency(product.oldPrice)}
+                                            {formatCurrency(product.oldPrice!)}
                                         </span>
-                                    )}
+                                    ) : null}
                                 </div>
                             </div>
 

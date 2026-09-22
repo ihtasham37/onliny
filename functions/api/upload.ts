@@ -14,15 +14,23 @@ interface EventContext<T> {
   next: () => Promise<Response>;
 }
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+  "Access-Control-Max-Age": "86400",
+};
+
+async function generateSha1(str: string): Promise<string> {
+  const enc = new TextEncoder();
+  const hash = await crypto.subtle.digest("SHA-1", enc.encode(str));
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export const onRequest = async (context: EventContext<Env>): Promise<Response> => {
   const { request, env } = context;
-
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-    "Access-Control-Max-Age": "86400",
-  };
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -47,8 +55,43 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
     }
 
     const cloudName = env.CLOUDINARY_CLOUD_NAME || "";
+    const apiKey = env.CLOUDINARY_API_KEY || "";
+    const apiSecret = env.CLOUDINARY_API_SECRET || "";
     const uploadPreset = env.CLOUDINARY_UPLOAD_PRESET || "";
 
+    // Method 1: Signed Cloudinary Upload
+    if (cloudName && apiKey && apiSecret) {
+      const timestamp = Math.round(Date.now() / 1000).toString();
+      const folder = "atrya_shop";
+      const signatureString = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
+      const signature = await generateSha1(signatureString);
+
+      const cldFormData = new FormData();
+      cldFormData.append("file", file);
+      cldFormData.append("api_key", apiKey);
+      cldFormData.append("timestamp", timestamp);
+      cldFormData.append("signature", signature);
+      cldFormData.append("folder", folder);
+
+      const cldRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+        {
+          method: "POST",
+          body: cldFormData,
+        }
+      );
+
+      if (cldRes.ok) {
+        const cldData = (await cldRes.json()) as any;
+        if (cldData && cldData.secure_url) {
+          return new Response(JSON.stringify({ url: cldData.secure_url }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
+
+    // Method 2: Unsigned Preset Cloudinary Upload
     if (cloudName && uploadPreset) {
       const cldFormData = new FormData();
       cldFormData.append("file", file);
@@ -73,7 +116,7 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
       }
     }
 
-    // Fallback: Convert to Data URI so user never fails
+    // Method 3: Resilient Base64 Data URI Fallback
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     let binary = "";

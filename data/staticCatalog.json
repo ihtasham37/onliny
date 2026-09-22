@@ -1,157 +1,1062 @@
 {
   "products": [
     {
-      "id": "prod-fleece-girls-tracksuit",
-      "name": "Black Fleece Tracksuit for Girls - Premium Winter Wear",
-      "description": "Super soft premium black fleece tracksuit for girls with cozy inner lining, relaxed streetwear fit, elastic waistband and matching jacket.",
-      "price": 2040,
-      "oldPrice": 2550,
+      "id": "5fj4HMUx6SjqA3LsZtqF",
+      "description": "Fabric: Wash And Wear\nPattern: Plain\nAccessories: Brand Tag And Bag\nSeason: All Season\nPackage Includes: 1 x Suit\nShirt Cutting: 2 Meter\nTrouser Cutting: 2 Meter\nSuit Cutting: 4 Meter\n Color: Brown\n\n\nNote: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n\nProduct Code: MZ1492200797SRCN",
+      "customId": "MZ1492200797SRCN",
       "category": "Child",
-      "images": [
-        "https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=800&auto=format&fit=crop&q=80",
-        "https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?w=800&auto=format&fit=crop&q=80"
-      ],
-      "isVisible": true,
-      "freeDelivery": true,
-      "shopName": "onliny",
-      "createdAt": 1726000000000
-    },
-    {
-      "id": "prod-winter-baby-romper",
-      "name": "Cozy Cotton Knit Baby Romper with Hood",
-      "description": "Ultra-comfortable, breathable warm cotton knit romper for infants and toddlers with cute bear ears hood.",
-      "price": 1850,
-      "oldPrice": 2200,
-      "category": "Baby",
-      "images": [
-        "https://images.unsplash.com/photo-1522771930-78848d9293e8?w=800&auto=format&fit=crop&q=80"
-      ],
-      "isVisible": true,
-      "freeDelivery": true,
-      "shopName": "onliny",
-      "createdAt": 1726000100000
-    },
-    {
-      "id": "prod-boyfriend-luxury-gift-set",
-      "name": "Gentleman's Leather Wallet, Belt & Fragrance Hamper",
-      "description": "Sophisticated gift set for boyfriends and husbands including genuine leather bifold wallet, classic buckle belt, and premium long-lasting perfume.",
-      "price": 3499,
-      "oldPrice": 4200,
-      "category": "Boyfriend Gifts",
-      "images": [
-        "https://images.unsplash.com/photo-1627123424574-724758594e93?w=800&auto=format&fit=crop&q=80"
-      ],
-      "isVisible": true,
+      "oldPrice": 0,
+      "name": "Men’s Unstitched Wash And Wear Plain Suit",
+      "easyReturn": false,
+      "returnPolicy": "",
       "freeDelivery": false,
-      "shopName": "onliny",
-      "createdAt": 1726000200000
+      "images": [
+        "https://static.markaz.app/pakistan/products/1492-70-743820-product-1.webp",
+        "https://static.markaz.app/pakistan/products/1492-70-743820-product-2.webp"
+      ],
+      "createdAt": 1789970671309,
+      "deliveryTime": "Delivery in 3-5 Days",
+      "shippingFee": 0,
+      "shopName": "Onliny ",
+      "price": 1719,
+      "isVisible": true,
+      "sizeCategories": [
+        {
+          "categoryName": "Size",
+          "sizes": [
+            "Unstitched"
+          ]
+        }
+      ]
     },
     {
-      "id": "prod-girlfriend-romantic-hamper",
-      "name": "Romantic Rose Gold Pendant & Scented Candle Gift Box",
-      "description": "Elegant heart pendant necklace presented in a luxury velvet keepsake jewelry box with scented soy candle and personalized greetings card.",
-      "price": 2890,
-      "oldPrice": 3500,
-      "category": "Girlfriend Gifts",
+      "id": "5gcs5LAyY5JTvSLomd5s",
+      "shopName": "Onliny ",
+      "shippingFee": 139,
+      "sizeCategories": [
+        {
+          "categoryName": "Age / Size",
+          "sizes": [
+            "5-6 Years",
+            "6-7 Years",
+            "7-8 Years",
+            "8-9 Years",
+            "9-10 Years",
+            "10-11 Years",
+            "11-12 Years"
+          ]
+        }
+      ],
+      "deliveryTime": "3-5 Days Delivery",
+      "isVisible": true,
+      "price": 2040,
+      "returnPolicy": "",
+      "freeDelivery": false,
+      "name": "Black Fleece Tracksuit for Girls Boys 1-12 Years",
+      "description": "This stylish 2-piece fleece tracksuit is perfect for your little one’s daily adventures, offering both comfort and a trendy look that suits any occasion. Designed for Pakistani kids aged 1-12, it’s made from premium quality fleece that keeps them warm during chilly winter days while remaining breathable for active play. The durable construction ensures long-lasting wear, making it ideal for school, outings, or casual wear at home. The sleek black design with a front zipper and functional pockets adds a modern touch, while the soft material hugs your child’s body without restricting movement.\n\nThe set includes a cropped fleece jacket with a relaxed fit and matching tapered trousers, both crafted for easy care and everyday durability. The jacket’s zipper closure and side pockets make it practical for storing small items, while the trousers’ elastic waistband ensures a comfortable fit. The outfit is designed for girls and boys, with a versatile look that works for casual wear or special events. The material is soft, warm, and machine washable, making it a smart investment for your child’s wardrobe. Available in multiple sizes, this new arrival is the best price in Pakistan for quality kids’ fashion.\n\n- Made from premium quality fleece for warmth and comfort\n- Stylish black design with front zipper and functional pockets\n- Durable construction for long-lasting wear\n- Perfect fit for girls and boys aged 1-12 years\n- Easy to care for and machine washable\n- Ideal for daily wear, school, or casual outings",
       "images": [
-        "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800&auto=format&fit=crop&q=80"
+        "https://static.markaz.app/pakistan/products/1995-207-684741-product-1.webp",
+        "https://static.markaz.app/pakistan/products/1995-207-684741-product-2.webp",
+        "https://static.markaz.app/pakistan/products/1995-207-684741-product-3.webp",
+        "https://static.markaz.app/pakistan/products/1995-207-684741-product-4.webp",
+        "https://static.markaz.app/pakistan/products/1995-207-684741-product-5.webp",
+        "https://static.markaz.app/pakistan/products/349-207-664592-product-1.webp",
+        "https://static.markaz.app/pakistan/products/1995-207-684745-product-1.webp",
+        "https://cbu01.alicdn.com/img/ibank/O1CN019rw6mT1giCUNFwoKq_!!2208074734175-0-cib.jpg"
+      ],
+      "category": "Child",
+      "oldPrice": 0,
+      "customId": "MZ1995200162GYKSCN",
+      "createdAt": 1789918179367,
+      "easyReturn": false
+    },
+    {
+      "id": "8ZPOekuPy5KULxuisNGD",
+      "description": "•  Target: All Seasons \n•   Type: Outerwear/Jacket \n•   Quality: Premium Material \n•   Care: Easy Maintenance.\n•  Product Code: MZCHYHAM9434",
+      "oldPrice": 2300,
+      "category": "Kids baby",
+      "createdAt": 1763738887284,
+      "name": "Kids baby suits jacket ",
+      "sizeCategories": [
+        {
+          "sizes": [
+            "70cm",
+            "80cm",
+            "90cm",
+            "100cm",
+            "110cm"
+          ],
+          "categoryName": "Sizes"
+        },
+        {
+          "sizes": [
+            "Black",
+            "Brown",
+            "Pink",
+            "Beige"
+          ],
+          "categoryName": "Color"
+        }
+      ],
+      "shippingFee": 150,
+      "price": 2100,
+      "images": [
+        "https://i.ibb.co/RT9HyvBs/1763738517748.jpg",
+        "https://i.ibb.co/zDY0V3s/1763738524893.jpg",
+        "https://i.ibb.co/YFH5x7Vs/1763738524680.jpg",
+        "https://i.ibb.co/mrV00Kyy/1763738526080.jpg"
+      ],
+      "deliveryTime": "Delivery in 7 Days",
+      "isVisible": true,
+      "returnPolicy": "",
+      "easyReturn": false,
+      "freeDelivery": false
+    },
+    {
+      "id": "ASXIY1OLgy4unOD73EsV",
+      "oldPrice": 0,
+      "category": "T shirt",
+      "images": [
+        "https://i.ibb.co/G4Z52KV5/1763740207536.jpg",
+        "https://i.ibb.co/tPXWKg8j/1763740207726.jpg",
+        "https://i.ibb.co/rGwDJpRn/1763740207861.jpg"
+      ],
+      "shippingFee": 150,
+      "sizeCategories": [
+        {
+          "sizes": [
+            "1-2year",
+            "3-4year",
+            "5-6year",
+            "7-8year",
+            "9-10year"
+          ],
+          "categoryName": "Sizes"
+        }
+      ],
+      "createdAt": 1763740283001,
+      "isVisible": true,
+      "name": "2 pice votton jersey for girls night suit",
+      "deliveryTime": "Delivery in 3 to 7  Days",
+      "price": 980,
+      "returnPolicy": "",
+      "description": "•  Material: Cotton Jersey\n•  Pattern: Printed\n•  Gender: Girl's, Boy's\n•  Preferred Ages: 1-10 Years\n•  Available Sizes: 3-4 Years, 5-6 Years, 7-8 Years, 9-10 Years\n•  Number Of Pieces: 2 Pcs\n•  Package Includes: 1 x Night Suit\n•   Color: Pink\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1275200076AZGS",
+      "freeDelivery": false,
+      "easyReturn": false
+    },
+    {
+      "id": "AWM42SYWIfXQVsQgz31G",
+      "easyReturn": false,
+      "isVisible": true,
+      "images": [
+        "https://i.ibb.co/N6gRRpX4/1763735735573.jpg",
+        "https://i.ibb.co/39MZYdRy/1763735731139.jpg",
+        "https://i.ibb.co/CsPMVwp4/1763736042158.jpg",
+        "https://i.ibb.co/ynyc0yJ8/1763736040248.jpg"
+      ],
+      "shippingFee": 0,
+      "name": "2 pic girl lawn suit",
+      "category": "Girls suits",
+      "oldPrice": 2550,
+      "freeDelivery": true,
+      "returnPolicy": "",
+      "price": 2000,
+      "deliveryTime": "Delivery in 3 to7 Days",
+      "description": "•  Material: Lawn\n•  Pattern: Embroidered\n•  Gender: Girl's\n•  Preferred Ages: 1-12 Years\n•  Available Sizes: 1-2 Years, 3-4 Years, 5-6 Years, 7-8 Years, 8-10 Years, 11-12 Years\n•  Number Of Pieces: 2 Pcs\n•  Package Includes: 1 x Shirt, 1 x Trouser\n•  Shirt Cutting: 2 Meter\n•  Trouser Cutting: 1.25 Meter\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ65300000595RGML\n6",
+      "sizeCategories": [
+        {
+          "categoryName": "Sizes",
+          "sizes": [
+            "1-2year",
+            "3-4year",
+            "5-6year",
+            "7-8year",
+            "9-10year",
+            "11-12year"
+          ]
+        },
+        {
+          "categoryName": "Colors",
+          "sizes": [
+            "Black",
+            "Orange"
+          ]
+        }
+      ],
+      "createdAt": 1763736133616
+    },
+    {
+      "id": "F29xivcD8M3vMvtwqq8p",
+      "description": "*BRAND: BAREEZ'E*  *WINTER DHANAK COLLECTION 2026*  *PREMIUM QUALITY*  *DHANAK FULL PROCEDURE*  *NEW CATALOGUE*  *Embroidered 3 Piece*  *MOST HIT DESIGN*  *Front Full Embroidered* *Neckline Embroidered Patch* *Daman Embroidered Patch* *Sleeves Full Embroidered* *Plain Back Side* *Plain Trouser* *Fully Heavy Embroidered Dhanak Shawl* BR 222/246/224/250/223/221A,B *Super Wholesale Price :  *WINTER DHANAK COLLECTION 2026*  *PREMIUM QUALITY*  *DHANAK FULL PROCEDURE*  *NEW CATALOGUE*  *Embroidered 3 Piece*  *MOST HIT DESIGN*  *Front Full Embroidered* *Neckline Embroidered Patch* *Daman Embroidered Patch* *Sleeves Full Embroidered* *Plain Back Side* *Plain Trouser* *Fully Heavy Embroidered Dhanak Shawl**Super Wholesale Price :",
+      "price": 5889,
+      "isVisible": true,
+      "shopName": "Onliny ",
+      "easyReturn": false,
+      "sizeCategories": [
+        {
+          "sizes": [
+            "Unstitched"
+          ],
+          "categoryName": "Size"
+        }
+      ],
+      "shippingFee": 139,
+      "name": "3 Pcs Women's Unstitched Embroidered Suit *BRAND: BAREEZ'E code hb",
+      "deliveryTime": "3-5 Days Delivery",
+      "createdAt": 1790087595776,
+      "images": [
+        "https://static.markaz.app/pakistan/products/3111-2-MZ3111200073GICO-product-1.webp",
+        "https://static.markaz.app/pakistan/products/3111-2-MZ3111200073GICO-product-4.mp4",
+        "https://static.markaz.app/pakistan/products/3111-2-MZ3111200073GICO-product-2.webp",
+        "https://static.markaz.app/pakistan/products/3111-2-MZ3111200073GICO-product-3.webp",
+        "https://static.markaz.app/pakistan/products/3111-2-MZ3111200073GICO-product-5.webp",
+        "https://static.markaz.app/pakistan/products/3111-2-MZ3111200073GICO-product-6.webp",
+        "https://static.markaz.app/pakistan/products/3111-2-MZ3111200073GICO-product-7.webp"
+      ],
+      "returnPolicy": "",
+      "freeDelivery": false,
+      "customId": "MZ3111200073GICO",
+      "oldPrice": 0,
+      "category": "Child"
+    },
+    {
+      "id": "GF8QrxLvBv2I9Pb29YoW",
+      "returnPolicy": "",
+      "isVisible": true,
+      "easyReturn": false,
+      "freeDelivery": true,
+      "price": 3100,
+      "deliveryTime": "Delivery in 5 to 7Days",
+      "shippingFee": 0,
+      "sizeCategories": [
+        {
+          "sizes": [
+            "Mediam"
+          ],
+          "categoryName": "Select sizes"
+        },
+        {
+          "categoryName": "Select Colors",
+          "sizes": [
+            "Green",
+            "Mahron"
+          ]
+        }
+      ],
+      "category": "T shirt",
+      "oldPrice": 3300,
+      "name": "3 pcs woman stitched maxi suit",
+      "description": "•  Fabric: Chiffon\n•  Pattern: Embroidered\n•  Shirt Pattern: Embroidered\n•  Gown Pattern: Embroidered\n•  Trouser Pattern: Plain\n•  Dupatta Pattern: Embroidered\n•  Available Sizes: Medium\n•  Number Of Pieces: 3 Pcs\n•  Color: Green\n•  Package Includes: 1 x Maxi, 1 x Trouser, 1 x Dupatta\n•  Shirt Length: 53 Inches\n•  Shirt Chest: 21 Inches\n•  Ghaira: 80 Inches\n•  Trouser Length: 38 Inches\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ10220049KICN",
+      "createdAt": 1763791665850,
+      "images": [
+        "https://i.ibb.co/B5pWsd44/1763790828109.jpg",
+        "https://i.ibb.co/gMknkP9N/1763790825098.jpg",
+        "https://i.ibb.co/xqSB50RS/1763791580695.jpg",
+        "https://i.ibb.co/4gfrff6p/1763791580952.jpg"
+      ]
+    },
+    {
+      "id": "N8mVDvaDgiwx6xuSgYVQ",
+      "sizeCategories": [
+        {
+          "sizes": [
+            "Standard"
+          ],
+          "categoryName": "Size"
+        }
+      ],
+      "images": [
+        "https://i.ibb.co/nsK5BVS6/1763797567574.jpg",
+        "https://i.ibb.co/SwmTw5Wp/1763797567962.jpg"
+      ],
+      "oldPrice": 0,
+      "category": "Girls fashion",
+      "createdAt": 1763797699427,
+      "description": "•  Fabric: Chiffon\n•  Shirt: Maxi\n•  Back: Plain\n•  Trouser: Plain\n•  Dupatta: Plain\n•  Size: Shirt (Length: 52+, Chest: 20+, Arm Size: 8, Sleeves: 18), Trouser (Length:37, Waist: 25\n•  Season: Winters\n•  Package Includes: 1 x Shirt, 1 x Trousers, 1 x Dupatta\n•  Note: There might be 1-3 cm errors of dimension data due to pure manual measurement\n•  There might be slight color differences due to different light and monitor effects.\n•  Product Code: MZ23800414MKCLN",
+      "freeDelivery": false,
+      "returnPolicy": "",
+      "name": "3 pcs woman stitched maxi suit",
+      "price": 2200,
+      "isVisible": true,
+      "deliveryTime": "Delivery in 3 to 5 Days",
+      "easyReturn": true,
+      "shippingFee": 135
+    },
+    {
+      "id": "P6IJZXKHhOEAX1QVGD8T",
+      "deliveryTime": "Delivery in 3 Days",
+      "oldPrice": 2050,
+      "category": "T shirt",
+      "shippingFee": 135,
+      "createdAt": 1763787215005,
+      "freeDelivery": false,
+      "returnPolicy": "",
+      "price": 1750,
+      "sizeCategories": [
+        {
+          "sizes": [
+            "S",
+            "M",
+            "L",
+            "XL"
+          ],
+          "categoryName": "Sizes"
+        },
+        {
+          "categoryName": "Select colors",
+          "sizes": [
+            "Black",
+            "White"
+          ]
+        }
+      ],
+      "name": "2 pic Man  hoodie tracksuit ",
+      "description": "•  Gender: Men's\n•  Fabric: Fleece\n•  Pattern: Printed\n•  Neck Type: Hooded Neck\n•  Sizes: Small, Medium, Large, X-Large\n•  Number Of Pieces: 2 Pcs\n•  Package Includes: 1 x Hoodie Track Suit\n•  Shirt Length: 26 Inches\n•  Shirt Chest: 18 Inches\n•  Shirt Shoulder: 10 Inches\n•  Arm Length: 4 Inches\n•  Trouser Length: 38 Inches\n•  Trouser Waist: 30 Inches\n•  Trouser Hip: 30 Inches\n•   Color: Black\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1673200329ZJAL",
+      "images": [
+        "https://i.ibb.co/93g19XvG/1763786876666.jpg",
+        "https://i.ibb.co/DfFC5Spj/1763787122157.jpg",
+        "https://i.ibb.co/27xMMNJF/1763744008709.jpg"
+      ],
+      "isVisible": true,
+      "easyReturn": true
+    },
+    {
+      "id": "QlGwwJwDP30K18JqSN5B",
+      "category": "Tracksuits",
+      "oldPrice": 1200,
+      "freeDelivery": true,
+      "name": "2 pice cotton tracksuit Tshirt trouser ",
+      "images": [
+        "https://i.ibb.co/QgmtPSb/1763788210497.jpg",
+        "https://i.ibb.co/p6QP7Knj/1763788235136.jpg",
+        "https://i.ibb.co/RTH6swcs/1763788228219.jpg",
+        "https://i.ibb.co/xS25CvtS/1763787759250.jpg",
+        "https://i.ibb.co/k6MsP0Hx/1763788235340.jpg"
+      ],
+      "returnPolicy": "",
+      "createdAt": 1763788606498,
+      "deliveryTime": "Delivery in 3 to 7Days",
+      "easyReturn": true,
+      "price": 1100,
+      "shippingFee": 0,
+      "sizeCategories": [
+        {
+          "categoryName": "Select sizes",
+          "sizes": [
+            "M",
+            "L",
+            "XL"
+          ]
+        },
+        {
+          "sizes": [
+            "Black",
+            "White",
+            "Yellow"
+          ],
+          "categoryName": "Select colors"
+        }
+      ],
+      "isVisible": true,
+      "description": "•  Gender: Men's\n•  Fabric: Cotton\n•  Pattern: Graphic Sublimation\n•  Neck Type: Round Neck\n•  Sizes: Medium, Large, X-Large\n•  Number Of Pieces: 1 Pc\n•  Package Includes: 1 x T Shirt, 1 x Trouser\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ23700000092FYSE"
+    },
+    {
+      "id": "RlYcy9uvrt8s6cp72kJn",
+      "price": 2900,
+      "sizeCategories": [
+        {
+          "sizes": [
+            "Mediam",
+            "Standard"
+          ],
+          "categoryName": "Select sizes"
+        },
+        {
+          "categoryName": "Select colors",
+          "sizes": [
+            "Black"
+          ]
+        }
+      ],
+      "images": [
+        "https://i.ibb.co/YBLmvsW5/1763791687906.jpg",
+        "https://i.ibb.co/rK0z7JTP/1763791688049.jpg"
+      ],
+      "category": "Girls fashion",
+      "oldPrice": 3300,
+      "createdAt": 1763791907826,
+      "description": "•  Shirt Fabric: Chiffon\n•  Pattern: Embroidered\n•  Neck Type: Round Neck\n•  Available Sizes: Standard Size\n•  Number Of Pieces: 3 Pcs\n•  Color: Black\n•  Package Includes: 1 x Maxi, 1 x Dupatta, 1 x Trouser\n•  Flare Length: 100 Inches\n•  Shirt Length: 53 Inches\n•  Shirt Chest: 21 Inches\n•  Trouser Length: 38 Inches\n•  Dupatta Dimensions: 2.25 Yards\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1455200034TMCSBYTM",
+      "deliveryTime": "Delivery in 3 to 7Days",
+      "isVisible": true,
+      "name": "3 pcs woman stitched maxi suit",
+      "returnPolicy": "",
+      "shippingFee": 0,
+      "freeDelivery": true,
+      "easyReturn": true
+    },
+    {
+      "id": "Ufj5CO3YZ8b1ZJmKVVpx",
+      "deliveryTime": "Delivery in 3 to 7Days",
+      "price": 930,
+      "isVisible": true,
+      "oldPrice": 1200,
+      "category": "Girls suits",
+      "description": "•  Material: Cotton Jersey\n•  Pattern: Printed\n•  Gender: Girl's, Boy's\n•  Preferred Ages: 1-10 Years\n•  Available Sizes: 1-2 Years, 3-4 Years, 5-6 Years, 7-8 Years, 9-10 Years\n•  Number Of Pieces: 2 Pcs\n•  Color: Pink\n•  Package Includes: 1 x Night Suit\n•  Size years:\n•  1-2 T shirt 17 trouser 20\n•  3-4 T shirt 18 trouser 21\n•  5-6 T shirt 20 trouser 24\n•  7-8 T shirt 21 trouser 27 \n•  9-10 T shirt 22 trouser 30\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1275200065AZGS",
+      "freeDelivery": false,
+      "easyReturn": false,
+      "returnPolicy": "",
+      "name": "2pice cotton jersy for girls",
+      "images": [
+        "https://i.ibb.co/3ybfhjy0/1763739677779.jpg",
+        "https://i.ibb.co/8L0dDhKX/1763739678122.jpg"
+      ],
+      "sizeCategories": [
+        {
+          "categoryName": "Sizes",
+          "sizes": [
+            "1-2year",
+            "3-4year",
+            "5-6year",
+            "7-8year",
+            "9-10year"
+          ]
+        }
+      ],
+      "shippingFee": 150,
+      "createdAt": 1763739754262
+    },
+    {
+      "id": "V9CNnMCkRfQ6Z2MQfVG7",
+      "images": [
+        "https://i.ibb.co/YvQCsmP/1763796399238.jpg",
+        "https://i.ibb.co/mV1kqFC0/1763796398331.jpg",
+        "https://i.ibb.co/W4VFfSRY/1763796398844.jpg",
+        "https://i.ibb.co/SSKkT7b/1763796675074.jpg",
+        "https://i.ibb.co/BV3C2fvG/1763796675230.jpg"
+      ],
+      "deliveryTime": "Delivery in 3 to 5 Days",
+      "shippingFee": 135,
+      "returnPolicy": "",
+      "createdAt": 1763796749044,
+      "freeDelivery": false,
+      "sizeCategories": [
+        {
+          "categoryName": "Select Color",
+          "sizes": [
+            "Mahron",
+            "Blue"
+          ]
+        }
+      ],
+      "isVisible": true,
+      "category": "Girls fashion",
+      "oldPrice": 1940,
+      "price": 1600,
+      "easyReturn": false,
+      "name": "Woman maxi shamoz silk suit",
+      "description": "•  Fabric: Shamoz Silk\n•  Pattern: Embroidered\n•  Shirt: Embroidered\n•  Back: Plain\n•  Available Sizes: Standard Size\n•  Number Of Pieces: 1 Pc\n•  Package Includes: 1 x Maxi\n•  Length Size: 51 Inches\n•  Chest Size: 20 Inches\n•  Flair: 100 Inches\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ71420057CNCN"
+    },
+    {
+      "id": "VQZEvXYxujbwhSMlTaZh",
+      "isVisible": true,
+      "shippingFee": 150,
+      "sizeCategories": [
+        {
+          "sizes": [
+            "70cm",
+            "80cm",
+            "90cm",
+            "100cm"
+          ],
+          "categoryName": "Sizes"
+        },
+        {
+          "sizes": [
+            "Mommy",
+            "Daddy"
+          ],
+          "categoryName": "Tag"
+        }
+      ],
+      "oldPrice": 2300,
+      "category": "Kids baby",
+      "returnPolicy": "",
+      "easyReturn": false,
+      "name": "Baby kids jacket troser",
+      "freeDelivery": false,
+      "images": [
+        "https://i.ibb.co/Kj8X0HyV/1763739038469.jpg",
+        "https://i.ibb.co/1JLxgFBq/1763739039569.jpg",
+        "https://i.ibb.co/wFXprRx2/1763739039305.jpg",
+        "https://i.ibb.co/SXKtxFS5/1763739039016.jpg"
+      ],
+      "deliveryTime": "Delivery in 3 to 7 Days",
+      "description": "•  Material: Cotton\n•  Type: Pants\n•  Color: Pink\n•  Season: Autumn\n•  Style: Sporty.\n•  Product Code: MZCHYHA258",
+      "price": 2150,
+      "createdAt": 1763739380667
+    },
+    {
+      "id": "YREil4qD6SccrbZmoyY0",
+      "deliveryTime": "Delivery in 3 to 5 Days",
+      "customId": "MZ1689200545ILFNPK",
+      "oldPrice": 0,
+      "category": "shirt",
+      "shippingFee": 0,
+      "freeDelivery": true,
+      "isVisible": true,
+      "returnPolicy": "",
+      "images": [
+        "https://i.ibb.co/5WW7XwcT/1763824282377.webp",
+        "https://i.ibb.co/KxwLS0Nb/1763824281700.webp",
+        "https://i.ibb.co/3yfMJM7J/1763824281828.webp",
+        "https://i.ibb.co/398dhJfd/1763824431254.webp",
+        "https://i.ibb.co/hxH1rcP3/1763824430767.webp"
+      ],
+      "createdAt": 1763824524577,
+      "description": "•  Fabric: Swiss Lawn\n•  Pattern: Printed\n•  Neck Type: Round Neck\n•  Shirt Pattern: Printed\n•  Trouser Fabric: Swiss Lawn\n•  Trouser Pattern: Printed\n•  Available Sizes: Standard Size\n•  Number Of Pieces: 2 Pcs\n•  Package Includes: 1 x Shirt, 1 x Trouser\n•  Shirt Length: 38 Inches\n•  Shirt Chest: 22 Inches\n•  Shirt Shoulder: 15 Inches\n•  Arm Length: 11 Inches\n•  Trouser Length: 39 Inches\n•  Trouser Waist: 20 Inches\n•  Trouser Hip: 23 Inches\n•   Color: Maroon\n•  Size Measurements\n•  Medium Size\n•  Chest Size 20/21\n•  Shirt length 37/38\n•  Flapper length 38\n•  Large size\n•  Chest 22/23\n•  Shirt length 37/38\n•  Flapper length 39\n•  Stuff : Crepe Lawn (Premium Quality)\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1689200545ILFNPK",
+      "name": "2 pcs woman stitched lawn suit for girls",
+      "price": 2700,
+      "easyReturn": true,
+      "sizeCategories": [
+        {
+          "sizes": [
+            "Standard"
+          ],
+          "categoryName": "Select sizes"
+        },
+        {
+          "categoryName": "Select colors",
+          "sizes": [
+            "Black",
+            "Orange"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "axHrr5n9E6ZgQJCW7bWu",
+      "price": 3100,
+      "description": "•  Fabric: Chiffon\n•  Pattern: Patch Work\n•  Available Sizes: Standard Size\n•  Number Of Pieces: 3 Pcs\n•  Package Includes: 1 x Maxi, 1 x Trouser, 1 x Dupatta\n•  Shirt Length: 53 Inches\n•  Shirt Chest: 21 Inches\n•  Trouser Length: 38 Inches\n•  Dupatta Dimensions: 2.25 Yards\n•   Color: Green\n•  Front And Back Pearls With Lace Work Long Flare Maxi With Lace Dupatta 3PCs\n•  Chest Size 21\n•  Maxi Length 53\n•  Maxi Ghair 120\n•  Maxi Stuff Chiffon\n•  (Inner Crepe)\n•  Trouser Length 38\n•  Stuff Malai \n•  Lace work dupatta\n•  Size 2.25 Yards\n•  Stuff Chiffon\n•  Original Picture/Video\n•  Complete Overlock\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1604200382AKFNPT",
+      "createdAt": 1763792548342,
+      "name": "3 pcs woman stitched maxi suit ",
+      "oldPrice": 0,
+      "category": "Girls fashion",
+      "sizeCategories": [
+        {
+          "sizes": [
+            "Standard"
+          ],
+          "categoryName": "Select sizes"
+        }
+      ],
+      "shippingFee": 135,
+      "deliveryTime": "Delivery in 3 to 7 Days",
+      "easyReturn": true,
+      "returnPolicy": "",
+      "images": [
+        "https://i.ibb.co/SjPvfDM/1763792095735.webp",
+        "https://i.ibb.co/Jh5hVxk/1763792095960.webp"
+      ],
+      "freeDelivery": false,
+      "isVisible": true
+    },
+    {
+      "id": "dsnhsfCIfZEXGghzOiue",
+      "name": "2 pice man trousers shirt 3 color mixed ",
+      "price": 2150,
+      "shippingFee": 150,
+      "oldPrice": 0,
+      "category": "Tracksuits",
+      "isVisible": true,
+      "description": "•  Season: Autumn/Fall\n•  Target: Men\n•  Type: Pants/Bottoms\n•  Style: Casual\n•  Occasion: Sports/Active.\n•  Product Code: MZCHYHAM2998",
+      "sizeCategories": [
+        {
+          "categoryName": "Select sizes",
+          "sizes": [
+            "S",
+            "M",
+            "L",
+            "XL",
+            "XXL"
+          ]
+        },
+        {
+          "categoryName": "Select colors",
+          "sizes": [
+            "White",
+            "Orange",
+            "Yellow",
+            "Green",
+            "Red"
+          ]
+        }
+      ],
+      "returnPolicy": "",
+      "freeDelivery": false,
+      "createdAt": 1763789487461,
+      "images": [
+        "https://i.ibb.co/xqdTgJjQ/1763789091762.jpg",
+        "https://i.ibb.co/kVbbBJKf/1763789093811.jpg",
+        "https://i.ibb.co/HDgM1kvW/1763789094200.jpg",
+        "https://i.ibb.co/jPXXbvGT/1763789094009.jpg",
+        "https://i.ibb.co/75bC1Xs/1763789095025.jpg"
+      ],
+      "deliveryTime": "Delivery in 3 to 7Days",
+      "easyReturn": true
+    },
+    {
+      "id": "dy18aEDlR2heiQyM4984",
+      "description": "•  Gender: Men's\n•  Fabric: Fleece\n•  Pattern: Printed\n•  Neck Type: Hooded Neck\n•  Sizes: Small, Medium, Large, X-Large\n•  Number Of Pieces: 2 Pcs\n•  Package Includes: 1 x Hoodie Track Suit\n•  Shirt Length: 30 Inches\n•  Shirt Chest: 26 Inches\n•  Shirt Shoulder: 12 Inches\n•  Arm Length: 10 Inches\n•  Trouser Length: 38 Inches\n•  Trouser Waist: 32 Inches\n•  Shorts Length: 17 Inches\n•  Trouser Hip: 10 Inches\n•   Color: Pink\n•  Stay cozy and stylish with our Ultra-Comfort Hoodie, crafted with the perfect blend of warmth, softness, and durability. Made from high-quality cotton blend fabric, this hoodie is designed to keep you comfortably snug in any weather, making it an ideal choice for casual outings, workout sessions, or simply lounging at home.\n•  Specifications:\n•  •    Material: Crafted from a premium blend of 80% cotton and 20% polyester for ultimate comfort and durability.\n•  •    Fit: Modern and relaxed fit for a trendy look and easy movement.\n•  •    Design: Featuring a classic hoodie design with a kangaroo pocket to keep your hands warm and store small essentials.\n•  •    Warmth: Midweight fabric provides just the right amount of warmth, making it suitable for layering in colder seasons.\n•  Available Sizes: Small, Medium, Large, XL\n•  Care: Hand wash cold, gentle cycle; tumble dry low; do not bleach; iron on low heat if needed; do not dry clean; do not dry in sunlight\n•  Precautions:\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1650200471FNFS",
+      "price": 2100,
+      "sizeCategories": [
+        {
+          "sizes": [
+            "S",
+            "M",
+            "L",
+            "XL"
+          ],
+          "categoryName": "Select size"
+        },
+        {
+          "sizes": [
+            "Pink",
+            "Silver white"
+          ],
+          "categoryName": "Colors select"
+        }
+      ],
+      "freeDelivery": true,
+      "returnPolicy": "",
+      "createdAt": 1763744729991,
+      "deliveryTime": "Delivery in 3 Days",
+      "images": [
+        "https://i.ibb.co/9HTXqZHX/1763744579402.jpg",
+        "https://i.ibb.co/27xMMNJF/1763744008709.jpg",
+        "https://i.ibb.co/g51NvyD/1763744784942.jpg"
+      ],
+      "name": "2 pic Man and women tracksuit ",
+      "easyReturn": true,
+      "shippingFee": 0,
+      "isVisible": true,
+      "category": "Tracksuits",
+      "oldPrice": 0
+    },
+    {
+      "id": "gqJ4rCIbqv1Ge8VLTbkZ",
+      "name": "3 pcs woman stitched fancy maxi suit",
+      "easyReturn": false,
+      "sizeCategories": [
+        {
+          "sizes": [
+            "Standard size"
+          ],
+          "categoryName": "Size"
+        }
+      ],
+      "deliveryTime": "Delivery in 3 to 5 Days",
+      "description": "•  Fabric: Katan Silk\n•  Product Type: Fancy Stitched Maxi\n•  Size: Standard\n•  Shirt (Shoulder 15 Inches, Chest 21 Inches, Shirt Length 55 Inches), Trouser (Waist (Half) 21 Inches, Length 37 Inches), Dupatta (Length: 72 Inches, Width: 45 Inches)\n•  Package Includes: 1 x Maxi, 1 x Dupatta, 1 x Trouser\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ72300001ZHSAT",
+      "images": [
+        "https://i.ibb.co/sJW8cngP/1763796932068.jpg",
+        "https://i.ibb.co/F2jp3SN/1763796932302.jpg",
+        "https://i.ibb.co/QvTXXGxC/1763796932456.jpg"
+      ],
+      "createdAt": 1763797115134,
+      "freeDelivery": false,
+      "returnPolicy": "",
+      "shippingFee": 135,
+      "isVisible": true,
+      "oldPrice": 0,
+      "category": "Girls fashion",
+      "price": 1920
+    },
+    {
+      "id": "hst9aJipKqpYfpghuyhf",
+      "price": 1300,
+      "easyReturn": true,
+      "shippingFee": 0,
+      "isVisible": true,
+      "images": [
+        "https://i.ibb.co/Q3c2c8pb/1763787266340.jpg",
+        "https://i.ibb.co/KjJB44m6/1763787416404.jpg",
+        "https://i.ibb.co/mFvStjC9/1763787415815.jpg",
+        "https://i.ibb.co/KjJB44m6/1763787416404.jpg"
+      ],
+      "sizeCategories": [
+        {
+          "categoryName": "Select sizes",
+          "sizes": [
+            "S",
+            "M",
+            "L",
+            "XL"
+          ]
+        },
+        {
+          "sizes": [
+            "White",
+            "Silver white"
+          ],
+          "categoryName": "Select colors"
+        }
+      ],
+      "deliveryTime": "Delivery in 3 to 7Days",
+      "description": "•  Gender: Men's\n•  Fabric: Cotton\n•  Pattern: Printed\n•  Neck Type: Round Neck\n•  Sizes: Small, Medium, Large, X-Large\n•  Number Of Pieces: 2 Pcs\n•  Package Includes: 1 x T-Shirt & Shorts Tracksuit\n•  Shirt Length: 28 Inches\n•  Shirt Chest: 22 Inches\n•  Shirt Shoulder: 15 Inches\n•  Arm Length: 5 Inches\n•  Trouser Length: 32 Inches\n•  Trouser Waist: 28 Inches\n•  Shorts Length: 15 Inches\n•  Trouser Hip: 5 Inches\n•   Color: White\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1650200105FNFS",
+      "createdAt": 1763787527190,
+      "name": "2 pic man T shirt hoodie tracksuit",
+      "oldPrice": 1500,
+      "category": "Dress",
+      "freeDelivery": true,
+      "returnPolicy": ""
+    },
+    {
+      "id": "mhJ5IN5qWQgfpEgr1ynO",
+      "easyReturn": true,
+      "description": "•  Shirt Fabric: Organza\n•  Pattern: Embroidered\n•  Neck Type: Round Neck\n•  Shirt Pattern: Embroidered\n•  Trouser Fabric: Crepe\n•  Trouser Pattern: Plain\n•  Dupatta Fabric: Organza\n•  Dupatta Pattern: Embroidered\n•  Available Sizes: Standard Size\n•  Number Of Pieces: 3 Pcs\n•  Color: Blue\n•  Package Includes: 1 x Shirt, 1 x Trouser, 1 x Dupatta\n•  Shirt Length: 40 Inches\n•  Shirt Chest: 21 Inches\n•  Trouser Length: 39 Inches\n•  Dupatta Dimensions: 2.5 Yards\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1455200088TMCSBYTM",
+      "deliveryTime": "Delivery in 3 to 5Days",
+      "sizeCategories": [
+        {
+          "sizes": [
+            "Standard"
+          ],
+          "categoryName": "Sizes"
+        },
+        {
+          "categoryName": "Select Colors",
+          "sizes": [
+            "Blue",
+            "Mahron"
+          ]
+        }
+      ],
+      "name": "3 pcs woman stitched organza with dobata maxi suit",
+      "createdAt": 1763798007866,
+      "freeDelivery": true,
+      "returnPolicy": "",
+      "price": 2700,
+      "shippingFee": 0,
+      "isVisible": true,
+      "oldPrice": 2950,
+      "category": "T shirt",
+      "images": [
+        "https://i.ibb.co/KzfPv9Hj/1763797742573.jpg",
+        "https://i.ibb.co/gLMg4crD/1763797742124.jpg",
+        "https://i.ibb.co/RkCDq2BT/1763797885448.jpg",
+        "https://i.ibb.co/RkDnpJPM/1763797886157.jpg"
+      ]
+    },
+    {
+      "id": "n4OyTO5FVS7Oh0nQp0j4",
+      "isVisible": true,
+      "easyReturn": true,
+      "price": 2950,
+      "description": "•  Shirt Fabric: Organza\n•  Pattern: Embroidered\n•  Neck Type: Round Neck\n•  Shirt Pattern: Embroidered\n•  Trouser Fabric: Crepe\n•  Trouser Pattern: Plain\n•  Dupatta Fabric: Organza\n•  Dupatta Pattern: Embroidered\n•  Available Sizes: Standard Size\n•  Number Of Pieces: 3 Pcs\n•  Color: Black\n•  Package Includes: 1 x Shirt, 1 x Trouser, 1 x Dupatta\n•  Shirt Length: 40 Inches\n•  Shirt Chest: 21 Inches\n•  Trouser Length: 39 Inches\n•  Dupatta Dimensions: 2.5 Yards\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1455200087TMCSBYTM",
+      "sizeCategories": [
+        {
+          "categoryName": "Sizes",
+          "sizes": [
+            "Standard"
+          ]
+        }
+      ],
+      "freeDelivery": true,
+      "returnPolicy": "",
+      "deliveryTime": "Delivery in 3 to 5 Days",
+      "images": [
+        "https://i.ibb.co/BVm7cVV6/1763798103141.jpg",
+        "https://i.ibb.co/xKBD9P81/1763798103379.jpg"
+      ],
+      "name": "3 pcs woman stitched organza with dobata maxi suit",
+      "createdAt": 1763798141292,
+      "oldPrice": 0,
+      "category": "Alib",
+      "shippingFee": 0
+    },
+    {
+      "id": "nwSpqwFzmxFwW9OrDpoO",
+      "price": 3300,
+      "shippingFee": null,
+      "isVisible": true,
+      "easyReturn": true,
+      "sizeCategories": [
+        {
+          "categoryName": "Select sizes",
+          "sizes": [
+            "Standard"
+          ]
+        },
+        {
+          "sizes": [
+            "Blue",
+            "Red"
+          ],
+          "categoryName": "Select Colors"
+        }
+      ],
+      "name": "3 pcs woman stitched maxi suit",
+      "category": "Girls fashion",
+      "oldPrice": 0,
+      "description": "•  Fabric: Chiffon\n•  Pattern: Patch Work\n•  Available Sizes: Standard Size\n•  Number Of Pieces: 3 Pcs\n•  Package Includes: 1 x Maxi, 1 x Trouser, 1 x Dupatta\n•  Shirt Length: 53 Inches\n•  Shirt Chest: 21 Inches\n•  Trouser Length: 38 Inches\n•  Dupatta Dimensions: 2.25 Yards\n•   Color: Blue\n•  Front And Back Pearls With Lace Work Long Flare Maxi With Lace Dupatta 3PCs\n•  Chest Size 21\n•  Maxi Length 53\n•  Maxi Ghair 120\n•  Maxi Stuff Chiffon\n•  (Inner Crepe)\n•  Trouser Length 38\n•  Stuff Malai \n•  Lace work dupatta\n•  Size 2.25 Yards\n•  Stuff Chiffon\n•  Original Picture/Video\n•  Complete Overlock\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1604200384AKFNPT",
+      "deliveryTime": "Delivery in 3 to 5Days",
+      "images": [
+        "https://i.ibb.co/svB8gpfK/1763792595173.webp",
+        "https://i.ibb.co/zHtVFBKQ/1763792595417.webp",
+        "https://i.ibb.co/nZbJT3P/1763792595536.webp",
+        "https://i.ibb.co/7xJwG26g/1763792578166.webp",
+        "https://i.ibb.co/Y789fpv2/1763792578592.webp"
+      ],
+      "createdAt": 1763792934796,
+      "returnPolicy": "",
+      "freeDelivery": true
+    },
+    {
+      "id": "qQ3dVDAbb67nc7gR3yRM",
+      "createdAt": 1763744341948,
+      "sizeCategories": [
+        {
+          "sizes": [
+            "S",
+            "M",
+            "L",
+            "XL"
+          ],
+          "categoryName": "Select size"
+        },
+        {
+          "sizes": [
+            "Black",
+            "White"
+          ],
+          "categoryName": "Color"
+        }
+      ],
+      "price": 1900,
+      "shippingFee": 0,
+      "easyReturn": true,
+      "name": "2 pic Man and women hoodie tracksuit ",
+      "description": "•  Fabric: Fleece\n•  Pattern: Printed\n•  Neck Type: Hooded Neck\n•  Available Sizes: Small, Medium, Large, X-Large\n•  Number Of Pieces: 2 Pcs\n•  Package Includes: 1 x Track Suit\n•  Shirt Length: 28 Inches\n•  Shirt Chest: 24 Inches\n•  Shirt Shoulder: 11 Inches\n•  Arm Length: 10 Inches\n•  Trouser Length: 38 Inches\n•  Trouser Waist: 32 Inches\n•  Trouser Hip: 15 Inches\n•   Color: Black\n•  Stay cozy and stylish with our Ultra-Comfort Hoodie, crafted with the perfect blend of warmth, softness, and durability. Made from high-quality cotton blend fabric, this hoodie is designed to keep you comfortably snug in any weather, making it an ideal choice for casual outings, workout sessions, or simply lounging at home.\n•  Specifications:\n•  •    Material: Crafted from a premium blend of 80% cotton and 20% polyester for ultimate comfort and durability.\n•  •    Fit: Modern and relaxed fit for a trendy look and easy movement.\n•  •    Design: Featuring a classic hoodie design with a kangaroo pocket to keep your hands warm and store small essentials.\n•  •    Warmth: Midweight fabric provides just the right amount of warmth, making it suitable for layering in colder seasons.\n•  Available Sizes: Small, Medium, Large, XL\n•  Care: Hand wash cold, gentle cycle; tumble dry low; do not bleach; iron on low heat if needed; do not dry clean; do not dry in sunlight\n•  Precautions:\n•  =\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ1650200436FNFS",
+      "deliveryTime": "Delivery in 3 to 7 Days",
+      "images": [
+        "https://i.ibb.co/9Hrk8f8K/1763744008534.jpg",
+        "https://i.ibb.co/ch1Z1KYn/1763744394490.jpg",
+        "https://i.ibb.co/27xMMNJF/1763744008709.jpg"
       ],
       "isVisible": true,
       "freeDelivery": true,
-      "shopName": "onliny",
-      "createdAt": 1726000300000
+      "oldPrice": 2100,
+      "category": "Tracksuits",
+      "returnPolicy": ""
     },
     {
-      "id": "prod-boys-denim-jacket",
-      "name": "Boys Vintage Washed Denim Jacket with Sherpa Collar",
-      "description": "Classic rugged vintage wash denim jacket designed for boys with warm sherpa fleece interior lining and dual chest pockets.",
-      "price": 2450,
-      "oldPrice": 2990,
-      "category": "Boy Clothes",
+      "id": "yHLFJvAnnHbsAPkfckTC",
+      "price": 1100,
+      "oldPrice": 1300,
+      "category": "Tracksuits",
+      "description": "•  Gender: Men's\n•  Fabric: Cotton\n•  Pattern: Graphic Sublimation\n•  Neck Type: Round Neck\n•  Sizes: Medium, Large, X-Large\n•  Number Of Pieces: 1 Pc\n•  Color: Black\n•  Package Includes: 1 x T Shirt, 1 x Trouser\n•  Note: There might be an error of 1-3 cm due to manual measurement, and slight color differences may occur as a result of varying lighting and monitor effects.\n•  Product Code: MZ23700000091FYSE",
+      "easyReturn": true,
       "images": [
-        "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=800&auto=format&fit=crop&q=80"
+        "https://i.ibb.co/r2HcCmT5/1763787759079.jpg",
+        "https://i.ibb.co/0RmKdFZy/1763787729854.jpg",
+        "https://i.ibb.co/WSjhSFP/1763787759162.jpg",
+        "https://i.ibb.co/xS25CvtS/1763787759250.jpg"
       ],
+      "createdAt": 1763788031922,
       "isVisible": true,
-      "freeDelivery": true,
-      "shopName": "onliny",
-      "createdAt": 1726000400000
-    },
-    {
-      "id": "prod-couple-matching-hoodies",
-      "name": "Soulmate Minimalist Matching Couple Hoodies (Set of 2)",
-      "description": "Premium fleece matching hoodies for couples with embroidered Roman numeral dates on the wrist and subtle chest design.",
-      "price": 4600,
-      "oldPrice": 5800,
-      "category": "Romantic Couple Sets",
-      "images": [
-        "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800&auto=format&fit=crop&q=80"
+      "shippingFee": 0,
+      "deliveryTime": "Delivery in 3 to 7Days",
+      "sizeCategories": [
+        {
+          "categoryName": "Select sizes",
+          "sizes": [
+            "S",
+            "M",
+            "L",
+            "Xl"
+          ]
+        },
+        {
+          "categoryName": "Select colors",
+          "sizes": [
+            "Green",
+            "Red"
+          ]
+        }
       ],
-      "isVisible": true,
-      "freeDelivery": true,
-      "shopName": "onliny",
-      "createdAt": 1726000500000
+      "name": "2 pic man PUBG grafic animated printed tracksiut T shirt ",
+      "returnPolicy": "",
+      "freeDelivery": true
     }
   ],
   "settings": {
-    "appName": "onliny",
-    "storeDomain": "https://onliny.co.uk",
-    "logoUrl": "",
-    "storeBannerUrl": "",
-    "bannerUrls": [],
-    "shippingFee": 199,
-    "whatsappNumber": "03026947034",
-    "adminEmail": "aliihtasham20@gmail.com",
     "paymentMethods": [
-      { "id": "cod", "name": "Cash on Delivery (COD)", "details": "Pay with cash upon package arrival anywhere in Pakistan" }
-    ],
-    "sizeCategories": [
       {
-        "id": "sc-standard",
-        "name": "Standard Clothing Sizes",
-        "sizes": [
-          { "id": "s-sm", "name": "Small", "code": "S" },
-          { "id": "s-md", "name": "Medium", "code": "M" },
-          { "id": "s-lg", "name": "Large", "code": "L" },
-          { "id": "s-xl", "name": "Extra Large", "code": "XL" }
-        ]
+        "name": "Cash on Delivery",
+        "id": "cod",
+        "details": "Pay upon receiving your order."
       }
     ],
-    "categories": [
-      { "id": "Baby", "name": "Baby Clothing", "imageUrl": "https://images.unsplash.com/photo-1522771930-78848d9293e8?w=500&auto=format&fit=crop&q=80", "isVisible": true },
-      { "id": "Boy Clothes", "name": "Boy Clothes", "imageUrl": "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=500&auto=format&fit=crop&q=80", "isVisible": true },
-      { "id": "Child", "name": "Girls & Kids Wear", "imageUrl": "https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=500&auto=format&fit=crop&q=80", "isVisible": true },
-      { "id": "Girlfriend Gifts", "name": "Girlfriend Gifts", "imageUrl": "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&auto=format&fit=crop&q=80", "isVisible": true },
-      { "id": "Boyfriend Gifts", "name": "Boyfriend Gifts", "imageUrl": "https://images.unsplash.com/photo-1627123424574-724758594e93?w=500&auto=format&fit=crop&q=80", "isVisible": true },
-      { "id": "Romantic Couple Sets", "name": "Romantic Hampers", "imageUrl": "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&auto=format&fit=crop&q=80", "isVisible": true }
-    ],
-    "showJoinCommunity": true,
-    "showLatestUpdates": true,
-    "showGetApp": false,
     "showContactWhatsapp": true,
+    "youtubeChannelUrl": "https://cloudinary.com/",
+    "whatsappGroupUrl": "https://cloudinary.com/",
+    "showJoinCommunity": true,
+    "instagramChannelUrl": "https://cloudinary.com/",
+    "gmailUser": "aliihtasham10@gmail.com",
+    "shippingFee": 0,
+    "storeBannerUrl": "https://i.ibb.co/FqyJQyFy/download-1.jpg",
+    "logoUrl": "data:image/webp;base64,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",
+    "whatsappChannelUrl": "https://cloudinary.com/",
+    "showGetApp": true,
+    "facebookPageUrl": "https://cloudinary.com/",
+    "categories": [
+      {
+        "name": "Alib",
+        "isVisible": true,
+        "parentId": null,
+        "storeName": "Zumatooo",
+        "id": "cat_1764749627051",
+        "storeLogoUrl": "https://res.cloudinary.com/daafqfrqh/image/upload/v1789732832/atrya_shop/wtdnt6op7cyopjzzhact.webp"
+      },
+      {
+        "isVisible": true,
+        "id": "cat_1764749681340",
+        "parentId": "cat_1764749627051",
+        "name": "Child"
+      },
+      {
+        "storeLogoUrl": "https://res.cloudinary.com/daafqfrqh/image/upload/v1789733397/atrya_shop/kumw7chhbipff6lczq3c.webp",
+        "bannerImageUrls": [
+          "https://www.google.com/imgres?q=cloudinary&imgurl=https%3A%2F%2Favatars.githubusercontent.com%2Fu%2F1460763%3Fs%3D280%26v%3D4&imgrefurl=https%3A%2F%2Fgithub.com%2Fcloudinary&docid=58COawxPIipGzM&tbnid=P-Mz99r0CI3fbM&vet=12ahUKEwiz_KeD36eVAxUxUqQEHbFoD3cQnPAOegQIHBAA..i&w=280&h=280&hcb=2&ved=2ahUKEwiz_KeD36eVAxUxUqQEHbFoD3cQnPAOegQIHBAA"
+        ],
+        "parentId": null,
+        "imageUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRhgodGOf7B3qHXPOvv78A47dHQnZq4OR7N6G7W3_1i1g&s=10",
+        "storeName": "Sozoo",
+        "name": "T shirt",
+        "id": "cat_1782539905484",
+        "isVisible": true
+      },
+      {
+        "imageUrl": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRcWZl9CUAgNoQBhx4L5zLMLg9nWlhMSlfBiiAsSZvLKw&s",
+        "parentId": "cat_1782539905484",
+        "isVisible": true,
+        "name": "shirt",
+        "id": "cat_1782540025649"
+      },
+      {
+        "bannerImageUrls": [
+          "https://res.cloudinary.com/daafqfrqh/image/upload/v1789817482/atrya_shop/jn0zcve96ulovrasyskv.webp"
+        ],
+        "id": "cat_1789817492749",
+        "storeLogoUrl": "data:image/webp;base64,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",
+        "isVisible": true,
+        "imageUrl": "https://res.cloudinary.com/daafqfrqh/image/upload/v1789817493/atrya_shop/tnwgow4sk07exkdhd3hk.webp",
+        "name": "Man culection",
+        "vendorId": "JjBFlIClYMPEU2zkH36tQHXGJtj1",
+        "storeName": "Maan",
+        "parentId": null
+      }
+    ],
+    "enableOrderEmailAlerts": true,
     "showContactEmail": true,
-    "playStoreUrl": "",
-    "adminNotificationEmail": "aliihtasham20@gmail.com",
-    "gmailUser": "",
-    "gmailAppPassword": "",
-    "enableOrderEmailAlerts": true
+    "storeDomain": "https://zivio.pages.dev",
+    "adminEmail": "ali10cart@gmail.com",
+    "bannerProducts": [
+      {
+        "placement": "home",
+        "id": "bp_1789888344598_jxv29",
+        "backgroundMode": "custom",
+        "backgroundColor": "#ffe4e6",
+        "isActive": true,
+        "productId": "gqJ4rCIbqv1Ge8VLTbkZ",
+        "createdAt": 1789888344599
+      }
+    ],
+    "playStoreUrl": "Https:// fjgjghg.com",
+    "whatsappNumber": "03026947034",
+    "showLatestUpdates": true,
+    "sizeCategories": [
+      {
+        "categoryName": "Select size",
+        "sizes": []
+      },
+      {
+        "sizes": [],
+        "categoryName": "Select color"
+      },
+      {
+        "categoryName": "Color",
+        "sizes": []
+      },
+      {
+        "categoryName": "Colors",
+        "sizes": []
+      },
+      {
+        "sizes": [],
+        "categoryName": "Colors select"
+      }
+    ],
+    "appName": "Onliny ",
+    "telegramChannelUrl": "https://cloudinary.com/",
+    "adminNotificationEmail": "aliihtasham10@gmail.com",
+    "showVendorPortal": false,
+    "gmailAppPassword": "qzqg aasp qhwm pxco",
+    "appDownloadUrl": "",
+    "appFileName": "",
+    "bannerUrls": [
+      "https://images.all-free-download.com/images/thumbjpg/ecommerce_website_banner_template_shoppers_sketch_6920121.jpg",
+      "data:image/jpeg;base64,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",
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3nDXjjrpXHdq5MJN5FOg6-660qBlK1-d6RNk2cKnFVg&s=10"
+    ]
   },
-  "banners": [],
+  "banners": [
+    {
+      "id": "Nj6gz8SDKT6pwIpU7JMd",
+      "image_url": "https://i.imgur.com/CGBiUuC.jpeg",
+      "link_url": "#",
+      "order_index": 2
+    },
+    {
+      "id": "TJU5JWkG8x3Z8wpEmahe",
+      "vendorId": "JjBFlIClYMPEU2zkH36tQHXGJtj1",
+      "createdAt": 1789820456380,
+      "isActive": false,
+      "title": "Man discount",
+      "imageUrl": "https://res.cloudinary.com/daafqfrqh/image/upload/v1789820456/atrya_shop/fhvqlzkbt3blewtvizcl.webp"
+    },
+    {
+      "id": "TopJGXhGjuDZzI3OCEyp",
+      "imageUrl": "https://res.cloudinary.com/daafqfrqh/image/upload/v1782642375/atrya_shop/tpzcmjefueibvw8e7t3k.jpg",
+      "createdAt": 1782642385635,
+      "redirectUrl": "",
+      "isActive": false
+    },
+    {
+      "id": "o8eMCmjQVoRKE6NQB6qT",
+      "image_url": "https://i.imgur.com/CGBiUuC.jpeg",
+      "link_url": "#",
+      "order_index": 1
+    }
+  ],
   "coupons": [
     {
-      "id": "coupon-welcome10",
-      "code": "WELCOME10",
+      "id": "g4wwXHhyCqTyZ4q1aiYO",
+      "validTo": 1785245512335,
       "discountType": "percentage",
-      "discountValue": 10,
-      "minPurchase": 1000,
-      "assignment": "global",
-      "validFrom": 1700000000000,
-      "validTo": 1800000000000,
-      "createdAt": 1726000000000
+      "assignment": "product",
+      "validFrom": 1782653512335,
+      "minProducts": 3,
+      "minBill": 500,
+      "code": "AD592B",
+      "description": "Use to discount",
+      "freeShipping": true,
+      "vendorId": "qG4wTmz6LqXPxTCtbDXyVutPXx33",
+      "createdAt": 1782653574397,
+      "discountValue": 10
     }
   ],
   "updatePosts": [],
   "challans": [],
   "vendorsStatus": {},
   "vendorsMap": {},
-  "lastUpdated": 1726000000000
+  "lastUpdated": 1790091360124
 }

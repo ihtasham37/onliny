@@ -1,10 +1,19 @@
 // Cloudflare Pages Function: /api/send-order-email
+import { sendUniversalEmail } from "../utils/smtpClient";
+
 interface Env {
-  RESEND_API_KEY?: string;
-  BREVO_API_KEY?: string;
-  SENDGRID_API_KEY?: string;
   GMAIL_USER?: string;
+  SENDER_EMAIL?: string;
+  SMTP_USER?: string;
+  GMAIL_APP_PASSWORD?: string;
+  GMAIL_PASS?: string;
+  SMTP_PASS?: string;
   ADMIN_NOTIFICATION_EMAIL?: string;
+  RECEIVER_EMAIL?: string;
+  ADMIN_EMAIL?: string;
+  BREVO_API_KEY?: string;
+  RESEND_API_KEY?: string;
+  SENDGRID_API_KEY?: string;
   APP_NAME?: string;
   [key: string]: any;
 }
@@ -43,6 +52,7 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
   try {
     const body = (await request.json().catch(() => ({}))) as any;
     const order = body?.order;
+    const credentials = body?.credentials || {};
 
     if (!order) {
       return new Response(
@@ -51,10 +61,34 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
       );
     }
 
-    const appName = env.APP_NAME || order.storeName || "onliny";
+    const appName = env.APP_NAME || credentials.appName || order.storeName || "Zivio Store";
+    
+    // Resolve Sender Gmail
+    const gmailUser = (
+      env.GMAIL_USER ||
+      env.SENDER_EMAIL ||
+      env.SMTP_USER ||
+      credentials.gmailUser ||
+      ""
+    ).trim();
+
+    // Resolve Google App Password (16 characters)
+    const gmailAppPassword = (
+      env.GMAIL_APP_PASSWORD ||
+      env.GMAIL_PASS ||
+      env.SMTP_PASS ||
+      credentials.gmailAppPassword ||
+      ""
+    ).trim();
+
+    // Resolve Receiver / Admin Notification Email
     const adminEmail = (
       env.ADMIN_NOTIFICATION_EMAIL ||
-      env.GMAIL_USER ||
+      env.RECEIVER_EMAIL ||
+      env.ADMIN_EMAIL ||
+      credentials.adminNotificationEmail ||
+      credentials.adminEmail ||
+      gmailUser ||
       "ali10cart@gmail.com"
     ).trim();
 
@@ -62,12 +96,12 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
     const orderIdShort = String(order.id || "").slice(-6).toUpperCase();
     const formattedTotal = Number(order.total || 0).toLocaleString();
 
-    // Prepare HTML content for Order Notification
+    // Build items HTML table
     const itemsTableHtml = (order.items || [])
       .map(
         (item: any) => `
         <tr style="border-bottom: 1px solid #f1f5f9;">
-          <td style="padding: 10px; vertical-align: top;">
+          <td style="padding: 10px; vertical-align: top; width: 60px;">
             ${
               item.imageUrl
                 ? `<img src="${item.imageUrl}" alt="${item.name}" width="50" height="50" style="border-radius: 8px; object-fit: cover; border: 1px solid #e2e8f0; display: block;" />`
@@ -96,63 +130,95 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
     <head><meta charset="utf-8"></head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #0f172a;">
       <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+        
+        <!-- Header -->
         <div style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); padding: 24px; text-align: center; color: #ffffff;">
           <h1 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">${appName}</h1>
-          <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.95; font-weight: 500;">🎉 Order #${orderIdShort} Received!</p>
+          <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.9;">🎉 New Order Received!</p>
         </div>
-        
-        <div style="padding: 24px;">
-          <div style="background: #fff1f2; border-left: 4px solid #e11d48; padding: 14px; border-radius: 8px; margin-bottom: 20px;">
-            <h3 style="margin: 0 0 4px 0; font-size: 14px; color: #9f1239; font-weight: 700;">Customer Details</h3>
-            <p style="margin: 2px 0; font-size: 13px; color: #334155;"><strong>Name:</strong> ${order.customerName}</p>
-            <p style="margin: 2px 0; font-size: 13px; color: #334155;"><strong>Phone:</strong> <a href="tel:${order.customerPhone}" style="color: #e11d48; text-decoration: none;">${order.customerPhone}</a></p>
-            ${order.email ? `<p style="margin: 2px 0; font-size: 13px; color: #334155;"><strong>Email:</strong> ${order.email}</p>` : ""}
-            <p style="margin: 2px 0; font-size: 13px; color: #334155;"><strong>Address:</strong> ${order.customerAddress}, ${order.city}${order.province ? `, ${order.province}` : ""}</p>
-            <p style="margin: 2px 0; font-size: 13px; color: #334155;"><strong>Payment:</strong> <span style="color: #059669; font-weight: bold;">${order.paymentMethod || "Cash on Delivery"}</span></p>
-          </div>
 
-          <div style="margin-bottom: 20px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #0f172a; border-bottom: 2px solid #f1f5f9; padding-bottom: 6px;">Order Items</h3>
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: #f8fafc; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: left;">
-                  <th style="padding: 8px;">Image</th>
-                  <th style="padding: 8px;">Item</th>
-                  <th style="padding: 8px; text-align: center;">Qty</th>
-                  <th style="padding: 8px; text-align: right;">Total</th>
-                </tr>
-              </thead>
-              <tbody>${itemsTableHtml}</tbody>
-            </table>
-          </div>
-
-          <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 6px;">
-              <span>Shipping Fee:</span>
-              <span style="color: #059669; font-weight: bold;">${Number(order.shippingFee) > 0 ? `Rs. ${Number(order.shippingFee).toLocaleString()}` : "FREE"}</span>
+        <!-- Order Summary Pill -->
+        <div style="padding: 24px 24px 16px 24px;">
+          <div style="background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+              <span style="font-size: 12px; color: #9f1239; font-weight: 600; text-transform: uppercase;">Order Number</span>
+              <span style="font-size: 14px; font-weight: 800; color: #e11d48;">#${orderIdShort}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; color: #0f172a; border-top: 1px solid #e2e8f0; pt: 10px; margin-top: 6px;">
-              <span>Grand Total:</span>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+              <span style="font-size: 12px; color: #9f1239; font-weight: 600; text-transform: uppercase;">Payment Method</span>
+              <span style="font-size: 13px; font-weight: 700; color: #0f172a;">${order.paymentMethod || "Cash on Delivery (COD)"}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="font-size: 12px; color: #9f1239; font-weight: 600; text-transform: uppercase;">Total Bill</span>
+              <span style="font-size: 16px; font-weight: 800; color: #e11d48;">Rs. ${formattedTotal}</span>
+            </div>
+          </div>
+
+          <!-- Customer Details -->
+          <h3 style="font-size: 14px; font-weight: 700; color: #334155; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">Customer Delivery Info</h3>
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 20px; font-size: 13px; line-height: 1.6;">
+            <div>👤 <strong>Name:</strong> ${order.customerName || "N/A"}</div>
+            <div>📞 <strong>Phone:</strong> <a href="tel:${order.customerPhone}" style="color: #e11d48; text-decoration: none; font-weight: bold;">${order.customerPhone || "N/A"}</a></div>
+            ${order.email ? `<div>✉️ <strong>Email:</strong> ${order.email}</div>` : ""}
+            ${order.city ? `<div>🏙️ <strong>City:</strong> ${order.city}</div>` : ""}
+            <div>📍 <strong>Address:</strong> ${order.shippingAddress || "N/A"}</div>
+            ${order.deliveryNotes ? `<div>📝 <strong>Note:</strong> ${order.deliveryNotes}</div>` : ""}
+            
+            <div style="margin-top: 12px; pt-2; border-top: 1px dashed #cbd5e1;">
+              <a href="${whatsappUrl}" target="_blank" style="display: inline-block; background-color: #25D366; color: white; padding: 8px 14px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 12px;">
+                💬 Open WhatsApp Chat with Customer
+              </a>
+            </div>
+          </div>
+
+          <!-- Ordered Items -->
+          <h3 style="font-size: 14px; font-weight: 700; color: #334155; margin: 0 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">Ordered Items (${order.items?.length || 0})</h3>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <thead>
+              <tr style="background-color: #f1f5f9; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase;">
+                <th style="padding: 8px 10px;">Item</th>
+                <th style="padding: 8px 10px;">Details</th>
+                <th style="padding: 8px 10px; text-align: center;">Qty</th>
+                <th style="padding: 8px 10px; text-align: right;">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsTableHtml}
+            </tbody>
+          </table>
+
+          <!-- Bill Summary Breakdown -->
+          <div style="background-color: #f8fafc; border-radius: 12px; padding: 14px; margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
+              <span>Subtotal:</span>
+              <span>Rs. ${Number(order.subtotal || order.total || 0).toLocaleString()}</span>
+            </div>
+            ${
+              order.shippingFee !== undefined
+                ? `
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
+              <span>Delivery Charges:</span>
+              <span>${Number(order.shippingFee) === 0 ? "FREE" : `Rs. ${Number(order.shippingFee).toLocaleString()}`}</span>
+            </div>`
+                : ""
+            }
+            <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 800; color: #0f172a; border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 6px;">
+              <span>Total Amount:</span>
               <span style="color: #e11d48;">Rs. ${formattedTotal}</span>
             </div>
           </div>
-
-          <div style="text-align: center; margin-top: 20px;">
-            <a href="${whatsappUrl}" style="display: inline-block; background: #25d366; color: #ffffff; padding: 10px 20px; border-radius: 10px; text-decoration: none; font-size: 13px; font-weight: 700;">
-              💬 Open WhatsApp Chat
-            </a>
-          </div>
         </div>
 
-        <div style="background: #f1f5f9; padding: 12px; text-align: center; font-size: 11px; color: #64748b;">
-          Automatic Order Alert from <strong>${appName}</strong>
+        <!-- Footer -->
+        <div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0;">
+          <p style="margin: 0;">This is an automated order notification from <strong>${appName}</strong>.</p>
         </div>
+
       </div>
     </body>
     </html>
     `;
 
-    // Target recipients array (Customer + Admin)
     const recipients = new Set<string>();
     if (adminEmail) recipients.add(adminEmail);
     if (customerEmail) recipients.add(customerEmail);
@@ -162,102 +228,24 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
       recipientList.push("ali10cart@gmail.com");
     }
 
-    let sentSuccessfully = false;
-    let providerUsed = "None";
-
-    // 1. Try Resend API if key present
-    if (env.RESEND_API_KEY) {
-      try {
-        const resendRes = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${env.RESEND_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: `${appName} <onboarding@resend.dev>`,
-            to: recipientList,
-            subject: `🛍️ Order #${orderIdShort} Confirmation - Rs. ${formattedTotal}`,
-            html: htmlContent,
-          }),
-        });
-        if (resendRes.ok) {
-          sentSuccessfully = true;
-          providerUsed = "Resend";
-        }
-      } catch (err) {
-        console.warn("Resend email failed:", err);
-      }
-    }
-
-    // 2. Try Brevo API if key present and not sent yet
-    if (!sentSuccessfully && env.BREVO_API_KEY) {
-      try {
-        const brevoRes = await fetch("https://api.brevo.com/v3/smtp/email", {
-          method: "POST",
-          headers: {
-            "api-key": env.BREVO_API_KEY,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            sender: { name: appName, email: adminEmail || "notifications@onliny.co.uk" },
-            to: recipientList.map(e => ({ email: e })),
-            subject: `🛍️ Order #${orderIdShort} Confirmation - Rs. ${formattedTotal}`,
-            htmlContent,
-          }),
-        });
-        if (brevoRes.ok) {
-          sentSuccessfully = true;
-          providerUsed = "Brevo";
-        }
-      } catch (err) {
-        console.warn("Brevo email failed:", err);
-      }
-    }
-
-    // 3. Try MailChannels API (Built-in free Cloudflare Pages/Workers email provider)
-    if (!sentSuccessfully) {
-      try {
-        const mailchannelsRes = await fetch("https://api.mailchannels.net/tx/v1/send", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            personalizations: [
-              {
-                to: recipientList.map(e => ({ email: e, name: order.customerName || "Customer" })),
-              },
-            ],
-            from: {
-              email: "no-reply@onliny.co.uk",
-              name: appName,
-            },
-            subject: `🛍️ Order #${orderIdShort} Confirmation - Rs. ${formattedTotal}`,
-            content: [
-              {
-                type: "text/html",
-                value: htmlContent,
-              },
-            ],
-          }),
-        });
-        if (mailchannelsRes.ok || mailchannelsRes.status === 202) {
-          sentSuccessfully = true;
-          providerUsed = "MailChannels (Cloudflare Free)";
-        } else {
-          console.warn("MailChannels status:", mailchannelsRes.status);
-        }
-      } catch (mcErr) {
-        console.warn("MailChannels email attempt:", mcErr);
-      }
-    }
+    const emailResult = await sendUniversalEmail({
+      from: gmailUser || "notifications@onliny.co.uk",
+      fromName: appName,
+      to: recipientList,
+      subject: `🛍️ New Order #${orderIdShort} (${order.customerName || "Customer"}) - Rs. ${formattedTotal}`,
+      html: htmlContent,
+      gmailUser,
+      gmailAppPassword,
+      brevoApiKey: env.BREVO_API_KEY,
+      resendApiKey: env.RESEND_API_KEY,
+      sendgridApiKey: env.SENDGRID_API_KEY,
+    });
 
     return new Response(
       JSON.stringify({
-        success: true,
-        message: `Order email processed for ${recipientList.join(", ")}`,
-        provider: providerUsed,
+        success: emailResult.success,
+        provider: emailResult.provider,
+        message: emailResult.message || `Order email processed for ${recipientList.join(", ")}`,
         orderId: order.id,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

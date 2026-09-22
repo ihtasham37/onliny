@@ -44,8 +44,8 @@ export const useBannerHeight = () => {
 
 // Compact side product card for vertical desktop sliders
 export const SideProductCard: React.FC<{ product: Product }> = ({ product }) => {
-  const discountPercent = product.oldPrice && product.oldPrice > product.price 
-    ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100) 
+  const discountPercent = (Number(product.oldPrice || 0) > Number(product.price))
+    ? Math.round(((Number(product.oldPrice) - Number(product.price)) / Number(product.oldPrice)) * 100) 
     : 0;
 
   return (
@@ -75,9 +75,9 @@ export const SideProductCard: React.FC<{ product: Product }> = ({ product }) => 
         <p className="text-[9px] text-slate-400 truncate mt-0.5">{product.category}</p>
         <div className="flex items-center gap-1 mt-0.5">
           <span className="text-xs font-black text-rose-700">{formatCurrency(product.price)}</span>
-          {product.oldPrice && (
-            <span className="text-[9px] text-slate-400 line-through">{formatCurrency(product.oldPrice)}</span>
-          )}
+          {Number(product.oldPrice || 0) > Number(product.price) ? (
+            <span className="text-[9px] text-slate-400 line-through">{formatCurrency(product.oldPrice!)}</span>
+          ) : null}
         </div>
       </div>
     </Link>

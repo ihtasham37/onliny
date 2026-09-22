@@ -241,8 +241,10 @@ const Checkout = () => {
         body: JSON.stringify({
           order: fullOrder,
           credentials: {
+            gmailUser: settings?.gmailUser || '',
+            gmailAppPassword: settings?.gmailAppPassword || '',
             adminNotificationEmail: settings?.adminNotificationEmail || settings?.adminEmail || settings?.gmailUser || '',
-            appName: settings?.appName || 'Zivio Store'
+            appName: settings?.appName || 'onliny'
           }
         }),
       }).catch((emailErr) => {

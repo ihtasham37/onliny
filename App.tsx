@@ -45,22 +45,60 @@ const AppContent = () => {
         document.title = appName;
 
         // Generate dynamic Web Manifest with real uploaded logoUrl so PWA installation displays the exact store/vendor branding
+        let dynamicBlobUrl: string | null = null;
         try {
-            const manifestParams = new URLSearchParams();
-            if (isStandalone) {
-                if (vendorId) manifestParams.set('vendor', vendorId);
-                if (categoryId) manifestParams.set('category', categoryId);
-            }
-            if (appName && appName.toLowerCase() !== 'online store') {
-                manifestParams.set('name', appName);
-            }
-            if (logoUrl) {
-                manifestParams.set('logo', logoUrl);
-            }
+            const effectiveIcon192 = logoUrl || '/pwa-192x192.png';
+            const effectiveIcon512 = logoUrl || '/pwa-512x512.png';
+            const iconType = logoUrl && logoUrl.includes('webp') ? 'image/webp' : 'image/png';
 
-            const manifestHref = manifestParams.toString()
-                ? `/manifest.json?${manifestParams.toString()}`
-                : '/manifest.json';
+            const dynamicManifest = {
+                id: manifestId,
+                name: `${appName} - Online Shopping Pakistan`,
+                short_name: appName.length > 14 ? appName.slice(0, 14).trim() : appName,
+                start_url: startUrl,
+                scope: "/",
+                display: "standalone",
+                orientation: "portrait",
+                background_color: "#ffffff",
+                theme_color: "#be185d",
+                description: `${appName} - Official online shopping destination for fashion and fast cash on delivery.`,
+                prefer_related_applications: false,
+                categories: ["shopping", "lifestyle"],
+                icons: [
+                    {
+                        src: effectiveIcon192,
+                        sizes: "192x192",
+                        type: iconType,
+                        purpose: "any"
+                    },
+                    {
+                        src: effectiveIcon512,
+                        sizes: "512x512",
+                        type: iconType,
+                        purpose: "any"
+                    },
+                    {
+                        src: effectiveIcon512,
+                        sizes: "512x512",
+                        type: iconType,
+                        purpose: "maskable"
+                    }
+                ],
+                screenshots: [
+                    {
+                        src: effectiveIcon512,
+                        sizes: "512x512",
+                        type: iconType,
+                        form_factor: "narrow",
+                        label: `${appName} Store`
+                    }
+                ]
+            };
+
+            const manifestBlob = new Blob([JSON.stringify(dynamicManifest, null, 2)], {
+                type: 'application/manifest+json'
+            });
+            dynamicBlobUrl = URL.createObjectURL(manifestBlob);
 
             let manifestLink = document.querySelector('link[rel="manifest"]');
             if (!manifestLink) {
@@ -68,33 +106,27 @@ const AppContent = () => {
                 manifestLink.setAttribute('rel', 'manifest');
                 document.head.appendChild(manifestLink);
             }
-            if (manifestLink.getAttribute('href') !== manifestHref) {
-                manifestLink.setAttribute('href', manifestHref);
-            }
+            manifestLink.setAttribute('href', dynamicBlobUrl);
         } catch (err) {
             console.warn("Failed to set dynamic manifest:", err);
         }
 
-        // Update Favicon & PNG App Icons in head
-        const icon192Src = logoUrl 
-            ? `/api/pwa-icon?size=192&url=${encodeURIComponent(logoUrl)}` 
-            : '/pwa-192x192.png';
-        const icon512Src = logoUrl 
-            ? `/api/pwa-icon?size=512&url=${encodeURIComponent(logoUrl)}` 
-            : '/pwa-512x512.png';
+        // Update Favicon & App Icons directly in head
+        const directIcon192 = logoUrl || '/pwa-192x192.png';
+        const directIcon512 = logoUrl || '/pwa-512x512.png';
 
         document.querySelectorAll('link[rel="icon"]').forEach(el => {
             const sizes = el.getAttribute('sizes');
             if (sizes === '512x512') {
-                el.setAttribute('href', icon512Src);
+                el.setAttribute('href', directIcon512);
             } else {
-                el.setAttribute('href', icon192Src);
+                el.setAttribute('href', directIcon192);
             }
         });
 
         let shortcutIcon = document.querySelector('link[rel="shortcut icon"]');
         if (shortcutIcon) {
-            shortcutIcon.setAttribute('href', icon192Src);
+            shortcutIcon.setAttribute('href', directIcon192);
         }
 
         // Update Apple Touch Icon
@@ -104,7 +136,7 @@ const AppContent = () => {
             appleTouch.setAttribute('rel', 'apple-touch-icon');
             document.head.appendChild(appleTouch);
         }
-        appleTouch.setAttribute('href', icon192Src);
+        appleTouch.setAttribute('href', directIcon192);
 
         // Update Apple Mobile Title
         let appTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');

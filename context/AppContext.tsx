@@ -113,6 +113,9 @@ const getInitialSettings = (): Settings => {
       if (parsed?.data?.settings?.appName) return parsed.data.settings;
     }
   } catch (e) {}
+  if (INITIAL_STATIC_CATALOG.settings && (INITIAL_STATIC_CATALOG.settings as any).appName) {
+    return INITIAL_STATIC_CATALOG.settings as unknown as Settings;
+  }
   return {
     appName: 'onliny',
     logoUrl: '',
@@ -126,6 +129,22 @@ const getInitialSettings = (): Settings => {
     gmailAppPassword: '',
     enableOrderEmailAlerts: true,
   } as unknown as Settings;
+};
+
+const getInitialProducts = (): Product[] => {
+  try {
+    const sessionCached = sessionStorage.getItem('ali_cart_catalog_bundle_cache_v1');
+    if (sessionCached) {
+      const parsed = JSON.parse(sessionCached);
+      if (Array.isArray(parsed?.products) && parsed.products.length > 0) return parsed.products;
+    }
+    const localCached = localStorage.getItem('ali_cart_catalog_bundle_cache_local_v1');
+    if (localCached) {
+      const parsed = JSON.parse(localCached);
+      if (Array.isArray(parsed?.data?.products) && parsed.data.products.length > 0) return parsed.data.products;
+    }
+  } catch (e) {}
+  return (INITIAL_STATIC_CATALOG.products || []) as Product[];
 };
 
 export const defaultAppContextValue: AppContextType = {
@@ -226,20 +245,20 @@ const apiRequest = async (endpoint: string, body: any) => {
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [vendorsStatus, setVendorsStatus] = useState<Record<string, string>>({});
-  const [vendorsMap, setVendorsMap] = useState<Record<string, AppUser>>({});
+  const [allProducts, setAllProducts] = useState<Product[]>(getInitialProducts);
+  const [vendorsStatus, setVendorsStatus] = useState<Record<string, string>>(() => INITIAL_STATIC_CATALOG.vendorsStatus || {});
+  const [vendorsMap, setVendorsMap] = useState<Record<string, AppUser>>(() => INITIAL_STATIC_CATALOG.vendorsMap || {});
 
   const [cart, setCart] = useLocalStorage<CartItem[]>('cart', []);
   const [wishlist, setWishlist] = useLocalStorage<string[]>('wishlist', []);
   const [orders, setOrders] = useState<Order[]>([]);
   const [settings, setSettings] = useState<Settings>(getInitialSettings);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
-  const [banners, setBanners] = useState<Banner[]>([]);
-  const [challans, setChallans] = useState<Challan[]>([]);
-  const [updatePosts, setUpdatePosts] = useState<UpdatePost[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [coupons, setCoupons] = useState<Coupon[]>(() => INITIAL_STATIC_CATALOG.coupons || []);
+  const [banners, setBanners] = useState<Banner[]>(() => INITIAL_STATIC_CATALOG.banners || []);
+  const [challans, setChallans] = useState<Challan[]>(() => INITIAL_STATIC_CATALOG.challans || []);
+  const [updatePosts, setUpdatePosts] = useState<UpdatePost[]>(() => INITIAL_STATIC_CATALOG.updatePosts || []);
+  const [isLoading, setIsLoading] = useState<boolean>(() => getInitialProducts().length === 0);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<AppUser | null>(null);

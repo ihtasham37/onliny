@@ -525,13 +525,13 @@ const Home = () => {
                 to={`/category/${encodeURIComponent(cat.id)}`}
                 className="flex flex-col items-center gap-2 shrink-0 group cursor-pointer text-center outline-none"
               >
-                {/* Shining Glowing Circular Avatar Container */}
-                <div className="relative p-[3px] md:p-[4px] lg:p-[5px] rounded-full bg-gradient-to-tr from-pink-500 via-rose-400 to-amber-300 shadow-[0_0_15px_rgba(244,63,94,0.4)] group-hover:shadow-[0_0_30px_rgba(244,63,94,0.85)] group-hover:scale-110 transition-all duration-300 ring-2 ring-pink-300/50 ring-offset-2 ring-offset-white">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-28 lg:h-28 xl:w-32 xl:h-32 rounded-full overflow-hidden relative bg-slate-100 before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-tr before:from-transparent before:via-white/45 before:to-transparent before:opacity-80 group-hover:before:opacity-100 before:pointer-events-none before:z-10">
+                {/* Clean Circular Avatar Container */}
+                <div className="relative p-[2.5px] rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-rose-400 shadow-xs border border-pink-100/80 group-hover:scale-105 transition-all duration-300">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-28 lg:h-28 xl:w-32 xl:h-32 rounded-full overflow-hidden bg-slate-100 border border-white">
                     <img
                       src={avatarUrl}
                       alt={cat.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       loading="lazy"
                     />
                   </div>

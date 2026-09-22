@@ -32,13 +32,41 @@ const getGeminiClient = () => {
   });
 };
 
-// Helper function to execute Gemini requests with model fallbacks for 503 High Demand / 429 Rate Limits
+// Simple in-memory response cache & rate-limit cooldown manager
+const geminiQueryCache = new Map<string, { timestamp: number; data: any }>();
+let geminiRateLimitCooldownUntil = 0;
+
+function getCachedGeminiResponse(cacheKey: string): any | null {
+  const cached = geminiQueryCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 10 * 60 * 1000) {
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedGeminiResponse(cacheKey: string, data: any) {
+  if (geminiQueryCache.size > 500) {
+    const oldestKey = geminiQueryCache.keys().next().value;
+    if (oldestKey) geminiQueryCache.delete(oldestKey);
+  }
+  geminiQueryCache.set(cacheKey, { timestamp: Date.now(), data });
+}
+
+// Helper function to execute Gemini requests with model fallbacks and 429 rate limit circuit breaker
 async function callGeminiWithFallback(ai: GoogleGenAI, params: {
   contents: string;
   config?: any;
 }) {
-  const models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
-  let lastError: any = null;
+  if (Date.now() < geminiRateLimitCooldownUntil) {
+    return null;
+  }
+
+  const models = [
+    "gemini-3.8-flash",
+    "gemini-flash-latest",
+    "gemini-3.1-flash-lite",
+    "gemini-3.1-pro-preview"
+  ];
 
   for (const model of models) {
     try {
@@ -51,12 +79,16 @@ async function callGeminiWithFallback(ai: GoogleGenAI, params: {
         return response;
       }
     } catch (err: any) {
-      lastError = err;
-      console.warn(`Gemini model ${model} temporary unavailable (${err?.status || err?.message || '503'}), attempting model fallback...`);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      const status = err?.status || err?.code || 0;
+      const msg = String(err?.message || "");
+      if (status === 429 || msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("Quota exceeded")) {
+        geminiRateLimitCooldownUntil = Date.now() + 45000;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
     }
   }
-  throw lastError || new Error("All Gemini candidate models were unavailable.");
+  return null;
 }
 
 const app = express();
@@ -500,6 +532,13 @@ app.post("/api/gemini/rag-search", async (req, res) => {
       .sort((a, b) => b.initialScore - a.initialScore)
       .slice(0, 40);
 
+    // Check Cache
+    const cacheKey = `rag:${rawQuery}`;
+    const cachedResult = getCachedGeminiResponse(cacheKey);
+    if (cachedResult) {
+      return res.json({ success: true, data: cachedResult });
+    }
+
     const ai = getGeminiClient();
     let responseText: string | undefined;
 
@@ -564,6 +603,7 @@ Return pure JSON matching the requested schema.
     if (responseText) {
       try {
         const result = JSON.parse(responseText);
+        setCachedGeminiResponse(cacheKey, result);
         return res.json({ success: true, data: result });
       } catch (e) {}
     }
@@ -961,8 +1001,7 @@ Return ONLY valid JSON matching this schema:
     "description": "Clean bullet-pointed or summarized product description"
   }
 }`;
-            const response = await ai.models.generateContent({
-              model: "gemini-3.6-flash",
+            const response = await callGeminiWithFallback(ai, {
               contents: prompt,
               config: { responseMimeType: "application/json" }
             });

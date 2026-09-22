@@ -19,6 +19,9 @@ const QUICK_FILTERS = [
     { label: '👑 Luxury & Party', query: 'party' },
 ];
 
+// In-memory client cache for instant search results without repeating API calls
+const searchClientCache = new Map<string, RagSearchResponse>();
+
 export const Search = () => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -102,6 +105,13 @@ export const Search = () => {
             return;
         }
 
+        const cacheKey = rawQuery.toLowerCase();
+        if (searchClientCache.has(cacheKey)) {
+            setRagData(searchClientCache.get(cacheKey)!);
+            setRagLoading(false);
+            return;
+        }
+
         setRagLoading(true);
         setRagError('');
 
@@ -114,54 +124,26 @@ export const Search = () => {
                     category: p.category,
                     price: p.price,
                     description: p.description ? p.description.substring(0, 150) : '',
-                    shopName: p.shopName || 'Zivio'
+                    shopName: p.shopName || 'onliny'
                 }));
 
                 let resData: any = null;
                 try {
-                    // Call Assistant API to extract keywords, category_filter, price_max, and intent summary
-                    const [ragRes, assistantRes] = await Promise.allSettled([
-                        fetch('/api/gemini/rag-search', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: safeJsonStringify({ query: rawQuery, products: cleanProducts })
-                        }),
-                        fetch('/api/gemini/assistant', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: safeJsonStringify({ input: rawQuery, preferredType: 'search_query' })
-                        })
-                    ]);
+                    const ragRes = await fetch('/api/gemini/rag-search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: safeJsonStringify({ query: rawQuery, products: cleanProducts })
+                    });
 
-                    if (ragRes.status === 'fulfilled' && ragRes.value.ok) {
-                        resData = await ragRes.value.json();
+                    if (ragRes.ok) {
+                        resData = await ragRes.json();
                     }
-
-                    if (assistantRes.status === 'fulfilled' && assistantRes.value.ok) {
-                        const assistData = await assistantRes.value.json();
-                        if (assistData?.data?.type === 'search_query' && assistData.data.search) {
-                            const { keywords, category_filter, user_intent_summary } = assistData.data.search;
-                            if (resData?.data) {
-                                if (user_intent_summary && !resData.data.aiSummary) {
-                                    resData.data.aiSummary = user_intent_summary;
-                                }
-                                if (category_filter && (!resData.data.detectedCategory || resData.data.detectedCategory === 'All Products')) {
-                                    resData.data.detectedCategory = category_filter;
-                                }
-                                if (keywords && Array.isArray(resData.data.suggestedKeywords)) {
-                                    const kwTokens = keywords.split(/[, ]+/).filter((k: string) => k.length > 2);
-                                    resData.data.suggestedKeywords = [...new Set([...resData.data.suggestedKeywords, ...kwTokens])];
-                                }
-                            }
-                        }
-                    }
-                } catch (netErr) {
-                    console.warn('Backend search API unreachable, attempting edge fallback:', netErr);
-                }
+                } catch (netErr) {}
 
                 // If backend/edge API returned valid data
                 if (resData && resData.success && resData.data && resData.data.rankedProductIds?.length > 0) {
                     if (isMounted) {
+                        searchClientCache.set(cacheKey, resData.data);
                         setRagData(resData.data);
                         return;
                     }
@@ -169,23 +151,25 @@ export const Search = () => {
 
                 // Local intelligent semantic boost fallback
                 if (isMounted) {
-                    const fallbackMatches = localMatches.slice(0, 10).map((m) => ({
+                    const fallbackMatches = localMatches.slice(0, 15).map((m) => ({
                         id: m.product.id,
                         matchScore: Math.min(95, Math.round(m.score / 15)),
                         matchReason: m.reason || 'Semantic Match'
                     }));
 
-                    setRagData({
+                    const localResult: RagSearchResponse = {
                         detectedIntent: rawQuery,
-                        detectedCategory: localMatches[0]?.product.category || 'Baby Collections',
-                        suggestedKeywords: [rawQuery, 'soft cotton', 'baby gift', 'luxury suit'],
-                        aiSummary: `Showing best matching luxury baby items for "${rawQuery}".`,
+                        detectedCategory: localMatches[0]?.product.category || 'All Products',
+                        suggestedKeywords: [rawQuery, 'trending', 'special collection'],
+                        aiSummary: `Showing best matching items for "${rawQuery}".`,
                         rankedProductIds: fallbackMatches
-                    });
+                    };
+
+                    searchClientCache.set(cacheKey, localResult);
+                    setRagData(localResult);
                 }
             } catch (err: any) {
                 if (isMounted) {
-                    console.warn('AI search note:', err?.message || 'Using fast local index');
                     setRagError('Fast local search active');
                 }
             } finally {
@@ -195,12 +179,15 @@ export const Search = () => {
             }
         };
 
-        fetchRagSearch();
+        const timer = setTimeout(() => {
+            fetchRagSearch();
+        }, 150);
 
         return () => {
             isMounted = false;
+            clearTimeout(timer);
         };
-    }, [query, products, areProductsLoading]);
+    }, [query, products, areProductsLoading, localMatches]);
 
     // AI-Ranked Combined List (Local + AI Score Boost)
     const finalRankedProducts = useMemo(() => {

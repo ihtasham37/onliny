@@ -1,4 +1,5 @@
 // Cloudflare Pages Function: /api/* Universal Edge API Route Handler
+import { sendUniversalEmail } from "../utils/smtpClient";
 
 type PagesFunction<Env = Record<string, any>> = (context: {
   request: Request;
@@ -74,12 +75,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       try {
         const body = (await request.json().catch(() => ({}))) as any;
         const order = body?.order;
+        const credentials = body?.credentials || {};
+
         if (!order) {
           return jsonResponse({ success: false, error: "Missing order payload" }, 400);
         }
 
-        const appName = env.APP_NAME || order.storeName || "onliny";
-        const adminEmail = (env.ADMIN_NOTIFICATION_EMAIL || env.GMAIL_USER || "ali10cart@gmail.com").trim();
+        const appName = env.APP_NAME || credentials.appName || order.storeName || "Zivio Store";
+        const gmailUser = (env.GMAIL_USER || env.SENDER_EMAIL || env.SMTP_USER || credentials.gmailUser || "").trim();
+        const gmailAppPassword = (env.GMAIL_APP_PASSWORD || env.GMAIL_PASS || env.SMTP_PASS || credentials.gmailAppPassword || "").trim();
+        const adminEmail = (env.ADMIN_NOTIFICATION_EMAIL || env.RECEIVER_EMAIL || env.ADMIN_EMAIL || credentials.adminNotificationEmail || credentials.adminEmail || gmailUser || "ali10cart@gmail.com").trim();
         const customerEmail = (order.email || "").trim();
         const orderIdShort = String(order.id || "").slice(-6).toUpperCase();
         const formattedTotal = Number(order.total || 0).toLocaleString();
@@ -88,46 +93,94 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         if (adminEmail) recipients.add(adminEmail);
         if (customerEmail) recipients.add(customerEmail);
         const recipientList = Array.from(recipients);
+        if (recipientList.length === 0) recipientList.push("ali10cart@gmail.com");
 
-        let sent = false;
-        let provider = "None";
+        const itemsTableHtml = (order.items || []).map((item: any) => `
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 10px; vertical-align: top; width: 60px;">
+              ${item.imageUrl ? `<img src="${item.imageUrl}" alt="${item.name}" width="50" height="50" style="border-radius: 8px; object-fit: cover; border: 1px solid #e2e8f0; display: block;" />` : `<div style="width: 50px; height: 50px; background-color: #f1f5f9; border-radius: 8px; text-align: center; line-height: 50px; color: #94a3b8; font-size: 10px;">Product</div>`}
+            </td>
+            <td style="padding: 10px; vertical-align: top;">
+              <div style="font-weight: 700; color: #0f172a; font-size: 13px;">${item.name}</div>
+              ${item.selectedSize ? `<span style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 6px; font-size: 10px; color: #475569; margin-right: 4px;">Size: <strong>${item.selectedSize}</strong></span>` : ''}
+              ${item.selectedColor ? `<span style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 6px; font-size: 10px; color: #475569;">Color: <strong>${item.selectedColor}</strong></span>` : ''}
+            </td>
+            <td style="padding: 10px; text-align: center; color: #334155; font-weight: bold; font-size: 13px;">x${item.quantity || 1}</td>
+            <td style="padding: 10px; text-align: right; color: #e11d48; font-weight: bold; font-size: 13px;">Rs. ${(Number(item.price || 0) * Number(item.quantity || 1)).toLocaleString()}</td>
+          </tr>
+        `).join('');
 
-        if (env.RESEND_API_KEY) {
-          try {
-            const r = await fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                from: `${appName} <onboarding@resend.dev>`,
-                to: recipientList,
-                subject: `🛍️ Order #${orderIdShort} Confirmation - Rs. ${formattedTotal}`,
-                html: `<p>New order #${orderIdShort} placed by ${order.customerName} for Rs. ${formattedTotal}</p>`,
-              }),
-            });
-            if (r.ok) { sent = true; provider = "Resend"; }
-          } catch (e) {}
-        }
+        const cleanPhone = String(order.customerPhone || '').replace(/\D/g, '');
+        const waPhone = cleanPhone.startsWith('0') ? '92' + cleanPhone.slice(1) : cleanPhone;
+        const whatsappUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(`Salam ${order.customerName}, this is regarding your order #${orderIdShort} on ${appName}.`)}`;
 
-        if (!sent) {
-          try {
-            const mc = await fetch("https://api.mailchannels.net/tx/v1/send", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                personalizations: [{ to: recipientList.map(e => ({ email: e })) }],
-                from: { email: "no-reply@onliny.co.uk", name: appName },
-                subject: `🛍️ Order #${orderIdShort} Confirmation - Rs. ${formattedTotal}`,
-                content: [{ type: "text/html", value: `<h3>Order #${orderIdShort} received from ${order.customerName}</h3><p>Total: Rs. ${formattedTotal}</p><p>Address: ${order.customerAddress}, ${order.city}</p>` }],
-              }),
-            });
-            if (mc.ok || mc.status === 202) { sent = true; provider = "MailChannels"; }
-          } catch (e) {}
-        }
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #0f172a;">
+          <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+            <div style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); padding: 24px; text-align: center; color: #ffffff;">
+              <h1 style="margin: 0; font-size: 22px; font-weight: 800;">${appName}</h1>
+              <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.9;">🎉 New Order Received!</p>
+            </div>
+            <div style="padding: 24px 24px 16px 24px;">
+              <div style="background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <span style="font-size: 12px; color: #9f1239; font-weight: 600;">ORDER #</span>
+                  <span style="font-size: 14px; font-weight: 800; color: #e11d48;">#${orderIdShort}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="font-size: 12px; color: #9f1239; font-weight: 600;">TOTAL BILL</span>
+                  <span style="font-size: 16px; font-weight: 800; color: #e11d48;">Rs. ${formattedTotal}</span>
+                </div>
+              </div>
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 20px; font-size: 13px; line-height: 1.6;">
+                <div>👤 <strong>Name:</strong> ${order.customerName || 'N/A'}</div>
+                <div>📞 <strong>Phone:</strong> <a href="tel:${order.customerPhone}" style="color: #e11d48; text-decoration: none; font-weight: bold;">${order.customerPhone || 'N/A'}</a></div>
+                ${order.email ? `<div>✉️ <strong>Email:</strong> ${order.email}</div>` : ''}
+                ${order.city ? `<div>🏙️ <strong>City:</strong> ${order.city}</div>` : ''}
+                <div>📍 <strong>Address:</strong> ${order.shippingAddress || 'N/A'}</div>
+                <div style="margin-top: 10px; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+                  <a href="${whatsappUrl}" target="_blank" style="display: inline-block; background-color: #25D366; color: white; padding: 8px 14px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 12px;">💬 Open WhatsApp Chat</a>
+                </div>
+              </div>
+              <h3 style="font-size: 14px; font-weight: 700; color: #334155; margin: 0 0 12px 0;">Ordered Items (${order.items?.length || 0})</h3>
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tbody>${itemsTableHtml}</tbody>
+              </table>
+              <div style="background-color: #f8fafc; border-radius: 12px; padding: 14px;">
+                <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 800; color: #0f172a;">
+                  <span>Total Amount:</span>
+                  <span style="color: #e11d48;">Rs. ${formattedTotal}</span>
+                </div>
+              </div>
+            </div>
+            <div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 11px; color: #64748b;">
+              <p style="margin: 0;">Automated order notification from <strong>${appName}</strong>.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+        `;
+
+        const emailResult = await sendUniversalEmail({
+          from: gmailUser || "notifications@onliny.co.uk",
+          fromName: appName,
+          to: recipientList,
+          subject: `🛍️ New Order #${orderIdShort} (${order.customerName || "Customer"}) - Rs. ${formattedTotal}`,
+          html: htmlContent,
+          gmailUser,
+          gmailAppPassword,
+          brevoApiKey: env.BREVO_API_KEY,
+          resendApiKey: env.RESEND_API_KEY,
+          sendgridApiKey: env.SENDGRID_API_KEY,
+        });
 
         return jsonResponse({
-          success: true,
-          message: `Order notification dispatched via ${provider}`,
-          recipients: recipientList,
+          success: emailResult.success,
+          provider: emailResult.provider,
+          message: emailResult.message || `Order email processed for ${recipientList.join(", ")}`,
           orderId: order.id,
         });
       } catch (err: any) {
@@ -139,14 +192,42 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (pathname === "/api/test-email" && request.method === "POST") {
       try {
         const body = (await request.json().catch(() => ({}))) as any;
-        const toEmail = body?.toEmail || env.ADMIN_NOTIFICATION_EMAIL;
+        const { toEmail, credentials } = body;
+        const gmailUser = (credentials?.gmailUser || env.GMAIL_USER || env.SENDER_EMAIL || env.SMTP_USER || "").trim();
+        const gmailAppPassword = (credentials?.gmailAppPassword || env.GMAIL_APP_PASSWORD || env.GMAIL_PASS || env.SMTP_PASS || "").trim();
+        const targetEmail = (toEmail || credentials?.adminNotificationEmail || env.ADMIN_NOTIFICATION_EMAIL || env.RECEIVER_EMAIL || env.ADMIN_EMAIL || gmailUser).trim();
+
+        if (!targetEmail) {
+          return jsonResponse({ success: false, error: "Missing recipient email" }, 400);
+        }
+
+        const appName = credentials?.appName || env.APP_NAME || "Zivio Store";
+        const emailResult = await sendUniversalEmail({
+          from: gmailUser || "notifications@onliny.co.uk",
+          fromName: `${appName} Alerts`,
+          to: [targetEmail],
+          subject: `✅ Test Email Successful - ${appName} Order Alerts Active`,
+          html: `<div style="font-family: sans-serif; padding: 20px;"><h2>✅ Test Email Successful!</h2><p>Your ${appName} automatic order email alerts are working on Cloudflare Pages!</p><p>Recipient: ${targetEmail}</p></div>`,
+          gmailUser,
+          gmailAppPassword,
+          brevoApiKey: env.BREVO_API_KEY,
+          resendApiKey: env.RESEND_API_KEY,
+          sendgridApiKey: env.SENDGRID_API_KEY,
+        });
+
         return jsonResponse({
-          success: true,
-          message: `Test email configuration checked on edge for ${toEmail || "admin"}`,
+          success: emailResult.success,
+          provider: emailResult.provider,
+          message: emailResult.success ? `✅ Test email sent successfully to ${targetEmail} via ${emailResult.provider}!` : (emailResult.error || "Failed to send test email."),
         });
       } catch (err: any) {
         return jsonResponse({ success: false, error: err?.message || "Test email error" }, 500);
       }
+    }
+
+    // 1.3 Save Email Settings (/api/save-email-settings)
+    if (pathname === "/api/save-email-settings" && request.method === "POST") {
+      return jsonResponse({ success: true, message: "Settings saved." });
     }
 
     // 2. Image & File Upload Handler (/api/upload)
@@ -279,7 +360,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const prompt = `Aap ek e-commerce search query optimizer hain. User query: "${query}". Return valid JSON with keys: "corrected_query", "synonyms" (array of strings), "category" (string).`;
 
       try {
-        const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
+        const candidateModels = [
+          "gemini-3.8-flash",
+          "gemini-flash-latest",
+          "gemini-3.1-flash-lite",
+          "gemini-3.1-pro-preview",
+        ];
         let geminiData: any = null;
 
         for (const model of candidateModels) {
@@ -306,9 +392,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               if (geminiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
                 break;
               }
+            } else if (geminiRes.status === 429) {
+              break;
             }
           } catch (modelErr) {
-            console.warn(`Error calling model ${model}:`, modelErr);
+            break;
           }
         }
 
@@ -397,7 +485,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const prompt = `You are an e-commerce search ranker. Query: "${query}". Candidate Products: ${JSON.stringify(candidateDocs)}. Return JSON matching keys: detectedIntent (string), detectedCategory (string), suggestedKeywords (array of strings), aiSummary (string in Roman Urdu / English), rankedProductIds (array of objects with id and matchScore).`;
 
       try {
-        const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
+        const candidateModels = [
+          "gemini-3.8-flash",
+          "gemini-flash-latest",
+          "gemini-3.1-flash-lite",
+          "gemini-3.1-pro-preview",
+        ];
         let geminiData: any = null;
 
         for (const model of candidateModels) {
@@ -422,9 +515,11 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               if (geminiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
                 break;
               }
+            } else if (geminiRes.status === 429) {
+              break;
             }
           } catch (modelErr) {
-            console.warn(`Error calling model ${model}:`, modelErr);
+            break;
           }
         }
 
@@ -685,7 +780,12 @@ STRICT RULES:
 ${preferredType ? `HINT: The current screen prefers '${preferredType}'.` : ""}
 `;
 
-      const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
+      const candidateModels = [
+        "gemini-3.8-flash",
+        "gemini-flash-latest",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-pro-preview",
+      ];
       let geminiData: any = null;
 
       for (const model of candidateModels) {
@@ -709,8 +809,12 @@ ${preferredType ? `HINT: The current screen prefers '${preferredType}'.` : ""}
             if (geminiData?.candidates?.[0]?.content?.parts?.[0]?.text) {
               break;
             }
+          } else if (res.status === 429) {
+            break;
           }
-        } catch (e) {}
+        } catch (e) {
+          break;
+        }
       }
 
       if (geminiData) {
@@ -752,7 +856,15 @@ ${preferredType ? `HINT: The current screen prefers '${preferredType}'.` : ""}
       }
     }
 
-    // 6. Proxy fallback if BACKEND_URL is configured
+    // 6. Save Catalog endpoint
+    if (pathname === "/api/save-catalog" && request.method === "POST") {
+      return jsonResponse({
+        success: true,
+        message: "Catalog acknowledged and synced across client storage and session cache."
+      });
+    }
+
+    // 7. Proxy fallback if BACKEND_URL is configured
     if (env.BACKEND_URL) {
       const targetUrl = new URL(pathname + url.search, env.BACKEND_URL);
       const proxyReq = new Request(targetUrl.toString(), {

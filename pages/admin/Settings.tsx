@@ -985,6 +985,73 @@ const Settings = () => {
                     </div>
                 </div>
 
+                {/* ☁️ Cloudflare Pages Production Environment Variables Guide */}
+                <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-lg border border-slate-700 space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md">
+                                ☁️
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-white">Cloudflare Pages Environment Variables</h2>
+                                <p className="text-xs text-slate-400">Add these variables in Cloudflare Dashboard: <strong>Settings &gt; Environment Variables &gt; Production</strong></p>
+                            </div>
+                        </div>
+                        <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Required for Live Hosting
+                        </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs text-slate-300 border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-700 text-slate-400">
+                                    <th className="py-2 px-3 font-semibold">Variable Name</th>
+                                    <th className="py-2 px-3 font-semibold">Purpose</th>
+                                    <th className="py-2 px-3 font-semibold">Status / Value Hint</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800">
+                                <tr>
+                                    <td className="py-2.5 px-3 font-mono font-bold text-amber-400">GEMINI_API_KEY</td>
+                                    <td className="py-2.5 px-3">AI Search &amp; Auto-Link Scraping Feature</td>
+                                    <td className="py-2.5 px-3 text-emerald-400">Required (Google AI Studio Key)</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-2.5 px-3 font-mono font-bold text-amber-400">RESEND_API_KEY</td>
+                                    <td className="py-2.5 px-3">Instant Order Email Delivery (3000 free/mo)</td>
+                                    <td className="py-2.5 px-3 text-emerald-400">Recommended for Cloudflare Edge</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-2.5 px-3 font-mono font-bold text-amber-400">ADMIN_NOTIFICATION_EMAIL</td>
+                                    <td className="py-2.5 px-3">Where to receive order notification alerts</td>
+                                    <td className="py-2.5 px-3 text-slate-300">e.g. ali10cart@gmail.com</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-2.5 px-3 font-mono font-bold text-amber-400">APP_NAME</td>
+                                    <td className="py-2.5 px-3">Store name shown on emails &amp; headers</td>
+                                    <td className="py-2.5 px-3 text-slate-300">e.g. {formData?.appName || 'Zivio'}</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-2.5 px-3 font-mono font-bold text-amber-400">CLOUDINARY_CLOUD_NAME</td>
+                                    <td className="py-2.5 px-3">Direct image uploads from browser/admin</td>
+                                    <td className="py-2.5 px-3 text-slate-300">Cloudinary Dashboard Cloud Name</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-2.5 px-3 font-mono font-bold text-amber-400">CLOUDINARY_API_KEY</td>
+                                    <td className="py-2.5 px-3">Signed image upload authentication</td>
+                                    <td className="py-2.5 px-3 text-slate-300">Cloudinary API Key</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-2.5 px-3 font-mono font-bold text-amber-400">CLOUDINARY_API_SECRET</td>
+                                    <td className="py-2.5 px-3">Signed image upload secret</td>
+                                    <td className="py-2.5 px-3 text-slate-300">Cloudinary API Secret</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <div className="bg-white p-4 rounded-lg shadow-sm">
                     <h2 className="text-xl font-bold mb-4">Admin Security</h2>
                     <p className="text-sm text-gray-500 mb-2">To change your admin password, please use the Firebase Authentication console.</p>

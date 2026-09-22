@@ -281,12 +281,9 @@ export const Navbar = () => {
                         {product.name}
                       </p>
                       <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500">
-                        <span className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-medium truncate max-w-[100px]">
+                        <span className="bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-medium truncate max-w-[140px]">
                           {product.category}
                         </span>
-                        {product.customId && (
-                          <span className="font-mono text-slate-400 shrink-0">ID: {product.customId}</span>
-                        )}
                       </div>
                     </div>
                     <div className="text-right shrink-0">

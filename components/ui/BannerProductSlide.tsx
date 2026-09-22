@@ -71,8 +71,8 @@ export const BannerProductSlide: React.FC<BannerProductSlideProps> = ({
         };
     }, [imageUrl, bannerConfig.backgroundColor]);
 
-    const discountPercent = product.oldPrice && product.oldPrice > product.price
-        ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)
+    const discountPercent = (Number(product.oldPrice || 0) > Number(product.price))
+        ? Math.round(((Number(product.oldPrice) - Number(product.price)) / Number(product.oldPrice)) * 100)
         : 0;
 
     const displayDiscount = bannerConfig.customDiscountBadge || (discountPercent > 0 ? `${discountPercent}% OFF` : null);
@@ -164,11 +164,11 @@ export const BannerProductSlide: React.FC<BannerProductSlideProps> = ({
                         <span className="text-xs sm:text-lg md:text-xl font-black text-rose-400 drop-shadow-xs">
                             {formatCurrency(product.price)}
                         </span>
-                        {product.oldPrice && product.oldPrice > product.price && (
+                        {Number(product.oldPrice || 0) > Number(product.price) ? (
                             <span className="text-[9px] sm:text-xs text-slate-400 line-through">
-                                {formatCurrency(product.oldPrice)}
+                                {formatCurrency(product.oldPrice!)}
                             </span>
-                        )}
+                        ) : null}
                     </div>
 
                     {/* View Product CTA Button */}

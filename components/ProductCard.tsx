@@ -42,8 +42,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     return coupons.some(c => c.assignment === 'product' && c.validFrom <= now && c.validTo >= now);
   }, [coupons]);
 
-  const discountPercent = product.oldPrice && product.oldPrice > product.price 
-    ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100) 
+  const discountPercent = (Number(product.oldPrice || 0) > Number(product.price))
+    ? Math.round(((Number(product.oldPrice) - Number(product.price)) / Number(product.oldPrice)) * 100) 
     : 0;
 
   return (
@@ -140,11 +140,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             <span className="text-sm sm:text-base font-black text-[#e60067] tracking-tight">
               {formatCurrency(product.price)}
             </span>
-            {product.oldPrice && product.oldPrice > product.price && (
+            {Number(product.oldPrice || 0) > Number(product.price) ? (
               <span className="text-[10px] sm:text-xs text-slate-400 line-through font-medium">
-                {formatCurrency(product.oldPrice)}
+                {formatCurrency(product.oldPrice!)}
               </span>
-            )}
+            ) : null}
           </div>
 
           {/* Floating Round Cart Button with festive sparkle marks */}
