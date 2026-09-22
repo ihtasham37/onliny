@@ -358,9 +358,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const syncCatalogBundle = useCallback(async (overrides?: Partial<CatalogBundle>) => {
     try {
+      const rawSettings = overrides?.settings ?? settings;
+      const safeSettings = rawSettings ? { ...rawSettings } : rawSettings;
+      if (safeSettings && (safeSettings as any).gmailAppPassword) {
+        delete (safeSettings as any).gmailAppPassword;
+      }
+
       const bundleToSave: CatalogBundle = {
         products: overrides?.products ?? allProducts,
-        settings: overrides?.settings ?? settings,
+        settings: safeSettings,
         banners: overrides?.banners ?? banners,
         coupons: overrides?.coupons ?? coupons,
         updatePosts: overrides?.updatePosts ?? updatePosts,
@@ -636,51 +642,76 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setCustomerOrders([]);
   };
 
-    useEffect(() => {
-    if (!activeCustomer) return;
+  useEffect(() => {
+    // Customer phone from active customer or local storage
+    const targetPhone = activeCustomer?.phone || localStorage.getItem('user_last_phone');
+    if (!targetPhone) return;
+
     let isInitialLoad = true;
     
-    // Request permission if not already granted
+    // Request notification permission if default
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
     }
 
-    // Realtime listener for tracked orders
-    const q = query(collection(db, 'orders'), where('customerPhone', '==', activeCustomer.phone));
+    const normTargetPhone = normalizePhone(targetPhone);
+    const q = query(collection(db, 'orders'), where('customerPhone', '==', normTargetPhone));
+    
     const unsub = onSnapshot(q, snap => {
         if (!isInitialLoad) {
             snap.docChanges().forEach(change => {
                 if (change.type === 'modified') {
-                    const order = change.doc.data() as Order;
-                    if (order.email?.toLowerCase() === activeCustomer.email) {
-                        // Play sound for all status updates
-                        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                        audio.play().catch(() => {});
+                    const order = { id: change.doc.id, ...change.doc.data() } as Order;
+                    
+                    // Sound effect for status update
+                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                    audio.play().catch(() => {});
 
-                        if ('Notification' in window && Notification.permission === 'granted') {
-                            new Notification('Order Status Updated', {
-                                body: `Your order status for ${order.id.substring(0,6)} is now: ${order.status}`,
-                                icon: '/favicon.svg'
-                            });
-                        } else {
-                            // Fallback to alert if permission denied but user is active on page
-                            alert(`Order Status Updated: Your order is now ${order.status}`);
+                    const orderDisplayId = (order as any).customId || order.id.substring(0, 6).toUpperCase();
+                    const notifTitle = `Order Status Updated - ${settings?.appName || 'Zivio Store'}`;
+                    const notifBody = `Your order #${orderDisplayId} is now: ${order.status.toUpperCase()} (آپ کے آرڈر کا اسٹیٹس: ${order.status})`;
+
+                    // 1. Browser/PWA Native Notification
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        try {
+                            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                                navigator.serviceWorker.ready.then(reg => {
+                                    reg.showNotification(notifTitle, {
+                                        body: notifBody,
+                                        icon: '/favicon.svg',
+                                        badge: '/pwa-192x192.png',
+                                        tag: `order-update-${order.id}`,
+                                        data: { url: `/?track=${encodeURIComponent(targetPhone)}` }
+                                    });
+                                });
+                            } else {
+                                new Notification(notifTitle, {
+                                    body: notifBody,
+                                    icon: '/favicon.svg'
+                                });
+                            }
+                        } catch (e) {
+                            new Notification(notifTitle, { body: notifBody, icon: '/favicon.svg' });
                         }
+                    } else {
+                        // Fallback alert
+                        alert(`📦 ${notifTitle}\n${notifBody}`);
                     }
                 }
             });
         }
         isInitialLoad = false;
 
-        const results = snap.docs
-            .map(d => ({ id: d.id, ...d.data() } as Order))
-            .filter(o => o.email?.toLowerCase() === activeCustomer.email);
-        
-        // Sort by createdAt DESC in memory
-        setCustomerOrders(results.sort((a, b) => b.createdAt - a.createdAt));
+        if (activeCustomer) {
+            const results = snap.docs
+                .map(d => ({ id: d.id, ...d.data() } as Order))
+                .filter(o => !activeCustomer.email || o.email?.toLowerCase() === activeCustomer.email.toLowerCase());
+            
+            setCustomerOrders(results.sort((a, b) => b.createdAt - a.createdAt));
+        }
     });
     return () => unsub();
-  }, [activeCustomer]);
+  }, [activeCustomer, settings]);
   
   const addCoupon = async (data: Omit<Coupon, 'id' | 'createdAt'>) => {
     const couponData = sanitizeForFirestore({
@@ -710,9 +741,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const exportCatalogSnapshot = useCallback(async () => {
     try {
+      const rawSettings = settings || INITIAL_STATIC_CATALOG.settings;
+      const safeSettings = rawSettings ? { ...rawSettings } : rawSettings;
+      if (safeSettings && (safeSettings as any).gmailAppPassword) {
+        delete (safeSettings as any).gmailAppPassword;
+      }
+
       const bundleToSave: CatalogBundle = {
         products: allProducts.length > 0 ? allProducts : INITIAL_STATIC_CATALOG.products,
-        settings: settings || INITIAL_STATIC_CATALOG.settings,
+        settings: safeSettings,
         banners: banners,
         coupons: coupons,
         updatePosts: updatePosts,
@@ -938,37 +975,66 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }
         });
         let isInitialOrdersLoad = true;
+        const sessionStartTime = Date.now();
         
+        // Helper to get already notified order IDs
+        const getNotifiedOrders = (): Set<string> => {
+          try {
+            const raw = localStorage.getItem('admin_notified_order_ids');
+            return new Set(raw ? JSON.parse(raw) : []);
+          } catch {
+            return new Set();
+          }
+        };
+
+        const markOrderNotified = (orderId: string) => {
+          try {
+            const notified = getNotifiedOrders();
+            notified.add(orderId);
+            localStorage.setItem('admin_notified_order_ids', JSON.stringify(Array.from(notified).slice(-200)));
+          } catch {}
+        };
+
         // Admin notification permission
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
         }
 
         unsubOrders = onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), (snap) => {
+            const notifiedSet = getNotifiedOrders();
+
             if (!isInitialOrdersLoad) {
                 snap.docChanges().forEach(change => {
                     if (change.type === 'added') {
-                        const order = change.doc.data() as Order;
+                        const order = { id: change.doc.id, ...change.doc.data() } as Order;
                         const isVendor = userData?.role === UserRole.Vendor;
                         const isAdmin = !userData?.role || userData.role === UserRole.Admin;
                         
                         const isForThisVendor = isVendor && order.vendorIds?.includes(currentUser.uid);
                         const isForAdmin = isAdmin && (!order.vendorIds || order.vendorIds.length === 0 || order.vendorIds.includes('admin'));
 
-                        if (isForThisVendor || isForAdmin) {
+                        // ONLY notify if order was created after this session started AND not already notified
+                        const isNewInThisSession = (order.createdAt || 0) >= (sessionStartTime - 10000);
+                        const notYetNotified = !notifiedSet.has(order.id);
+
+                        if ((isForThisVendor || isForAdmin) && isNewInThisSession && notYetNotified) {
+                            markOrderNotified(order.id);
+
+                            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                            audio.play().catch(() => {});
+
                             if ('Notification' in window && Notification.permission === 'granted') {
                                 new Notification('New Order Received!', {
                                     body: `Order from ${order.customerName} for ${order.total.toLocaleString()} PKR.`,
                                     icon: '/favicon.svg'
                                 });
-                            } else {
-                                const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                                audio.play().catch(() => {});
-                                alert(`New Order Received from ${order.customerName}!`);
                             }
                         }
                     }
                 });
+            } else {
+                // On initial snapshot load, mark ALL existing orders as seen so they never trigger notifications
+                snap.docs.forEach(d => markOrderNotified(d.id));
             }
             isInitialOrdersLoad = false;
             setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));

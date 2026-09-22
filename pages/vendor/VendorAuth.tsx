@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { useStore } from '../../hooks/useStore';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Spinner } from '../../components/ui/Spinner';
@@ -10,9 +9,6 @@ import { Icons } from '../../components/icons/Icons';
 import { UserRole } from '../../types';
 
 const VendorAuth = () => {
-  const { settings } = useStore();
-  const isVendorPortalAllowed = settings?.showVendorPortal ?? true;
-
   const [isLogin, setIsLogin] = useState(true);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -26,13 +22,6 @@ const VendorAuth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { login, vendorRegister, user, userData } = useAuth();
   const navigate = useNavigate();
-
-  // If vendor registration is disabled by admin, force login mode
-  useEffect(() => {
-    if (!isVendorPortalAllowed && !isLogin) {
-      setIsLogin(true);
-    }
-  }, [isVendorPortalAllowed, isLogin]);
 
   useEffect(() => {
     if (user && userData) {
@@ -56,10 +45,6 @@ const VendorAuth = () => {
     setError('');
     
     if (!isLogin) {
-        if (!isVendorPortalAllowed) {
-            setError('Vendor registration is currently closed by the store administrator.');
-            return;
-        }
         if (password !== confirmPassword) {
             setError('Passwords do not match');
             return;
@@ -128,27 +113,22 @@ const VendorAuth = () => {
           </p>
         </div>
 
-        {isVendorPortalAllowed ? (
-            <div className="flex bg-slate-100 p-1 rounded-xl">
-                <button 
-                    onClick={() => setIsLogin(true)}
-                    className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                    Login
-                </button>
-                <button 
-                    onClick={() => setIsLogin(false)}
-                    className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${!isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                    Register
-                </button>
-            </div>
-        ) : (
-            <div className="bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-xl text-xs flex items-center gap-2">
-                <Icons.lock className="w-4 h-4 shrink-0 text-amber-600" />
-                <span>وینڈر رجسٹریشن اس وقت بند ہے۔ صرف پہلے سے موجود وینڈرز سائن ان کر سکتے ہیں۔ (Registration Closed)</span>
-            </div>
-        )}
+        <div className="flex bg-slate-100 p-1 rounded-xl">
+            <button 
+                type="button"
+                onClick={() => setIsLogin(true)}
+                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+                Login
+            </button>
+            <button 
+                type="button"
+                onClick={() => setIsLogin(false)}
+                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${!isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+                Register
+            </button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (

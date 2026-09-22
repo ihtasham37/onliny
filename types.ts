@@ -244,6 +244,8 @@ export interface Settings {
     adminNotificationEmail?: string;
     gmailUser?: string;
     gmailAppPassword?: string;
+    brevoApiKey?: string;
+    brevoSenderEmail?: string;
     enableOrderEmailAlerts?: boolean;
     announcementBanner?: AnnouncementBanner;
     popupBanner?: PopupBannerSettings;

@@ -43,11 +43,16 @@ export const getMailTransporter = (creds: EmailCredentials = {}) => {
   }
 
   return nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
       user,
       pass,
     },
+    tls: {
+      rejectUnauthorized: false
+    }
   });
 };
 
@@ -59,18 +64,18 @@ export const sendOrderNotificationEmail = async (
     const transporter = getMailTransporter(creds);
     const targetEmail = (
       creds.adminNotificationEmail ||
-      process.env.ADMIN_NOTIFICATION_EMAIL ||
       creds.gmailUser ||
+      process.env.ADMIN_NOTIFICATION_EMAIL ||
       process.env.GMAIL_USER ||
-      ''
+      'aliihtasham20@gmail.com'
     ).trim();
 
-    if (!transporter || !targetEmail) {
-      console.warn('[Email Notification] Gmail credentials (user/app password) not configured in server environment.');
+    if (!transporter) {
+      console.warn('[Email Notification] Google SMTP credentials (Gmail Address & 16-Char App Password) not configured.');
       return {
         success: false,
         configured: false,
-        message: 'Gmail credentials not configured. Please set GMAIL_USER and GMAIL_APP_PASSWORD in server environment variables (.env).',
+        message: 'Gmail SMTP credentials not configured. Please enter your Gmail Address and 16-character App Password in Admin Settings.',
       };
     }
 
@@ -271,18 +276,29 @@ export const sendOrderNotificationEmail = async (
       html: htmlContent,
     });
 
-    console.log(`[Email Notification] Order email sent to ${finalTo}. MessageId: ${info.messageId}`);
+    console.log(`[Google SMTP] Order email sent to ${finalTo}. MessageId: ${info.messageId}`);
     return {
       success: true,
       configured: true,
+      provider: 'smtp',
       messageId: info.messageId,
     };
   } catch (error: any) {
-    console.error('[Email Notification Error]:', error);
+    console.error('[Google SMTP Error]:', error);
+    let errorMessage = error?.message || 'Failed to send email';
+    if (
+      errorMessage.includes('Invalid login') ||
+      errorMessage.includes('Username and Password not accepted') ||
+      errorMessage.includes('BadCredentials') ||
+      errorMessage.includes('535-5.7.8')
+    ) {
+      errorMessage =
+        'Google SMTP Login Failed: Gmail address ya 16-character Google App Password galat hai. Baraye meherbani Google Account security se 16-letters ka App Password generate karke Admin Settings mein enter karein.';
+    }
     return {
       success: false,
       configured: true,
-      error: error?.message || 'Failed to send email',
+      error: errorMessage,
     };
   }
 };
@@ -297,34 +313,62 @@ export const sendTestEmail = async (
       return {
         success: false,
         configured: false,
-        message: 'Gmail User or App Password missing.',
+        message: 'Google SMTP credentials missing! Pehle Admin Settings mein Gmail Address aur 16-character Google App Password enter karein.',
       };
     }
 
     const appName = creds.appName || 'Online store';
     const sender = (creds.gmailUser || process.env.GMAIL_USER || toEmail).trim();
+    const recipient = (toEmail || creds.adminNotificationEmail || sender).trim();
+
+    const testHtml = `
+      <div style="font-family: sans-serif; padding: 24px; background-color: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; max-width: 520px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 16px 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+          <h2 style="margin: 0; font-size: 20px;">🎉 Google SMTP Connection Successful!</h2>
+          <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.9;">Aapka Gmail aur Google App Password 100% active hai.</p>
+        </div>
+        <p style="color: #334155; font-size: 14px; line-height: 1.6;">
+          Mubarak ho! Aapka Google SMTP email system theek se connect ho chuka hai.<br/><br/>
+          Ab jab bhi koi customer <strong>${appName}</strong> par order place kare ga, to order ki complete details (naam, phone number, delivery address, items list, aur total bill) automatically is email par send ho jayengi.
+        </p>
+        <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 14px; font-size: 13px; color: #065f46; margin-top: 18px; line-height: 1.6;">
+          <strong>Sender Gmail:</strong> ${sender}<br/>
+          <strong>Receiving Email:</strong> ${recipient}<br/>
+          <strong>Timestamp:</strong> ${new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' })}
+        </div>
+      </div>
+    `;
 
     const info = await transporter.sendMail({
       from: `"${appName}" <${sender}>`,
-      to: toEmail.trim(),
-      subject: `✅ Test Email Successful - ${appName} Notifications`,
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; background-color: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; max-width: 500px; margin: 0 auto;">
-          <h2 style="color: #059669; margin-top: 0;">🎉 Congratulations! Email Alert Setup Working!</h2>
-          <p style="color: #334155; font-size: 14px; line-height: 1.5;">
-            Your Gmail SMTP connection is working 100% properly. Whenever a customer places an order on <strong>${appName}</strong>, you will automatically receive instant order details here.
-          </p>
-          <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px; font-size: 12px; color: #065f46; margin-top: 15px;">
-            <strong>Test Timestamp:</strong> ${new Date().toLocaleString()}<br/>
-            <strong>Recipient:</strong> ${toEmail}
-          </div>
-        </div>
-      `,
+      to: recipient,
+      subject: `✅ Google SMTP Test Successful - ${appName}`,
+      html: testHtml,
     });
 
-    return { success: true, messageId: info.messageId };
+    console.log(`[Google SMTP Test] Email sent to ${recipient}. MessageId: ${info.messageId}`);
+    return {
+      success: true,
+      provider: 'smtp',
+      messageId: info.messageId,
+      message: `✅ Test email successfully sent to ${recipient}! Google SMTP theek kaam kar raha hai.`,
+    };
   } catch (err: any) {
-    console.error('[Email Test Error]:', err);
-    return { success: false, error: err?.message || 'Test email failed' };
+    console.error('[Google SMTP Test Error]:', err);
+    let errorMsg = err?.message || 'Test email failed';
+    if (
+      errorMsg.includes('Invalid login') ||
+      errorMsg.includes('Username and Password not accepted') ||
+      errorMsg.includes('BadCredentials') ||
+      errorMsg.includes('535-5.7.8')
+    ) {
+      errorMsg =
+        'Google Login Error: Gmail address ya 16-character App Password galat hai. Make sure 2-Step Verification ON hai aur Google App Password 16 letters ka theek enter kiya hai.';
+    }
+    return {
+      success: false,
+      error: errorMsg,
+      message: `❌ Failed: ${errorMsg}`,
+    };
   }
 };

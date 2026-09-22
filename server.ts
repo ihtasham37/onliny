@@ -37,7 +37,7 @@ async function callGeminiWithFallback(ai: GoogleGenAI, params: {
   contents: string;
   config?: any;
 }) {
-  const models = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
+  const models = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
   let lastError: any = null;
 
   for (const model of models) {
@@ -123,6 +123,63 @@ app.post("/api/delete", async (req, res) => {
   }
 });
 
+// Helper to get or save secure email settings server-side
+const EMAIL_SETTINGS_PATH = path.resolve(process.cwd(), "data", "emailSettings.json");
+
+function getStoredEmailSettings(): {
+  gmailUser?: string;
+  gmailAppPassword?: string;
+  adminNotificationEmail?: string;
+  appName?: string;
+} {
+  try {
+    if (fs.existsSync(EMAIL_SETTINGS_PATH)) {
+      const raw = fs.readFileSync(EMAIL_SETTINGS_PATH, "utf-8");
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.warn("Could not read emailSettings.json:", e);
+  }
+  return {};
+}
+
+function saveStoredEmailSettings(creds: Record<string, any>) {
+  try {
+    const dataDir = path.resolve(process.cwd(), "data");
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    const current = getStoredEmailSettings();
+    const updated = {
+      ...current,
+      ...creds,
+      updatedAt: Date.now(),
+    };
+    fs.writeFileSync(EMAIL_SETTINGS_PATH, JSON.stringify(updated, null, 2), "utf-8");
+    return updated;
+  } catch (e) {
+    console.warn("Could not write emailSettings.json:", e);
+    return null;
+  }
+}
+
+// API Route for Admin to Save Email Credentials strictly on Server
+app.post("/api/save-email-settings", (req, res) => {
+  try {
+    const { gmailUser, gmailAppPassword, adminNotificationEmail, appName } = req.body;
+    const toSave: any = {};
+    if (gmailUser !== undefined) toSave.gmailUser = String(gmailUser).trim();
+    if (gmailAppPassword !== undefined) toSave.gmailAppPassword = String(gmailAppPassword).trim();
+    if (adminNotificationEmail !== undefined) toSave.adminNotificationEmail = String(adminNotificationEmail).trim();
+    if (appName !== undefined) toSave.appName = String(appName).trim();
+
+    saveStoredEmailSettings(toSave);
+    res.json({ success: true, message: "Email settings saved securely on server." });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e?.message || "Failed to save email settings" });
+  }
+});
+
 // API Route for Automatic Order Email Notification (100% Free via Gmail SMTP)
 app.post("/api/send-order-email", async (req, res) => {
   try {
@@ -131,7 +188,18 @@ app.post("/api/send-order-email", async (req, res) => {
       return res.status(400).json({ success: false, error: "Missing order payload" });
     }
 
-    const result = await sendOrderNotificationEmail(order, credentials || {});
+    // Merge server-side stored credentials with any provided credentials
+    const stored = getStoredEmailSettings();
+    const effectiveCredentials = {
+      ...stored,
+      ...(credentials || {}),
+      gmailUser: (credentials?.gmailUser || stored.gmailUser || process.env.GMAIL_USER || '').trim(),
+      gmailAppPassword: (credentials?.gmailAppPassword || stored.gmailAppPassword || process.env.GMAIL_APP_PASSWORD || '').trim(),
+      adminNotificationEmail: (credentials?.adminNotificationEmail || stored.adminNotificationEmail || process.env.ADMIN_NOTIFICATION_EMAIL || '').trim(),
+      appName: credentials?.appName || stored.appName || 'Zivio Store',
+    };
+
+    const result = await sendOrderNotificationEmail(order, effectiveCredentials);
     res.json(result);
   } catch (error: any) {
     console.error("Order Email Error:", error);
@@ -145,7 +213,12 @@ app.get("/api/catalog-data", (req, res) => {
     const catalogPath = path.resolve(process.cwd(), "data", "staticCatalog.json");
     if (fs.existsSync(catalogPath)) {
       const raw = fs.readFileSync(catalogPath, "utf-8");
-      return res.json({ success: true, data: JSON.parse(raw) });
+      const parsed = JSON.parse(raw);
+      // Ensure sensitive credentials are NEVER leaked to public clients in staticCatalog
+      if (parsed?.settings?.gmailAppPassword) {
+        delete parsed.settings.gmailAppPassword;
+      }
+      return res.json({ success: true, data: parsed });
     }
     return res.json({ success: false, error: "Catalog file does not exist yet" });
   } catch (err: any) {
@@ -159,12 +232,31 @@ app.post("/api/save-catalog", (req, res) => {
     if (!catalog) {
       return res.status(400).json({ success: false, error: "No catalog provided" });
     }
+
+    // If catalog payload includes email credentials, save them securely in server config, NOT in public catalog
+    if (catalog?.settings?.gmailAppPassword || catalog?.settings?.gmailUser) {
+      saveStoredEmailSettings({
+        gmailUser: catalog.settings.gmailUser,
+        gmailAppPassword: catalog.settings.gmailAppPassword,
+        adminNotificationEmail: catalog.settings.adminNotificationEmail,
+      });
+    }
+
+    // Clone and sanitize catalog so gmailAppPassword is NEVER written into public staticCatalog.json
+    const sanitizedCatalog = {
+      ...catalog,
+      settings: catalog.settings ? { ...catalog.settings } : {},
+    };
+    if (sanitizedCatalog.settings?.gmailAppPassword) {
+      delete sanitizedCatalog.settings.gmailAppPassword;
+    }
+
     const dataDir = path.resolve(process.cwd(), "data");
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
     const catalogPath = path.join(dataDir, "staticCatalog.json");
-    fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2), "utf-8");
+    fs.writeFileSync(catalogPath, JSON.stringify(sanitizedCatalog, null, 2), "utf-8");
     res.json({ success: true, message: "Static catalog file updated successfully on server." });
   } catch (err: any) {
     console.error("Save catalog error:", err);
@@ -180,7 +272,21 @@ app.post("/api/test-email", async (req, res) => {
       return res.status(400).json({ success: false, error: "Missing recipient email" });
     }
 
-    const result = await sendTestEmail(toEmail, credentials || {});
+    if (credentials?.gmailUser || credentials?.gmailAppPassword) {
+      saveStoredEmailSettings(credentials);
+    }
+
+    const stored = getStoredEmailSettings();
+    const effectiveCredentials = {
+      ...stored,
+      ...(credentials || {}),
+      gmailUser: (credentials?.gmailUser || stored.gmailUser || process.env.GMAIL_USER || '').trim(),
+      gmailAppPassword: (credentials?.gmailAppPassword || stored.gmailAppPassword || process.env.GMAIL_APP_PASSWORD || '').trim(),
+      adminNotificationEmail: (credentials?.adminNotificationEmail || stored.adminNotificationEmail || toEmail).trim(),
+      appName: credentials?.appName || stored.appName || 'Zivio Store',
+    };
+
+    const result = await sendTestEmail(toEmail, effectiveCredentials);
     res.json(result);
   } catch (error: any) {
     console.error("Test Email Error:", error);

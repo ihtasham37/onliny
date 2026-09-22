@@ -81,6 +81,19 @@ const Settings = () => {
         if (formData) {
             setIsSaving(true);
             try {
+                // Securely save credentials to server-side isolated config
+                if (formData.gmailUser || formData.gmailAppPassword) {
+                    await fetch('/api/save-email-settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            gmailUser: formData.gmailUser,
+                            gmailAppPassword: formData.gmailAppPassword,
+                            adminNotificationEmail: formData.adminNotificationEmail,
+                            appName: formData.appName || 'Zivio Store'
+                        })
+                    }).catch(err => console.warn("Failed to save email settings to server:", err));
+                }
                 await updateSettings(formData);
                 alert("Settings saved successfully!");
             } catch (error) {
@@ -93,8 +106,13 @@ const Settings = () => {
     };
 
     const handleSendTestEmail = async () => {
-        if (!formData?.adminNotificationEmail) {
-            alert("Please enter the Admin Notification Email.");
+        const sendTo = (formData?.adminNotificationEmail || formData?.gmailUser || '').trim();
+        if (!formData?.gmailUser || !formData?.gmailAppPassword) {
+            alert("Baraye meherbani pehle 'Sender Gmail Address' aur 'Google 16-Character App Password' enter karein!");
+            return;
+        }
+        if (!sendTo) {
+            alert("Please enter your Gmail address to receive the test email.");
             return;
         }
         setIsTestingEmail(true);
@@ -104,11 +122,12 @@ const Settings = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    toEmail: formData.adminNotificationEmail,
+                    toEmail: sendTo,
                     credentials: {
-                        gmailUser: formData.gmailUser,
-                        gmailAppPassword: formData.gmailAppPassword,
-                        appName: formData.appName || 'Zivio',
+                        gmailUser: formData.gmailUser.trim(),
+                        gmailAppPassword: formData.gmailAppPassword.trim(),
+                        adminNotificationEmail: sendTo,
+                        appName: formData.appName || 'Zivio Store',
                     },
                 }),
             });
@@ -116,12 +135,12 @@ const Settings = () => {
             if (data.success) {
                 setTestEmailResult({
                     success: true,
-                    message: `✅ Test email sent successfully to ${formData.adminNotificationEmail}! Check your inbox.`,
+                    message: data.message || `✅ Test email sent successfully to ${sendTo}! Check your inbox.`,
                 });
             } else {
                 setTestEmailResult({
                     success: false,
-                    message: `❌ Failed: ${data.message || data.error || 'Please check your Gmail and 16-character App Password.'}`,
+                    message: `❌ ${data.message || data.error || 'Please check your Gmail and 16-character App Password.'}`,
                 });
             }
         } catch (err: any) {
@@ -843,7 +862,7 @@ const Settings = () => {
                     </div>
                 </div>
 
-                {/* Automatic Order Email Notification (100% Free via Gmail SMTP) */}
+                {/* Automatic Order Email Notification (Google SMTP) */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <div className="flex items-start justify-between gap-4 mb-4">
                         <div className="flex items-center gap-3">
@@ -851,69 +870,75 @@ const Settings = () => {
                                 <Icons.mail className="w-5 h-5" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-bold text-slate-800">Order Email Notifications</h2>
-                                <p className="text-xs text-slate-500">100% Free automatic order alerts sent to your Gmail inbox</p>
+                                <h2 className="text-xl font-bold text-slate-800">Order Email Notifications (Google SMTP)</h2>
+                                <p className="text-xs text-slate-500">Instant automatic order alerts sent to your email inbox via Google SMTP</p>
                             </div>
                         </div>
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                            100% Free (Gmail SMTP)
+                            Google SMTP (100% Free)
                         </span>
                     </div>
 
                     <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-                        Jab bhi koi customer order place kare ga, to order ki complete details (Customer Name, Phone number, Address, Items list, aur Total Amount) automatically aap ki email par send ho jayegi.
+                        Jab bhi koi customer order place kare ga, to aapke diye gaye <strong>Gmail Address</strong> aur <strong>Google App Password</strong> ke zariye order ki mukammal details (Customer Name, Phone number, Address, Items, aur Total Bill) automatically aap ki email par send ho jayegi.
                     </p>
 
                     <div className="space-y-4">
-                        <div>
-                            <Input 
-                                label="Admin Notification Email (Receive Orders Here)" 
-                                placeholder="aliihtasham10@gmail.com" 
-                                value={formData.adminNotificationEmail || ''} 
-                                onChange={e => setFormData({...formData, adminNotificationEmail: e.target.value})} 
-                            />
-                            <p className="text-xs text-slate-400 mt-1">Orders ki notification is email par aayengi (Default: aliihtasham10@gmail.com).</p>
-                        </div>
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                <span>🔑 Google SMTP Login Credentials</span>
+                            </h3>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <Input 
-                                    label="Sender Gmail Address" 
-                                    placeholder="yourstore@gmail.com" 
-                                    value={formData.gmailUser || ''} 
-                                    onChange={e => setFormData({...formData, gmailUser: e.target.value})} 
-                                />
-                                <p className="text-xs text-slate-400 mt-1">Jis Gmail account se email send karni hai.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <Input 
+                                        label="Sender Gmail Address" 
+                                        placeholder="aliihtasham20@gmail.com" 
+                                        value={formData.gmailUser || ''} 
+                                        onChange={e => setFormData({...formData, gmailUser: e.target.value})} 
+                                    />
+                                    <p className="text-xs text-slate-500 mt-1">Aapka Gmail account jahan se email send hogi.</p>
+                                </div>
+
+                                <div>
+                                    <div className="relative">
+                                        <Input 
+                                            type={showAppPassword ? 'text' : 'password'}
+                                            label="Google 16-Character App Password" 
+                                            placeholder="abcd efgh ijkl mnop" 
+                                            value={formData.gmailAppPassword || ''} 
+                                            onChange={e => setFormData({...formData, gmailAppPassword: e.target.value})} 
+                                        />
+                                        <button 
+                                            type="button" 
+                                            className="absolute right-3 top-9 text-xs text-slate-500 hover:text-slate-700 font-medium"
+                                            onClick={() => setShowAppPassword(!showAppPassword)}
+                                        >
+                                            {showAppPassword ? 'Hide' : 'Show'}
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">Google Account security se 16 letters ka banaya gaya App Password.</p>
+                                </div>
                             </div>
 
                             <div>
-                                <div className="relative">
-                                    <Input 
-                                        type={showAppPassword ? 'text' : 'password'}
-                                        label="Gmail 16-Character App Password" 
-                                        placeholder="abcd efgh ijkl mnop" 
-                                        value={formData.gmailAppPassword || ''} 
-                                        onChange={e => setFormData({...formData, gmailAppPassword: e.target.value})} 
-                                    />
-                                    <button 
-                                        type="button" 
-                                        className="absolute right-3 top-9 text-xs text-slate-500 hover:text-slate-700 font-medium"
-                                        onClick={() => setShowAppPassword(!showAppPassword)}
-                                    >
-                                        {showAppPassword ? 'Hide' : 'Show'}
-                                    </button>
-                                </div>
-                                <p className="text-xs text-slate-400 mt-1">Google Account security se generate kya gaya 16 letters ka free App Password.</p>
+                                <Input 
+                                    label="Order Notification Receive Email (Optional - Dusri Email par lene ke liye)" 
+                                    placeholder={formData.gmailUser || "aliihtasham20@gmail.com"} 
+                                    value={formData.adminNotificationEmail || ''} 
+                                    onChange={e => setFormData({...formData, adminNotificationEmail: e.target.value})} 
+                                />
+                                <p className="text-xs text-slate-400 mt-1">Agar khali choren ge to order alerts upar wali Gmail par hi deliver hon gi.</p>
                             </div>
                         </div>
 
                         {/* Step-by-Step Guide Box */}
-                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-1.5">
-                            <p className="font-bold text-slate-800 text-sm mb-1">📖 1-Minute Free Setup Guide (App Password Kaise Banaye?):</p>
-                            <p>1. Apne Google Account mein jayein: <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" className="text-rose-600 font-semibold underline">myaccount.google.com/security</a></p>
-                            <p>2. <strong>2-Step Verification</strong> ON karein (agar pehle se ON nahi hai).</p>
-                            <p>3. Security page par search karein <strong>"App Passwords"</strong> (ya 2-Step Verification ke andar neeche App Passwords open karein).</p>
-                            <p>4. App name likhein <strong>"Zivio Store"</strong> aur <em>Create</em> dabayein. Google aapko 16 letters ka password de ga (maslan: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-300 font-mono">abcd efgh ijkl mnop</code>). Woh yahan paste karein aur Save karein!</p>
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-900 space-y-1.5">
+                            <p className="font-bold text-amber-950 text-sm mb-1">📖 1-Minute Easy Guide (Google 16-Character App Password Kaise Banaye?):</p>
+                            <p>1. Apne Google Account Security mein jayein: <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" className="text-rose-600 font-semibold underline">myaccount.google.com/security</a></p>
+                            <p>2. Check karein ke <strong>2-Step Verification</strong> ON hai (agar ON nahi hai to ON karein).</p>
+                            <p>3. Search bar mein <strong>"App Passwords"</strong> likh kar open karein (ya 2-Step Verification ke page par sab se neeche App Passwords par click karein).</p>
+                            <p>4. App name mein <strong>"Zivio Store"</strong> likhein aur <em>Create</em> dabayein. Google aapko 16 letters ka password show karega (maslan: <code className="bg-white px-1.5 py-0.5 rounded border border-amber-300 font-mono text-amber-900">abcd efgh ijkl mnop</code>). Woh password yahan paste karein aur neeche <strong>Save Settings</strong> dabayein!</p>
                         </div>
 
                         {/* Test Email Button and Status */}

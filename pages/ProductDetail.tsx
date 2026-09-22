@@ -39,6 +39,8 @@ const ProductDetail = () => {
   const [mainImage, setMainImage] = useState<string | null>(null);
   const [selectedSizes, setSelectedSizes] = useState<Record<string, string>>({});
   const [sizeError, setSizeError] = useState('');
+  const [isShaking, setIsShaking] = useState(false);
+  const sizeSectionRef = React.useRef<HTMLDivElement>(null);
   const [additionalInfo, setAdditionalInfo] = useState('');
   const [showShareMenu, setShowShareMenu] = useState(false);
 
@@ -201,19 +203,48 @@ const ProductDetail = () => {
   }
 
   const handleSizeChange = (categoryName: string, size: string) => {
-    setSelectedSizes(prev => ({...prev, [categoryName]: size}));
-    setSizeError('');
-  }
+    setSelectedSizes(prev => {
+      const updated = { ...prev, [categoryName]: size };
+      // Check if all size categories are now filled
+      if (product?.sizeCategories && product.sizeCategories.every(c => updated[c.categoryName])) {
+        setSizeError('');
+      } else {
+        const nextMissing = product?.sizeCategories?.find(c => !updated[c.categoryName]);
+        if (nextMissing) {
+          setSizeError(`Please select your ${nextMissing.categoryName}!`);
+        } else {
+          setSizeError('');
+        }
+      }
+      return updated;
+    });
+  };
 
   const validateSizes = () => {
     if (product?.sizeCategories && product.sizeCategories.length > 0) {
-      if (Object.keys(selectedSizes).length !== product.sizeCategories.length) {
-        setSizeError('Please select an option for each size category.');
+      const missingCat = product.sizeCategories.find(c => !selectedSizes[c.categoryName]);
+      if (missingCat) {
+        const errorText = `Please select your ${missingCat.categoryName}!`;
+        setSizeError(errorText);
+        setIsShaking(true);
+        setTimeout(() => setIsShaking(false), 600);
+
+        // Smoothly scroll screen directly to the size selection section
+        if (sizeSectionRef.current) {
+          const rect = sizeSectionRef.current.getBoundingClientRect();
+          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+          const targetY = rect.top + scrollTop - 120; // 120px offset to keep header and alert nicely visible
+          window.scrollTo({
+            top: Math.max(0, targetY),
+            behavior: 'smooth'
+          });
+        }
         return false;
       }
     }
+    setSizeError('');
     return true;
-  }
+  };
   
   const handleAddToCart = () => {
       if (!validateSizes()) return;
@@ -532,28 +563,76 @@ const ProductDetail = () => {
             </div>
 
             {productSizeCategories.length > 0 && (
-              <div className="space-y-1.5 pt-1">
-                  {productSizeCategories.map(cat => (
-                     <div key={cat.categoryName}>
-                        <label className="block text-xs font-bold text-slate-800 mb-1">{cat.categoryName}:</label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {cat.sizes.map(size => (
-                            <button
-                                key={size}
-                                onClick={() => handleSizeChange(cat.categoryName, size)}
-                                className={`px-3 py-1 text-xs font-bold rounded-xl border-2 flex items-center justify-center gap-1.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-1 ${
-                                selectedSizes[cat.categoryName] === size
-                                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                                    : 'bg-white text-slate-800 border-rose-100 hover:bg-rose-50 hover:border-rose-200'
-                                }`}
-                                >
-                                {size}
-                            </button>
-                          ))}
-                        </div>
+              <div 
+                ref={sizeSectionRef}
+                id="product-size-section"
+                className={`rounded-2xl transition-all duration-300 p-3 space-y-3 ${
+                  sizeError 
+                    ? `bg-rose-50/90 border-2 border-rose-500 shadow-lg shadow-rose-200/60 ring-4 ring-rose-200/50 ${isShaking ? 'animate-shake' : ''}` 
+                    : 'bg-slate-50/70 border border-rose-100/80'
+                }`}
+              >
+                  {/* Prominent Attention Alert at the top of the Size Section */}
+                  {sizeError && (
+                    <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-rose-600 via-rose-600 to-pink-600 text-white text-xs font-black px-3.5 py-2.5 rounded-xl shadow-sm animate-fade-in">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                        </span>
+                        <span>⚠️ {sizeError}</span>
+                      </div>
+                      <span className="text-[10px] bg-white/20 uppercase tracking-wider px-2 py-0.5 rounded-md backdrop-blur-xs font-black shrink-0">
+                        Required
+                      </span>
                     </div>
-                  ))}
-                  {sizeError && <p className="mt-1.5 text-xs text-red-600 font-semibold">{sizeError}</p>}
+                  )}
+
+                  {productSizeCategories.map(cat => {
+                     const isMissingThis = !selectedSizes[cat.categoryName] && !!sizeError;
+                     return (
+                       <div key={cat.categoryName} className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className={`block text-xs font-bold transition-colors ${
+                              isMissingThis ? 'text-rose-600 font-extrabold flex items-center gap-1.5' : 'text-slate-800'
+                            }`}>
+                              <span>{cat.categoryName}:</span>
+                              {isMissingThis && (
+                                <span className="text-[10px] bg-rose-200/90 text-rose-800 px-1.5 py-0.2 rounded-md font-extrabold animate-pulse">
+                                  Select Option
+                                </span>
+                              )}
+                            </label>
+                            {selectedSizes[cat.categoryName] && (
+                              <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                ✓ {selectedSizes[cat.categoryName]}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {cat.sizes.map(size => {
+                              const isSelected = selectedSizes[cat.categoryName] === size;
+                              return (
+                                <button
+                                    key={size}
+                                    type="button"
+                                    onClick={() => handleSizeChange(cat.categoryName, size)}
+                                    className={`px-3.5 py-1.5 text-xs font-bold rounded-xl border-2 flex items-center justify-center gap-1.5 transition-all duration-200 focus:outline-none cursor-pointer ${
+                                    isSelected
+                                        ? 'bg-rose-600 text-white border-rose-600 shadow-xs scale-105 ring-2 ring-rose-300 ring-offset-1'
+                                        : isMissingThis
+                                        ? 'bg-white text-slate-800 border-rose-300 hover:border-rose-500 hover:bg-rose-50/80 shadow-xs'
+                                        : 'bg-white text-slate-800 border-rose-100 hover:bg-rose-50 hover:border-rose-200'
+                                    }`}
+                                >
+                                    {size}
+                                </button>
+                              );
+                            })}
+                          </div>
+                      </div>
+                     );
+                  })}
               </div>
             )}
 
@@ -625,6 +704,27 @@ const ProductDetail = () => {
         </div>
       
         <div className="sticky bottom-0 bg-white/95 backdrop-blur-md p-2.5 border-t border-rose-100 md:static md:mt-3 md:p-1 md:border-0 md:shadow-none shadow-[0_-4px_16px_rgba(244,63,94,0.08)] z-20 flex flex-col gap-2 rounded-2xl">
+            {sizeError && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (sizeSectionRef.current) {
+                    const rect = sizeSectionRef.current.getBoundingClientRect();
+                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                    const targetY = rect.top + scrollTop - 120;
+                    window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+                  }
+                }}
+                className="w-full bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-bold py-1.5 px-3 rounded-xl border border-rose-200 flex items-center justify-between transition-colors animate-fade-in cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span className="text-rose-600 font-extrabold animate-bounce">↑</span>
+                  <span>{sizeError}</span>
+                </span>
+                <span className="text-[10px] text-rose-600 underline font-semibold">Tap to select</span>
+              </button>
+            )}
+
             <div className="flex gap-2">
                 <Button 
                     onClick={handleAddToCart} 

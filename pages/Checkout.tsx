@@ -222,12 +222,28 @@ const Checkout = () => {
       const orderId = await addOrder(order);
       const fullOrder = { ...order, id: orderId, createdAt: Date.now() };
 
-      // Trigger automatic order email alert securely via server API
+      // Save customer info locally for PWA realtime order status notifications
+      if (order.customerPhone) {
+        try {
+          localStorage.setItem('user_last_phone', order.customerPhone);
+          const savedOrders = JSON.parse(localStorage.getItem('user_order_ids') || '[]');
+          if (!savedOrders.includes(orderId)) {
+            savedOrders.push(orderId);
+            localStorage.setItem('user_order_ids', JSON.stringify(savedOrders));
+          }
+        } catch (e) {}
+      }
+
+      // Trigger automatic order email alert securely via server API (credentials securely stored on server)
       fetch('/api/send-order-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           order: fullOrder,
+          credentials: {
+            adminNotificationEmail: settings?.adminNotificationEmail || settings?.adminEmail || settings?.gmailUser || '',
+            appName: settings?.appName || 'Zivio Store'
+          }
         }),
       }).catch((emailErr) => {
         console.warn('Background order email delivery error:', emailErr);
