@@ -829,11 +829,51 @@ async function parseProductUrl(url: string): Promise<{
       }
     }
 
-    // 5. Extract Product Sizes from interactive Buttons, Options, Pills on page
-    const buttonMatches = [...html.matchAll(/<button[^>]*>([^<]+)<\/button>/gi)];
+    // 5. Extract Product Sizes from JSON / text / interactive HTML elements
+    // Look in inline JSON, script tags (e.g. Next.js __NEXT_DATA__, Shopify window.ShopifyAnalytics, Daraz data objects)
+    const jsonStateMatches = [...html.matchAll(/<(?:script|div)[^>]*>(.*?(?:variants|options|skuBase|variation|sizes)["'].*?)<\/(?:script|div)>/gi)];
+    for (const jm of jsonStateMatches) {
+      const block = jm[1];
+      // Size objects like "size":"M", "name":"Size", "values":["S","M","L"]
+      const sizeValMatches = [...block.matchAll(/(?:"name"|"title"|"label"|"option")\s*:\s*"(?:Size|Sizes|Age|Dimension|Colour|Color|Select Size)"[^}]*?"values"\s*:\s*\[([^\]]+)\]/gi)];
+      for (const svm of sizeValMatches) {
+        const vals = svm[1].replace(/"/g, '').split(',').map(s => s.trim()).filter(Boolean);
+        vals.forEach(v => extractedSizes.add(v));
+      }
+    }
+
+    // Direct JSON variation property matches: "size": "3-4 Years" or "variation": "Large"
+    const inlineSizeMatches = [...html.matchAll(/"(?:size|variation|variant_title|sku_property_name)"\s*:\s*"([^"]+)"/gi)];
+    for (const sm of inlineSizeMatches) {
+      const val = sm[1].trim();
+      if (
+        val.length < 25 &&
+        !val.includes('{') &&
+        !val.includes('/') &&
+        (/Year|Yr|Month|XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|Free|Standard|Unstitched|Stitched/i.test(val) || /^(?:3[4-9]|4[0-8])$/.test(val))
+      ) {
+        extractedSizes.add(val);
+      }
+    }
+
+    // Extract Product Sizes from interactive Buttons, Options, Pills, Spans on page
+    const buttonMatches = [...html.matchAll(/<(?:button|span|div|a|li)[^>]+(?:class|id|data-testid|aria-label)*=["'][^"']*(?:size|variant|sku|option|pill|badge)[^"']*["'][^>]*>([^<]+)<\/(?:button|span|div|a|li)>/gi)];
     for (const bm of buttonMatches) {
       const txt = bm[1].trim();
       // Match age sizes e.g. "1-2 Years", "2-3 Years", "3-4 Yrs", standard sizes "S", "M", "L", "XL", shoes "38", "39", etc.
+      if (
+        /^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)$/i.test(txt) ||
+        /^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|Free Size|Standard|Unstitched|Stitched|Custom)$/i.test(txt) ||
+        /^(?:3[4-9]|4[0-8])$/.test(txt)
+      ) {
+        extractedSizes.add(txt);
+      }
+    }
+
+    // All buttons
+    const allButtons = [...html.matchAll(/<button[^>]*>([^<]+)<\/button>/gi)];
+    for (const bm of allButtons) {
+      const txt = bm[1].trim();
       if (
         /^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)$/i.test(txt) ||
         /^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|Free Size|Standard|Unstitched|Stitched)$/i.test(txt) ||
@@ -843,7 +883,7 @@ async function parseProductUrl(url: string): Promise<{
       }
     }
 
-    // Also look for sizes in select option tags
+    // Select option tags
     const optionMatches = [...html.matchAll(/<option[^>]*>([^<]+)<\/option>/gi)];
     for (const om of optionMatches) {
       const txt = om[1].trim();
@@ -988,35 +1028,54 @@ app.post("/api/gemini/assistant", async (req, res) => {
           shipping_fee: parsedLinkData.shipping_fee || 0
         };
 
-        // Try quick Gemini refinement in parallel with a fast 2.5s fallback
+        // Try quick Gemini refinement in parallel with a fast 2.5s fallback to enhance title, description, category, and size_categories
         const ai = getGeminiClient();
-        if (ai && (!productResult.description || productResult.description.length < 30 || !productResult.category)) {
+        if (ai) {
           try {
-            const prompt = `Clean and summarize this e-commerce product into valid JSON:
+            const prompt = `You are an expert E-Commerce product parser.
+Analyze this product information extracted from a web link or store page.
+
 Product Title: "${productResult.title}"
-Raw Description: "${productResult.description || parsedLinkData.raw_context || ''}"
+Current Sizes Found on Page: ${JSON.stringify(productResult.size_categories)}
+Raw Description / Page Content: "${productResult.description || parsedLinkData.raw_context || ''}"
 Category hint: "${productResult.category}"
+
+TASK:
+1. Clean and refine the product title.
+2. Clean and format the description into neat points.
+3. Detect the accurate category (e.g. Kids Clothing, Menswear, Womenswear, Shoes, Watches, Jewelry, Electronics).
+4. EXTRACT OR GENERATE SIZES:
+   - If sizes exist in page text, description, or title (e.g., "1-2 Years", "2-3 Years", "S, M, L, XL", "38, 39, 40", "Free Size", "Unstitched", "Stitched", "Standard"), extract them all accurately into size_categories.
+   - If the product is wearable clothing, shoes, or apparel, and no specific sizes were explicitly listed, provide standard suitable options (e.g., standard apparel sizes ["S", "M", "L", "XL"] or ["Free Size"] or age-appropriate kids sizes) so customers can select their size when purchasing!
+   - For non-sized products (e.g. electronics, kitchen tools), keep size_categories as empty [].
 
 Return ONLY valid JSON matching this schema:
 {
-  "type": "product_extraction",
-  "product": {
-    "title": "Clean concise product title",
-    "price": ${productResult.price || "null"},
-    "category": "Clean category (e.g. Kids Clothing, Menswear, Shoes, Electronics)",
-    "description": "Clean bullet-pointed or summarized product description"
-  }
+  "title": "Clean concise product title",
+  "price": ${productResult.price || "null"},
+  "category": "Clean category name",
+  "description": "Clean bullet-pointed product description",
+  "size_categories": [
+    {
+      "categoryName": "Size or Age / Size or Shoe Size",
+      "sizes": ["S", "M", "L", "XL"]
+    }
+  ]
 }`;
             const response = await callGeminiWithFallback(ai, {
               contents: prompt,
               config: { responseMimeType: "application/json" }
             });
             if (response && response.text) {
-              const cleaned = JSON.parse(response.text);
-              if (cleaned?.product) {
-                if (cleaned.product.title) productResult.title = cleaned.product.title;
-                if (cleaned.product.description) productResult.description = cleaned.product.description;
-                if (cleaned.product.category) productResult.category = cleaned.product.category;
+              const cleanJson = response.text.replace(/```json/gi, '').replace(/```/g, '').trim();
+              const cleaned = JSON.parse(cleanJson);
+              if (cleaned) {
+                if (cleaned.title) productResult.title = cleaned.title;
+                if (cleaned.description) productResult.description = cleaned.description;
+                if (cleaned.category) productResult.category = cleaned.category;
+                if (Array.isArray(cleaned.size_categories) && cleaned.size_categories.length > 0) {
+                  productResult.size_categories = cleaned.size_categories;
+                }
               }
             }
           } catch (aiErr) {

@@ -416,19 +416,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         lastUpdated: Date.now()
       };
       
+      // 1. Sync to Firestore bundle doc in cloud
       try {
         await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(bundleToSave), { merge: true });
       } catch (dbErr) {
         console.warn("Firestore bundle doc sync skipped:", dbErr);
       }
 
+      // 2. Cache in local browser storage
       try {
         localStorage.setItem('onliny_catalog_initialized', 'true');
         sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleToSave));
         localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleToSave }));
       } catch (e) {}
 
-      // Keep static JSON catalog on server synced immediately
+      // 3. Keep static JSON catalog on server synced immediately across all devices
       try {
         await fetch('/api/save-catalog', {
           method: 'POST',
@@ -800,11 +802,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       // 1. Save in local browser storage
       try {
+        localStorage.setItem('onliny_catalog_initialized', 'true');
         sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleToSave));
         localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleToSave }));
       } catch (e) {}
 
-      // 2. Save on server-side disk static JSON (if endpoint is available)
+      // 2. Save on server-side static JSON file
       try {
         await fetch('/api/save-catalog', {
           method: 'POST',
@@ -815,7 +818,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn("Could not save to /api/save-catalog (fallback to client store):", err);
       }
 
-      // 3. If currently in Firebase mode, sync to Firestore bundle doc
+      // 3. Sync to Firestore bundle doc so live Firebase mode also gets this exact snapshot
       try {
         await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(bundleToSave), { merge: true });
       } catch (dbErr) {
@@ -824,7 +827,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return {
         success: true,
-        message: 'Static catalog snapshot created & synced successfully!',
+        message: 'Static catalog snapshot created & synced across all users and devices successfully!',
         data: bundleToSave
       };
     } catch (e: any) {
@@ -841,37 +844,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const isLive = localStorage.getItem('ali_cart_firebase_mode') !== 'false';
 
-    // 1. Instant Cache Render (0 Firestore reads for browsing!)
+    // 1. Instant Cache Render (only if not forcing a refresh)
     let hasLoadedData = false;
-    try {
-      const cached = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed && Array.isArray(parsed.products)) {
-          applyBundleData(parsed);
-          hasLoadedData = true;
-          setIsLoading(false);
-          // If not forced and already loaded, DO NOT call Firestore! (0 READS)
-          if (!forceRefresh) return;
-        }
-      } else {
-        const localCached = localStorage.getItem(CATALOG_LOCAL_CACHE_KEY);
-        if (localCached) {
-          const parsedLocal = JSON.parse(localCached);
-          if (parsedLocal?.data && Array.isArray(parsedLocal.data.products)) {
-            applyBundleData(parsedLocal.data);
+    if (!forceRefresh) {
+      try {
+        const cached = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.products)) {
+            applyBundleData(parsed);
             hasLoadedData = true;
             setIsLoading(false);
-            if (!forceRefresh) return;
+            return;
+          }
+        } else {
+          const localCached = localStorage.getItem(CATALOG_LOCAL_CACHE_KEY);
+          if (localCached) {
+            const parsedLocal = JSON.parse(localCached);
+            if (parsedLocal?.data && Array.isArray(parsedLocal.data.products)) {
+              applyBundleData(parsedLocal.data);
+              hasLoadedData = true;
+              setIsLoading(false);
+              return;
+            }
           }
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
 
-    // 2. If Firebase mode is OFF: Load latest synced static catalog from server (0 Firestore reads!)
+    // 2. If Firebase mode is OFF (Static Mode): Load latest synced static catalog from server (0 Firestore reads!)
     if (!isLive) {
       try {
-        const res = await fetch('/api/catalog-data');
+        const res = await fetch(`/api/catalog-data?_t=${Date.now()}`);
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.data) {
