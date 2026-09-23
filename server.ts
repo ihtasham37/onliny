@@ -242,6 +242,12 @@ app.post("/api/send-order-email", async (req, res) => {
 // API Routes for Static JSON Catalog Management (Fast Offline Mode)
 app.get("/api/catalog-data", (req, res) => {
   try {
+    // Never cache static catalog data response so client devices always get latest snapshot
+    res.set({
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0"
+    });
     const catalogPath = path.resolve(process.cwd(), "data", "staticCatalog.json");
     if (fs.existsSync(catalogPath)) {
       const raw = fs.readFileSync(catalogPath, "utf-8");
@@ -1341,14 +1347,15 @@ const handleManifestRequest = (req: express.Request, res: express.Response) => {
     const manifestId = vendorId ? `/?vendor=${encodeURIComponent(vendorId)}` : (categoryId ? `/?category=${encodeURIComponent(categoryId)}` : "/");
 
     const effectiveLogo = rawLogo || savedLogo;
+    const isDataUri = effectiveLogo && effectiveLogo.startsWith("data:");
     const icon192 = effectiveLogo
-      ? `/api/pwa-icon?size=192&url=${encodeURIComponent(effectiveLogo)}`
+      ? (isDataUri ? effectiveLogo : `/api/pwa-icon?size=192&url=${encodeURIComponent(effectiveLogo)}`)
       : "/pwa-192x192.png";
     const icon512 = effectiveLogo
-      ? `/api/pwa-icon?size=512&url=${encodeURIComponent(effectiveLogo)}`
+      ? (isDataUri ? effectiveLogo : `/api/pwa-icon?size=512&url=${encodeURIComponent(effectiveLogo)}`)
       : "/pwa-512x512.png";
     const iconMaskable = effectiveLogo
-      ? `/api/pwa-icon?size=512&maskable=1&url=${encodeURIComponent(effectiveLogo)}`
+      ? (isDataUri ? effectiveLogo : `/api/pwa-icon?size=512&maskable=1&url=${encodeURIComponent(effectiveLogo)}`)
       : "/pwa-maskable-512x512.png";
 
     const dynamicManifest = {

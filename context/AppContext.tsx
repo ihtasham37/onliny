@@ -15,6 +15,7 @@ import { useSessionStorage } from '../hooks/useSessionStorage';
 import { normalizePhone, generateCartItemKey, sanitizeForFirestore, safeJsonStringify } from '../utils/helpers';
 import { compressImage, fileToDataUri } from '../utils/compression';
 import { INITIAL_STATIC_CATALOG } from '../data/staticCatalog';
+import { syncDynamicPWABranding } from '../utils/pwaHelper';
 
 export interface CatalogBundle {
   products: Product[];
@@ -380,7 +381,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const applyBundleData = useCallback((data: Partial<CatalogBundle>) => {
     if (Array.isArray(data.products)) setAllProducts(data.products);
-    if (data.settings) setSettings(data.settings);
+    if (data.settings) {
+      setSettings(data.settings);
+      syncDynamicPWABranding({
+        appName: data.settings.appName,
+        logoUrl: data.settings.logoUrl,
+      });
+    }
     if (Array.isArray(data.banners)) setBanners(data.banners);
     if (Array.isArray(data.coupons)) setCoupons(data.coupons);
     if (Array.isArray(data.updatePosts)) setUpdatePosts(data.updatePosts);
@@ -526,6 +533,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   const updateSettings = async (data: Settings) => {
     setSettings(data);
+    syncDynamicPWABranding({
+      appName: data.appName,
+      logoUrl: data.logoUrl,
+    });
     try {
       const currentBundleStr = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
       if (currentBundleStr) {
@@ -857,8 +868,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     } catch (e) {}
 
-    // 2. If Firebase mode is OFF: Never make any Firestore reads! (0 READS)
+    // 2. If Firebase mode is OFF: Load latest synced static catalog from server (0 Firestore reads!)
     if (!isLive) {
+      try {
+        const res = await fetch('/api/catalog-data');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) {
+            applyBundleData(json.data);
+            try {
+              sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(json.data));
+              localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: json.data }));
+            } catch (e) {}
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch /api/catalog-data, using local snapshot fallback:", err);
+      }
+
       if (!hasLoadedData) {
         applyBundleData(INITIAL_STATIC_CATALOG);
       }

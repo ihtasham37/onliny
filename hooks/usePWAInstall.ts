@@ -12,7 +12,19 @@ interface BeforeInstallPromptEvent extends Event {
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstallable, setIsInstallable] = useState(false);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+        document.referrer.includes('android-app://') ||
+        localStorage.getItem('pwa_app_installed') === 'true';
+      return isStandalone;
+    } catch {
+      return false;
+    }
+  });
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
@@ -22,11 +34,21 @@ export function usePWAInstall() {
       setIsInstallable(true);
     }
 
-    // Detect standalone mode (already installed)
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsInstalled(isStandalone);
+    const checkInstalled = () => {
+      try {
+        const isStandalone =
+          window.matchMedia('(display-mode: standalone)').matches ||
+          (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+          document.referrer.includes('android-app://') ||
+          localStorage.getItem('pwa_app_installed') === 'true';
+        if (isStandalone) {
+          setIsInstalled(true);
+          setIsInstallable(false);
+        }
+      } catch {}
+    };
+
+    checkInstalled();
 
     // Detect iOS devices
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -34,6 +56,8 @@ export function usePWAInstall() {
     setIsIOS(isIOSDevice);
 
     const handleBeforeInstallPrompt = (e: Event) => {
+      // If already installed, prevent prompt
+      if (isInstalled) return;
       e.preventDefault();
       (window as any).deferredPWAInstallPrompt = e;
       setDeferredPrompt(e as BeforeInstallPromptEvent);
@@ -41,7 +65,7 @@ export function usePWAInstall() {
     };
 
     const handlePromptReady = () => {
-      if ((window as any).deferredPWAInstallPrompt) {
+      if ((window as any).deferredPWAInstallPrompt && !isInstalled) {
         setDeferredPrompt((window as any).deferredPWAInstallPrompt);
         setIsInstallable(true);
       }
@@ -57,16 +81,30 @@ export function usePWAInstall() {
       } catch (e) {}
     };
 
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const handleDisplayModeChange = (e: MediaQueryListEvent) => {
+      if (e.matches) {
+        handleAppInstalled();
+      }
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleDisplayModeChange);
+    }
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('pwa-prompt-ready', handlePromptReady);
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleDisplayModeChange);
+      }
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('pwa-prompt-ready', handlePromptReady);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, []);
+  }, [isInstalled]);
 
   const installPWA = async (): Promise<boolean> => {
     // 1. If prompt is immediately ready, trigger it
@@ -85,7 +123,7 @@ export function usePWAInstall() {
         timer = setTimeout(() => {
           window.removeEventListener('pwa-prompt-ready', handler);
           resolve((window as any).deferredPWAInstallPrompt || null);
-        }, 1200);
+        }, 1000);
       });
     }
 
@@ -114,4 +152,5 @@ export function usePWAInstall() {
 
   return { isInstallable, isInstalled, isIOS, installPWA };
 }
+
 

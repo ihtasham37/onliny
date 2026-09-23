@@ -21,7 +21,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Playfair+Display:ital,wght@0,500..800;1,500..800&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
     
     <script>
-      // Dynamic manifest early detection from URL before React renders
+      // Dynamic manifest and branding early detection from URL & cache before React renders
       (function() {
         try {
           var fullPath = window.location.pathname + window.location.hash;
@@ -37,6 +37,65 @@
               manifestLink.setAttribute('href', '/manifest.json?vendor=' + encodeURIComponent(vendorId));
             } else if (catId) {
               manifestLink.setAttribute('href', '/manifest.json?category=' + encodeURIComponent(catId));
+            }
+          }
+
+          // Apply saved logo/branding from cached settings
+          var brandCache = localStorage.getItem('pwa_brand_cache');
+          var logoUrl = '';
+          var appName = '';
+          if (brandCache) {
+            try {
+              var parsedBrand = JSON.parse(brandCache);
+              if (parsedBrand.logoUrl) logoUrl = parsedBrand.logoUrl;
+              if (parsedBrand.appName) appName = parsedBrand.appName;
+            } catch(e) {}
+          }
+          if (!logoUrl) {
+            var localCatalog = localStorage.getItem('onliny_catalog_local_cache');
+            if (localCatalog) {
+              try {
+                var parsedCat = JSON.parse(localCatalog);
+                if (parsedCat && parsedCat.data && parsedCat.data.settings) {
+                  if (parsedCat.data.settings.logoUrl) logoUrl = parsedCat.data.settings.logoUrl;
+                  if (parsedCat.data.settings.appName) appName = parsedCat.data.settings.appName;
+                }
+              } catch(e) {}
+            }
+          }
+
+          if (logoUrl) {
+            var appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+            if (appleIcon) appleIcon.setAttribute('href', logoUrl);
+            var favicons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]');
+            favicons.forEach(function(el) {
+              el.setAttribute('href', logoUrl);
+            });
+
+            // If not vendor/category specific, generate dynamic manifest blob
+            if (!vendorId && !catId && window.Blob && window.URL && manifestLink) {
+              var title = appName || 'onliny';
+              var short = title.length > 12 ? title.slice(0, 12).trim() : title;
+              var dynamicManifest = {
+                id: '/',
+                name: title,
+                short_name: short,
+                start_url: '/',
+                scope: '/',
+                display: 'standalone',
+                orientation: 'portrait',
+                background_color: '#ffffff',
+                theme_color: '#be185d',
+                description: 'Official ' + title + ' storefront with verified products and fast delivery.',
+                prefer_related_applications: false,
+                categories: ['shopping', 'lifestyle'],
+                icons: [
+                  { src: logoUrl, sizes: '192x192 512x512', type: 'image/png', purpose: 'any' },
+                  { src: logoUrl, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+                ]
+              };
+              var blob = new Blob([JSON.stringify(dynamicManifest)], { type: 'application/manifest+json' });
+              manifestLink.setAttribute('href', URL.createObjectURL(blob));
             }
           }
         } catch(e) {}
