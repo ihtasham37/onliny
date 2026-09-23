@@ -467,12 +467,21 @@ const ProductDetail = () => {
           {/* Image Gallery */}
           <div className="space-y-1 max-w-[280px] mx-auto md:max-w-none">
             <div className="relative">
-                <div className="border border-rose-100 rounded-2xl overflow-hidden aspect-square shadow-sm bg-white">
+                <div className="border border-rose-100 rounded-2xl overflow-hidden aspect-square shadow-sm bg-white relative">
                   <MediaPreview 
                     key={mainImage} 
                     src={mainImage || product.images?.[0]} 
                     className="w-full h-full" 
+                    controls={true}
+                    autoPlay={false}
+                    muted={false}
                   />
+                  {(mainImage || product.images?.[0]) && ((mainImage || product.images?.[0]).match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || (mainImage || product.images?.[0]).includes('video/upload')) && (
+                    <div className="absolute top-2 left-2 pointer-events-none z-10 flex items-center gap-1 bg-black/75 backdrop-blur-xs text-white px-2.5 py-1 rounded-full text-[11px] font-bold shadow-md border border-white/20">
+                      <Icons.video className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Product Video</span>
+                    </div>
+                  )}
                 </div>
                  <button 
                     onClick={handleToggleWishlist}
@@ -485,16 +494,26 @@ const ProductDetail = () => {
             </div>
             {product.images && product.images.length > 1 && (
               <div className="grid grid-cols-5 gap-1.5 pt-1">
-                {product.images.map((img, index) => (
-                  <button 
-                    key={index} 
-                    onClick={() => setMainImage(img)} 
-                    className={`flex-shrink-0 aspect-square border-2 rounded-xl overflow-hidden transition-all duration-200 focus:outline-none ring-offset-2 ring-rose-400 ${mainImage === img ? 'border-rose-600 scale-105 ring-2 shadow-xs' : 'border-rose-100 hover:border-rose-300'}`}
-                    aria-label={`View media ${index + 1}`}
-                  >
-                    <MediaPreview src={img} className="w-full h-full" controls={false} />
-                  </button>
-                ))}
+                {product.images.map((img, index) => {
+                  const isImgVideo = img.match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || img.includes('video/upload');
+                  return (
+                    <button 
+                      key={index} 
+                      onClick={() => setMainImage(img)} 
+                      className={`relative flex-shrink-0 aspect-square border-2 rounded-xl overflow-hidden transition-all duration-200 focus:outline-none ring-offset-2 ring-rose-400 ${mainImage === img ? 'border-rose-600 scale-105 ring-2 shadow-xs' : 'border-rose-100 hover:border-rose-300'}`}
+                      aria-label={`View media ${index + 1}`}
+                    >
+                      <MediaPreview src={img} className="w-full h-full" controls={false} />
+                      {isImgVideo && (
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none">
+                          <div className="w-6 h-6 rounded-full bg-rose-600/90 text-white flex items-center justify-center shadow-xs">
+                            <Icons.play className="w-2.5 h-2.5 fill-white ml-0.5" />
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

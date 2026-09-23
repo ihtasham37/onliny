@@ -462,9 +462,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newProd = productData as Product;
     const updated = [newProd, ...allProducts];
     setAllProducts(updated);
-    // 1-WRITE: updates catalog_bundle doc and static server file
+
+    // Save individual product document to Firestore
+    try {
+      await setDoc(doc(db, 'products', generatedId), productData);
+    } catch (e) {
+      console.warn("Firestore individual product save skipped:", e);
+    }
+
+    // Sync bundle and server static file immediately
     await syncCatalogBundle({ products: updated });
   };
+
   const updateProduct = async (data: Product) => {
     const existing = allProducts.find(p => p.id === data.id);
     const mergedData: Product = {
@@ -475,28 +484,56 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const cleanData = sanitizeForFirestore(mergedData);
     const updated = allProducts.map(p => p.id === data.id ? cleanData : p);
     setAllProducts(updated);
-    // 1-WRITE:
+
+    // Update individual product document in Firestore
+    try {
+      await setDoc(doc(db, 'products', data.id), cleanData, { merge: true });
+    } catch (e) {
+      console.warn("Firestore individual product update skipped:", e);
+    }
+
     await syncCatalogBundle({ products: updated });
   };
+
   const deleteProduct = async (id: string) => {
-    try {
-      localStorage.setItem('onliny_catalog_initialized', 'true');
-    } catch (e) {}
-    const prod = allProducts.find(p => p.id === id);
-    if (prod?.images) await Promise.all(prod.images.map(url => deleteFile(url)));
-    const updated = allProducts.filter(p => p.id !== id);
+    const p = allProducts.find(item => item.id === id);
+    if (p && p.images && p.images.length > 0) {
+      for (const img of p.images) {
+        if (img && img.includes('cloudinary')) {
+          await deleteFile(img);
+        }
+      }
+    }
+    const updated = allProducts.filter(item => item.id !== id);
     setAllProducts(updated);
-    // 1-WRITE:
+
+    // Delete individual product document from Firestore
+    try {
+      await deleteDoc(doc(db, 'products', id));
+    } catch (e) {
+      console.warn("Firestore product delete skipped:", e);
+    }
+
     await syncCatalogBundle({ products: updated });
   };
+
   const deleteAllProducts = async () => {
+    const updated: Product[] = [];
+    setAllProducts(updated);
+
+    // Delete all products from Firestore
     try {
-      localStorage.setItem('onliny_catalog_initialized', 'true');
-    } catch (e) {}
-    setAllProducts([]);
-    // 1-WRITE:
-    await syncCatalogBundle({ products: [] });
+      const snap = await getDocs(collection(db, 'products'));
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, 'products', d.id));
+      }
+    } catch (e) {
+      console.warn("Firestore delete all products skipped:", e);
+    }
+
+    await syncCatalogBundle({ products: updated });
   };
+
   const toggleProductVisibility = async (id: string, isVisible: boolean) => {
     const updated = allProducts.map(p => p.id === id ? { ...p, isVisible } : p);
     setAllProducts(updated);
@@ -844,135 +881,131 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const isLive = localStorage.getItem('ali_cart_firebase_mode') !== 'false';
 
-    // 1. Instant Cache Render (only if not forcing a refresh)
+    // 1. Instant Cache Render (renders immediately without waiting for network)
     let hasLoadedData = false;
-    if (!forceRefresh) {
-      try {
-        const cached = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && Array.isArray(parsed.products)) {
-            applyBundleData(parsed);
+    try {
+      const cached = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.products)) {
+          applyBundleData(parsed);
+          hasLoadedData = true;
+          setIsLoading(false);
+        }
+      } else {
+        const localCached = localStorage.getItem(CATALOG_LOCAL_CACHE_KEY);
+        if (localCached) {
+          const parsedLocal = JSON.parse(localCached);
+          if (parsedLocal?.data && Array.isArray(parsedLocal.data.products)) {
+            applyBundleData(parsedLocal.data);
             hasLoadedData = true;
             setIsLoading(false);
-            return;
-          }
-        } else {
-          const localCached = localStorage.getItem(CATALOG_LOCAL_CACHE_KEY);
-          if (localCached) {
-            const parsedLocal = JSON.parse(localCached);
-            if (parsedLocal?.data && Array.isArray(parsedLocal.data.products)) {
-              applyBundleData(parsedLocal.data);
-              hasLoadedData = true;
-              setIsLoading(false);
-              return;
-            }
           }
         }
-      } catch (e) {}
-    }
-
-    // 2. If Firebase mode is OFF (Static Mode): Load latest synced static catalog from server (0 Firestore reads!)
-    if (!isLive) {
-      try {
-        const res = await fetch(`/api/catalog-data?_t=${Date.now()}`);
-        if (res.ok) {
-          const json = await res.json();
-          if (json.success && json.data) {
-            applyBundleData(json.data);
-            try {
-              sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(json.data));
-              localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: json.data }));
-            } catch (e) {}
-            setIsLoading(false);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn("Could not fetch /api/catalog-data, using local snapshot fallback:", err);
       }
+    } catch (e) {}
 
-      if (!hasLoadedData) {
-        applyBundleData(INITIAL_STATIC_CATALOG);
-      }
-      setIsLoading(false);
-      return;
-    }
-
-    // 3. 1-READ BUNDLE ARCHITECTURE: Exactly 1 Firestore Read for entire store!
+    // 2. Fetch latest server static catalog across all devices (0 Firestore reads!)
     try {
-      const bundleSnap = await getDoc(doc(db, 'settings', 'catalog_bundle'));
-      if (bundleSnap.exists()) {
-        const bundleData = bundleSnap.data() as CatalogBundle;
-        applyBundleData(bundleData);
+      const res = await fetch(`/api/catalog-data?_t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data && Array.isArray(json.data.products)) {
+          applyBundleData(json.data);
+          hasLoadedData = true;
+          try {
+            sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(json.data));
+            localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: json.data }));
+          } catch (e) {}
+          setIsLoading(false);
+          // If in Static Mode (Firebase OFF), we are complete with 0 Firestore reads!
+          if (!isLive && !forceRefresh) {
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Could not fetch /api/catalog-data:", err);
+    }
+
+    // 3. If in Firebase Live Mode (or forced refresh): Sync with Firestore
+    if (isLive || forceRefresh) {
+      try {
+        const bundleSnap = await getDoc(doc(db, 'settings', 'catalog_bundle'));
+        if (bundleSnap.exists()) {
+          const bundleData = bundleSnap.data() as CatalogBundle;
+          applyBundleData(bundleData);
+          try {
+            sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleData));
+            localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleData }));
+          } catch (e) {}
+          setIsLoading(false);
+          return;
+        }
+      } catch (bundleErr) {
+        console.warn("1-read catalog_bundle fetch note:", bundleErr);
+      }
+
+      // 4. One-time First Setup Fallback
+      try {
+        const [settingsSnap, productsSnap, couponsSnap, bannersSnap, challansSnap, updatesSnap, vendorsSnap] = await Promise.all([
+          getDoc(doc(db, 'settings', 'main')),
+          getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'coupons'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'banners'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'challans'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'updatePosts'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'users'), where('role', '==', UserRole.Vendor)))
+        ]);
+
+        const loadedSettings = settingsSnap.exists() ? (settingsSnap.data() as Settings) : null;
+        const loadedProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
+        const loadedCoupons = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
+        const loadedBanners = bannersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Banner));
+        const loadedChallans = challansSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challan));
+        const loadedUpdates = updatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as UpdatePost));
+        
+        const vStatus: Record<string, string> = {};
+        const vMap: Record<string, AppUser> = {};
+        vendorsSnap.docs.forEach(d => {
+          const u = d.data() as AppUser;
+          vStatus[d.id] = u.status;
+          vMap[d.id] = { ...u, uid: d.id };
+        });
+
+        const hasCatalogHistory = settingsSnap.exists() || localStorage.getItem('onliny_catalog_initialized') === 'true';
+        const finalProducts = (loadedProducts.length > 0 || hasCatalogHistory) ? loadedProducts : INITIAL_STATIC_CATALOG.products;
+
+        const compiledBundle: CatalogBundle = {
+          products: finalProducts,
+          settings: loadedSettings || INITIAL_STATIC_CATALOG.settings,
+          banners: loadedBanners,
+          coupons: loadedCoupons,
+          updatePosts: loadedUpdates,
+          challans: loadedChallans,
+          vendorsStatus: vStatus,
+          vendorsMap: vMap,
+          lastUpdated: Date.now()
+        };
+
+        applyBundleData(compiledBundle);
         try {
-          sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleData));
-          localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleData }));
+          sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(compiledBundle));
+          localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: compiledBundle }));
+          await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(compiledBundle), { merge: true });
         } catch (e) {}
-        setIsLoading(false);
-        return;
+      } catch (fallbackErr) {
+        console.warn("Error fetching live Firestore catalog:", fallbackErr);
+        if (!hasLoadedData) {
+          applyBundleData(INITIAL_STATIC_CATALOG);
+        }
       }
-    } catch (bundleErr) {
-      console.warn("1-read catalog_bundle fetch note:", bundleErr);
     }
 
-    // 4. One-time First Setup Fallback (compiles bundle and saves so all future reads are 1 read!)
-    try {
-      const [settingsSnap, productsSnap, couponsSnap, bannersSnap, challansSnap, updatesSnap, vendorsSnap] = await Promise.all([
-        getDoc(doc(db, 'settings', 'main')),
-        getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'coupons'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'banners'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'challans'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'updatePosts'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'users'), where('role', '==', UserRole.Vendor)))
-      ]);
-
-      const loadedSettings = settingsSnap.exists() ? (settingsSnap.data() as Settings) : null;
-      const loadedProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
-      const loadedCoupons = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
-      const loadedBanners = bannersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Banner));
-      const loadedChallans = challansSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challan));
-      const loadedUpdates = updatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as UpdatePost));
-      
-      const vStatus: Record<string, string> = {};
-      const vMap: Record<string, AppUser> = {};
-      vendorsSnap.docs.forEach(d => {
-        const u = d.data() as AppUser;
-        vStatus[d.id] = u.status;
-        vMap[d.id] = { ...u, uid: d.id };
-      });
-
-      const hasCatalogHistory = settingsSnap.exists() || localStorage.getItem('onliny_catalog_initialized') === 'true';
-      const finalProducts = (loadedProducts.length > 0 || hasCatalogHistory) ? loadedProducts : INITIAL_STATIC_CATALOG.products;
-
-      const compiledBundle: CatalogBundle = {
-        products: finalProducts,
-        settings: loadedSettings || INITIAL_STATIC_CATALOG.settings,
-        banners: loadedBanners,
-        coupons: loadedCoupons,
-        updatePosts: loadedUpdates,
-        challans: loadedChallans,
-        vendorsStatus: vStatus,
-        vendorsMap: vMap,
-        lastUpdated: Date.now()
-      };
-
-      applyBundleData(compiledBundle);
-      try {
-        sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(compiledBundle));
-        localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: compiledBundle }));
-        // Save to catalog_bundle doc so all future visits take exactly 1 read!
-        await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(compiledBundle), { merge: true });
-      } catch (e) {}
-    } catch (fallbackErr) {
-      console.warn("Error fetching live Firestore catalog, keeping cached data or static fallback:", fallbackErr);
-      if (!hasLoadedData) {
-        applyBundleData(INITIAL_STATIC_CATALOG);
-      }
-    } finally {
-      setIsLoading(false);
+    if (!hasLoadedData) {
+      applyBundleData(INITIAL_STATIC_CATALOG);
     }
+    setIsLoading(false);
   }, [applyBundleData]);
 
   const refreshCatalog = useCallback(async () => {

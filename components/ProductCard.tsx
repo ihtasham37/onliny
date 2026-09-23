@@ -62,6 +62,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           loop={true}
           muted={true}
         />
+
+        {/* Video Icon Badge Indicator if first media or any media is a video */}
+        {product.images?.[0] && (product.images[0].match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || product.images[0].includes('video/upload')) && (
+          <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1 bg-black/70 backdrop-blur-xs text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-md border border-white/20">
+            <Icons.play className="w-2.5 h-2.5 fill-white text-white" />
+            <span>Video</span>
+          </div>
+        )}
         
         {/* Scalloped Pink Discount Badge (Top-Left, matching uploaded photo) */}
         {discountPercent > 0 ? (

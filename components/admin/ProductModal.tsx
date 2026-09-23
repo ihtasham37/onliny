@@ -157,8 +157,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             ? extracted.image_urls.filter((u: any) => typeof u === 'string' && u.trim().startsWith('http'))
             : [];
 
-          // Size categories extraction
-          let incomingSizeCategories: SizeCategory[] = formData.sizeCategories || [];
+          // Size categories extraction - strictly match what was on the source link
+          let incomingSizeCategories: SizeCategory[] = [];
           if (Array.isArray(extracted.size_categories) && extracted.size_categories.length > 0) {
             incomingSizeCategories = extracted.size_categories.map((sc: any) => ({
               categoryName: sc.categoryName || 'Size',
@@ -378,19 +378,89 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             <Input label="Shipping Fee" name="shippingFee" type="number" step="1" value={formData.shippingFee || 0} onChange={handleChange} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Size Categories</label>
-            <div className="p-3 border rounded-md space-y-3">
-              {(formData.sizeCategories || []).map((cat, i) => (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
+              <label className="block text-sm font-semibold text-gray-700">Size Categories (سائز کیٹیگریز)</label>
+              <span className="text-[11px] text-gray-500">Auto-filled by AI or click a quick preset below</span>
+            </div>
+
+            {/* Quick 1-Click Size Presets */}
+            <div className="mb-2.5 p-2 bg-indigo-50/70 border border-indigo-100 rounded-lg">
+              <div className="text-[11px] font-bold text-indigo-900 mb-1.5 flex items-center gap-1">
+                <span>⚡ Quick Size Presets (1-کلک میں سائز شامل کریں):</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Size", sizes: ["S", "M", "L", "XL"] }] }))}
+                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                >
+                  + S, M, L, XL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Size", sizes: ["S", "M", "L", "XL", "XXL"] }] }))}
+                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                >
+                  + S, M, L, XL, XXL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Age / Size", sizes: ["1-2 Years", "2-3 Years", "3-4 Years", "4-5 Years", "5-6 Years"] }] }))}
+                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                >
+                  + Kids (1-2Y to 5-6Y)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Shoe Size", sizes: ["39", "40", "41", "42", "43", "44"] }] }))}
+                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                >
+                  + Shoes (39-44)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Type", sizes: ["Unstitched"] }] }))}
+                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                >
+                  + Unstitched
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Size", sizes: ["Free Size"] }] }))}
+                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                >
+                  + Free Size
+                </button>
+                {(formData.sizeCategories || []).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => ({ ...p, sizeCategories: [] }))}
+                    className="text-xs px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded font-medium transition-colors"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="p-3 border rounded-md space-y-3 bg-white">
+              {(formData.sizeCategories || []).length === 0 ? (
+                <p className="text-xs text-gray-400 italic text-center py-2">
+                  No sizes attached. Products without sizes will not ask customer for size selection.
+                </p>
+              ) : (
+                (formData.sizeCategories || []).map((cat, i) => (
                   <fieldset key={i} className="bg-gray-50 p-3 rounded-lg border">
                       <legend className="font-semibold px-2 flex justify-between items-center w-full"><span>{cat.categoryName}</span><Button type="button" variant="danger" size="xs" onClick={() => removeCategory(i)}><Icons.trash className="w-3 h-3"/></Button></legend>
-                      <div className="flex flex-wrap gap-2 pt-2">{cat.sizes.map((s, si) => (<span key={si} className="flex items-center bg-white border border-gray-300 px-2 py-1 rounded text-sm">{s}<button type="button" onClick={() => removeSize(i, si)} className="ml-2 text-red-500"><Icons.x className="w-3 h-3" /></button></span>))}</div>
-                      <div className="flex gap-2 mt-2"><Input placeholder="Add size" value={newSizeInputs[i] || ''} onChange={(e) => setNewSizeInputs(p => ({...p, [i]: e.target.value}))} className="h-8 text-sm"/><Button type="button" size="sm" onClick={() => addSize(i)}>Add</Button></div>
+                      <div className="flex flex-wrap gap-2 pt-2">{cat.sizes.map((s, si) => (<span key={si} className="flex items-center bg-white border border-gray-300 px-2 py-1 rounded text-sm font-medium">{s}<button type="button" onClick={() => removeSize(i, si)} className="ml-2 text-red-500 hover:text-red-700"><Icons.x className="w-3 h-3" /></button></span>))}</div>
+                      <div className="flex gap-2 mt-2"><Input placeholder="Add custom size (e.g. 3XL)" value={newSizeInputs[i] || ''} onChange={(e) => setNewSizeInputs(p => ({...p, [i]: e.target.value}))} className="h-8 text-sm"/><Button type="button" size="sm" onClick={() => addSize(i)}>Add</Button></div>
                   </fieldset>
-              ))}
+                ))
+              )}
             </div>
-            <div className="mt-4 bg-gray-50 p-3 rounded-md border">
-                <h4 className="text-sm font-bold mb-2">Add New Size Category</h4>
-                <div className="flex gap-2 items-center"><Input placeholder="e.g., Shirt Size" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} /><Button type="button" onClick={handleCreateAndAddCategory}>Create</Button></div>
+            <div className="mt-3 bg-gray-50 p-2.5 rounded-md border">
+                <h4 className="text-xs font-bold text-gray-700 mb-1.5">Add Custom Size Category Name</h4>
+                <div className="flex gap-2 items-center"><Input placeholder="e.g., Shirt Size, Age Range" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} /><Button type="button" size="sm" onClick={handleCreateAndAddCategory}>Create</Button></div>
             </div>
           </div>
           <div>

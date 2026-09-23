@@ -829,70 +829,101 @@ async function parseProductUrl(url: string): Promise<{
       }
     }
 
-    // 5. Extract Product Sizes from JSON / text / interactive HTML elements
+    // 5. Extract Product Sizes from text, descriptions, JSON, and interactive HTML elements
+    const rawText = html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ");
+
+    let detectedCategoryName: string | null = null;
+
+    // Helper validator to test if a string represents a valid product size / variant option
+    const isValidSizeValue = (str: string): boolean => {
+      if (!str || typeof str !== 'string') return false;
+      const s = str.trim();
+      if (s.length === 0 || s.length > 50) return false;
+      if (/^(?:Add to cart|Buy now|Reviews|Description|Share|View details|Features|Specifications|Quantity|Price|RS|PKR|Sale|Sold Out)$/i.test(s)) return false;
+
+      // Height / Dimensions / Combined sizes (e.g. "80cm-Pink", "90cm-Pink (daddy)", "70cm", "100cm-Blue", "12-18M")
+      if (/^\d+\s*cm(?:-[A-Za-z0-9\s()_-]+)?$/i.test(s)) return true;
+      if (/^\d+\s*inch(?:es)?(?:-[A-Za-z0-9\s()_-]+)?$/i.test(s)) return true;
+      if (/^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)(?:\s*\([^)]+\))?$/i.test(s)) return true;
+      if (/^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Small|Medium|Large|Extra Large|Free Size|Standard|Unstitched|Stitched)(?:\s*\([^)]+\))?$/i.test(s)) return true;
+      if (/^(?:3[4-9]|4[0-8]|5|6|7|8|9|10|11|12)(?:\s*(?:UK|US|EU|CM))?$/i.test(s)) return true;
+      if (/^(?:1 Piece|2 Piece|3 Piece|2 PC|3 PC|Single|Pair|Set of \d+|Pack of \d+)$/i.test(s)) return true;
+      if (/^\d+(?:\.\d+)?\s*(?:ml|gm|g|kg|meter|yards?)$/i.test(s)) return true;
+      
+      return false;
+    };
+
+    // Look for explicit Size / Height / Color section headings: e.g. "Suitable for height-Color :", "Sizes:", "Age:"
+    const sizeHeadingMatches = [...rawText.matchAll(/(?:Suitable\s+for\s+(?:height|size)[-\s]*(?:Color|Colour)?|Available\s+Sizes?|Sizes?\s+Available|Sizes?|Age\s+Sizes?|Size\s+Range|Age|Shoe\s+Sizes?|Color\s*[-\s]*Size)\s*[:：\-]\s*([A-Za-z0-9\s,\-\/\.()]{2,150})/gi)];
+    for (const sm of sizeHeadingMatches) {
+      if (sm[0].toLowerCase().includes('height')) {
+        detectedCategoryName = "Suitable for height-Color";
+      } else if (sm[0].toLowerCase().includes('shoe')) {
+        detectedCategoryName = "Shoe Size";
+      } else if (sm[0].toLowerCase().includes('age')) {
+        detectedCategoryName = "Age / Size";
+      }
+      const chunk = sm[1];
+      const items = chunk.split(/[,|\/\n]/).map(s => s.trim()).filter(Boolean);
+      for (const it of items) {
+        if (isValidSizeValue(it)) {
+          extractedSizes.add(it);
+        }
+      }
+    }
+
     // Look in inline JSON, script tags (e.g. Next.js __NEXT_DATA__, Shopify window.ShopifyAnalytics, Daraz data objects)
     const jsonStateMatches = [...html.matchAll(/<(?:script|div)[^>]*>(.*?(?:variants|options|skuBase|variation|sizes)["'].*?)<\/(?:script|div)>/gi)];
     for (const jm of jsonStateMatches) {
       const block = jm[1];
-      // Size objects like "size":"M", "name":"Size", "values":["S","M","L"]
-      const sizeValMatches = [...block.matchAll(/(?:"name"|"title"|"label"|"option")\s*:\s*"(?:Size|Sizes|Age|Dimension|Colour|Color|Select Size)"[^}]*?"values"\s*:\s*\[([^\]]+)\]/gi)];
+      const sizeValMatches = [...block.matchAll(/(?:"name"|"title"|"label"|"option")\s*:\s*"(?:Size|Sizes|Age|Height|Dimension|Colour|Color|Suitable for height|Select Size|Variation)"[^}]*?"values"\s*:\s*\[([^\]]+)\]/gi)];
       for (const svm of sizeValMatches) {
         const vals = svm[1].replace(/"/g, '').split(',').map(s => s.trim()).filter(Boolean);
-        vals.forEach(v => extractedSizes.add(v));
+        vals.forEach(v => {
+          if (isValidSizeValue(v) || (v.length < 30 && !v.includes('{') && !v.includes('http'))) {
+            extractedSizes.add(v);
+          }
+        });
       }
     }
 
-    // Direct JSON variation property matches: "size": "3-4 Years" or "variation": "Large"
-    const inlineSizeMatches = [...html.matchAll(/"(?:size|variation|variant_title|sku_property_name)"\s*:\s*"([^"]+)"/gi)];
+    // Direct JSON variation property matches: "size": "80cm-Pink", "variation": "90cm-Pink (daddy)"
+    const inlineSizeMatches = [...html.matchAll(/"(?:size|variation|variant_title|sku_property_name|option1|option2|prop_name)"\s*:\s*"([^"]+)"/gi)];
     for (const sm of inlineSizeMatches) {
       const val = sm[1].trim();
-      if (
-        val.length < 25 &&
-        !val.includes('{') &&
-        !val.includes('/') &&
-        (/Year|Yr|Month|XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL|Free|Standard|Unstitched|Stitched/i.test(val) || /^(?:3[4-9]|4[0-8])$/.test(val))
-      ) {
+      if (isValidSizeValue(val)) {
         extractedSizes.add(val);
       }
     }
 
-    // Extract Product Sizes from interactive Buttons, Options, Pills, Spans on page
-    const buttonMatches = [...html.matchAll(/<(?:button|span|div|a|li)[^>]+(?:class|id|data-testid|aria-label)*=["'][^"']*(?:size|variant|sku|option|pill|badge)[^"']*["'][^>]*>([^<]+)<\/(?:button|span|div|a|li)>/gi)];
-    for (const bm of buttonMatches) {
-      const txt = bm[1].trim();
-      // Match age sizes e.g. "1-2 Years", "2-3 Years", "3-4 Yrs", standard sizes "S", "M", "L", "XL", shoes "38", "39", etc.
-      if (
-        /^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)$/i.test(txt) ||
-        /^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|Free Size|Standard|Unstitched|Stitched|Custom)$/i.test(txt) ||
-        /^(?:3[4-9]|4[0-8])$/.test(txt)
-      ) {
-        extractedSizes.add(txt);
+    // Extract Product Sizes from interactive Buttons, Options, Pills, Spans, Labels on page
+    const interactiveMatches = [...html.matchAll(/<(?:button|span|div|a|li|option|label)[^>]+(?:class|id|data-testid|aria-label)*=["'][^"']*(?:size|variant|sku|option|pill|badge|radio|selector)[^"']*["'][^>]*>([\s\S]*?)<\/(?:button|span|div|a|li|option|label)>/gi)];
+    for (const bm of interactiveMatches) {
+      const cleanTxt = bm[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (isValidSizeValue(cleanTxt)) {
+        extractedSizes.add(cleanTxt);
       }
     }
 
-    // All buttons
-    const allButtons = [...html.matchAll(/<button[^>]*>([^<]+)<\/button>/gi)];
+    // All standard buttons and labels
+    const allButtons = [...html.matchAll(/<(?:button|label)[^>]*>([\s\S]*?)<\/(?:button|label)>/gi)];
     for (const bm of allButtons) {
-      const txt = bm[1].trim();
-      if (
-        /^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)$/i.test(txt) ||
-        /^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|Free Size|Standard|Unstitched|Stitched)$/i.test(txt) ||
-        /^(?:3[4-9]|4[0-8])$/.test(txt)
-      ) {
-        extractedSizes.add(txt);
+      const cleanTxt = bm[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (isValidSizeValue(cleanTxt)) {
+        extractedSizes.add(cleanTxt);
       }
     }
 
     // Select option tags
-    const optionMatches = [...html.matchAll(/<option[^>]*>([^<]+)<\/option>/gi)];
+    const optionMatches = [...html.matchAll(/<option[^>]*>([\s\S]*?)<\/option>/gi)];
     for (const om of optionMatches) {
-      const txt = om[1].trim();
-      if (
-        /^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)$/i.test(txt) ||
-        /^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|Free Size|Standard|Unstitched|Stitched)$/i.test(txt) ||
-        /^(?:3[4-9]|4[0-8])$/.test(txt)
-      ) {
-        extractedSizes.add(txt);
+      const cleanTxt = om[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (isValidSizeValue(cleanTxt)) {
+        extractedSizes.add(cleanTxt);
       }
     }
 
@@ -951,13 +982,31 @@ async function parseProductUrl(url: string): Promise<{
     });
 
     // Group Extracted Sizes into Size Categories
-    const sizeList = Array.from(extractedSizes);
-    const sizeCategories = sizeList.length > 0 ? [
-      {
-        categoryName: sizeList.some(s => /Year|Yr|Month/i.test(s)) ? "Age / Size" : "Size",
-        sizes: sizeList
+    let sizeList = Array.from(extractedSizes);
+    let sizeCategories: { categoryName: string; sizes: string[] }[] = [];
+
+    if (sizeList.length > 0) {
+      const finalCategoryName = detectedCategoryName || (
+        sizeList.some(s => /height|cm/i.test(s)) ? "Suitable for height-Color" :
+        sizeList.some(s => /Year|Yr|Month/i.test(s)) ? "Age / Size" :
+        sizeList.some(s => /^(?:3[4-9]|4[0-8])$/.test(s)) ? "Shoe Size" : "Size"
+      );
+
+      sizeCategories = [
+        {
+          categoryName: finalCategoryName,
+          sizes: sizeList
+        }
+      ];
+    } else {
+      // Check if product explicit type is mentioned in text
+      const combinedText = `${title || ''} ${description || ''} ${category || ''} ${url}`.toLowerCase();
+      if (/unstitched|un-stitched|3\s*pc|2\s*pc\s*suit|lawn\s*suit/.test(combinedText)) {
+        sizeCategories = [{ categoryName: "Type", sizes: ["Unstitched"] }];
+      } else if (/free\s*size|standard\s*size/.test(combinedText)) {
+        sizeCategories = [{ categoryName: "Size", sizes: ["Free Size"] }];
       }
-    ] : [];
+    }
 
     // Text sample for Gemini enhancement if needed
     const textSample = html
@@ -1044,10 +1093,10 @@ TASK:
 1. Clean and refine the product title.
 2. Clean and format the description into neat points.
 3. Detect the accurate category (e.g. Kids Clothing, Menswear, Womenswear, Shoes, Watches, Jewelry, Electronics).
-4. EXTRACT OR GENERATE SIZES:
-   - If sizes exist in page text, description, or title (e.g., "1-2 Years", "2-3 Years", "S, M, L, XL", "38, 39, 40", "Free Size", "Unstitched", "Stitched", "Standard"), extract them all accurately into size_categories.
-   - If the product is wearable clothing, shoes, or apparel, and no specific sizes were explicitly listed, provide standard suitable options (e.g., standard apparel sizes ["S", "M", "L", "XL"] or ["Free Size"] or age-appropriate kids sizes) so customers can select their size when purchasing!
-   - For non-sized products (e.g. electronics, kitchen tools), keep size_categories as empty [].
+4. SIZES FIDELITY (MOST IMPORTANT):
+   - You MUST prioritize the exact sizes found on the original page or text.
+   - If the original product lists specific sizes (e.g., "1-2 Years", "2-3 Years", "3-4 Years", or "S", "M", "L", or shoe sizes "39", "40", "41", or "Unstitched", "Free Size"), extract EXACTLY those sizes and DO NOT invent or replace them with different sizes.
+   - If and only if the original page has NO size information at all and it's not a clothing/shoe item, leave size_categories as [].
 
 Return ONLY valid JSON matching this schema:
 {
@@ -1058,7 +1107,7 @@ Return ONLY valid JSON matching this schema:
   "size_categories": [
     {
       "categoryName": "Size or Age / Size or Shoe Size",
-      "sizes": ["S", "M", "L", "XL"]
+      "sizes": ["1-2 Years", "2-3 Years"]
     }
   ]
 }`;
