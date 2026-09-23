@@ -1,4 +1,4 @@
-const CACHE_NAME = 'onliny-pwa-v7';
+const CACHE_NAME = 'onliny-pwa-v8';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -49,10 +49,9 @@ self.addEventListener('fetch', (event) => {
   if (isAsset || isApi) {
     event.respondWith(
       fetch(event.request).then((res) => {
-        // If 404 for a JS asset, don't cache it
         return res;
       }).catch(async () => {
-        const cached = await caches.match(event.request);
+        const cached = await caches.match(event.request, { ignoreSearch: true });
         if (cached) return cached;
         return new Response('Asset Not Found', { status: 404, statusText: 'Not Found' });
       })
@@ -60,12 +59,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first strategy for dynamic page navigation
+  // Network-first strategy for dynamic page navigation with cache fallback
   event.respondWith(
     fetch(event.request).catch(async () => {
-      const cached = await caches.match(event.request);
+      const cached = await caches.match(event.request, { ignoreSearch: true });
       if (cached) return cached;
-      const indexHtml = await caches.match('/');
+      const indexHtml = await caches.match('/', { ignoreSearch: true });
       if (indexHtml) return indexHtml;
       return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
     })

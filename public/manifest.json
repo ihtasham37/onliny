@@ -1,8 +1,8 @@
 {
-  "id": "/?source=pwa",
+  "id": "/",
   "name": "onliny - Online Shopping Pakistan",
   "short_name": "onliny",
-  "start_url": "/?source=pwa",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

@@ -15,28 +15,28 @@ export interface ShareOptions {
 }
 
 export function getSmartShareUrl(options: ShareOptions): string {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const appName = options.appName || 'Online store';
-  const title = options.title.trim();
-  const desc = (options.description || '').trim().slice(0, 160);
-  let image = (options.image || '').trim();
-  if (image && image.startsWith('/')) {
-    image = `${origin}${image}`;
+  const origin = typeof window !== 'undefined' && window.location.origin
+    ? window.location.origin
+    : 'https://onliny.co.uk';
+  const id = (options.id || '').trim();
+
+  // Ultra-short URL for products (e.g. https://domain/p/123)
+  if (options.type === 'product' && id) {
+    return `${origin}/p/${encodeURIComponent(id)}`;
   }
-  const id = options.id || '';
-  const type = options.type;
-  const price = options.price !== undefined ? String(options.price) : '';
 
-  const params = new URLSearchParams();
-  params.set('type', type);
-  if (id) params.set('id', id);
-  if (title) params.set('title', title);
-  if (desc) params.set('desc', desc);
-  if (image) params.set('image', image);
-  if (price) params.set('price', price);
-  if (appName) params.set('app', appName);
+  // Short URL for categories (e.g. https://domain/c/cat_id)
+  if (options.type === 'category' && id) {
+    return `${origin}/c/${encodeURIComponent(id)}`;
+  }
 
-  return `${origin}/share?${params.toString()}`;
+  // Short URL for standalone store category
+  if (options.type === 'standalone' && id) {
+    return `${origin}/store/c/${encodeURIComponent(id)}`;
+  }
+
+  // Default store homepage
+  return `${origin}/`;
 }
 
 /**

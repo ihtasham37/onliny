@@ -44,6 +44,14 @@ export const Navbar = () => {
     return ids;
   }, [isStandalone, standaloneCategory, settings?.categories]);
 
+  // Dynamic Popular Category Tags (Only real store categories)
+  const popularCategoryTags = useMemo(() => {
+    const direct = (settings?.categories || []).filter(c => 
+      c && c.isVisible && !c.parentId && (!c.vendorId || c.vendorId === 'admin')
+    );
+    return direct.map(c => c.name).slice(0, 6);
+  }, [settings?.categories]);
+
   // Instant fast local search calculation as user types (0ms lag)
   const instantMatches = useMemo(() => {
     const raw = searchQuery.trim();
@@ -303,20 +311,22 @@ export const Navbar = () => {
               </div>
             )}
 
-            {/* Footer Quick Categories */}
-            <div className="p-2 bg-slate-50 flex items-center gap-1.5 overflow-x-auto scrollbar-hide text-[11px] shrink-0">
-              <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">Popular:</span>
-              {['Women', 'Men', 'Kids', 'Accessories', 'Shoes', 'Beauty'].map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => handleCategoryQuickSearch(tag)}
-                  className="shrink-0 bg-white hover:bg-pink-50 text-slate-700 hover:text-pink-600 border border-slate-200 px-2 py-0.5 rounded-full font-medium transition-colors text-[10px]"
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
+            {/* Footer Quick Categories (Only shown if store has categories) */}
+            {popularCategoryTags.length > 0 && (
+              <div className="p-2 bg-slate-50 flex items-center gap-1.5 overflow-x-auto scrollbar-hide text-[11px] shrink-0">
+                <span className="text-[10px] font-bold text-slate-400 uppercase shrink-0">Categories:</span>
+                {popularCategoryTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => handleCategoryQuickSearch(tag)}
+                    className="shrink-0 bg-white hover:bg-pink-50 text-slate-700 hover:text-pink-600 border border-slate-200 px-2 py-0.5 rounded-full font-medium transition-colors text-[10px]"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

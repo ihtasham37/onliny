@@ -6,6 +6,7 @@ import { Input } from '../../components/ui/Input';
 import { Spinner } from '../../components/ui/Spinner';
 import { Icons } from '../../components/icons/Icons';
 import { MediaPreview } from '../../components/ui/MediaPreview';
+import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { formatCurrency } from '../../utils/helpers';
 
 // Modal to Add / Edit Banner Image or Video
@@ -568,6 +569,53 @@ const ManageBanners = () => {
         products 
     } = useStore();
 
+    // Homepage Slide Banners state (moved from Admin Settings with visible Delete button)
+    const [homepageBannerInputMode, setHomepageBannerInputMode] = useState<'upload' | 'url'>('upload');
+    const [homepageBannerUrl, setHomepageBannerUrl] = useState('');
+    const [isUploadingHomepageBanner, setIsUploadingHomepageBanner] = useState(false);
+    const [homepageBannerUploadError, setHomepageBannerUploadError] = useState('');
+
+    const handleHomepageBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || !settings) return;
+        setIsUploadingHomepageBanner(true);
+        setHomepageBannerUploadError('');
+        const uploadedUrls: string[] = [];
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const url = await uploadFile(file);
+                uploadedUrls.push(url);
+            }
+            const updated = [...(settings.bannerUrls || []), ...uploadedUrls];
+            await updateSettings({ ...settings, bannerUrls: updated });
+        } catch (err: any) {
+            setHomepageBannerUploadError(err.message || 'Error uploading banner image');
+        } finally {
+            setIsUploadingHomepageBanner(false);
+            if (e.target) e.target.value = '';
+        }
+    };
+
+    const handleAddHomepageBannerUrl = async () => {
+        if (!homepageBannerUrl.trim() || !settings) return;
+        try {
+            new URL(homepageBannerUrl.trim());
+            const updated = [...(settings.bannerUrls || []), homepageBannerUrl.trim()];
+            await updateSettings({ ...settings, bannerUrls: updated });
+            setHomepageBannerUrl('');
+        } catch (_) {
+            alert('Please enter a valid image URL');
+        }
+    };
+
+    const handleDeleteHomepageBanner = async (index: number) => {
+        if (!settings) return;
+        if (!window.confirm('Are you sure you want to delete this homepage banner?')) return;
+        const updated = (settings.bannerUrls || []).filter((_, i) => i !== index);
+        await updateSettings({ ...settings, bannerUrls: updated });
+    };
+
     // Slider modal states
     const [isSliderModalOpen, setIsSliderModalOpen] = useState(false);
     const [selectedBanner, setSelectedBanner] = useState<Banner | null>(null);
@@ -759,11 +807,166 @@ const ManageBanners = () => {
             <div>
                 <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Banner Management</h1>
                 <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Manage your store's Top Announcement Banner, Banner Section Featured Products, and Hero Slider Banners.
+                    Manage your store's Homepage Carousel Banners, Top Announcement Banner, and Banner Section Featured Products.
                 </p>
             </div>
 
-            {/* SECTION 1: Top Announcement & App Play Store Banner */}
+            {/* SECTION: Main Homepage Slider Banners (Moved from Admin Settings with Clean View & Guaranteed Visible Delete) */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-rose-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-rose-100">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-xs">
+                            <Icons.image className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-lg font-bold text-slate-800">Homepage Slider Banners (ہوم پیج بینرز)</h2>
+                                <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                                    {(settings?.bannerUrls || []).length} Active
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                                Upload banner photos or add image links displayed in the storefront hero carousel.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Upload or URL switcher */}
+                <div className="mt-4">
+                    <div className="flex gap-2 mb-3">
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant={homepageBannerInputMode === 'upload' ? 'primary' : 'secondary'}
+                            onClick={() => setHomepageBannerInputMode('upload')}
+                        >
+                            <Icons.upload className="w-3.5 h-3.5 mr-1.5" />
+                            Upload Images
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant={homepageBannerInputMode === 'url' ? 'primary' : 'secondary'}
+                            onClick={() => setHomepageBannerInputMode('url')}
+                        >
+                            <Icons.externalLink className="w-3.5 h-3.5 mr-1.5" />
+                            Add from URL
+                        </Button>
+                    </div>
+
+                    {homepageBannerInputMode === 'upload' ? (
+                        <div className="border-2 border-dashed border-rose-200 hover:border-rose-400 bg-rose-50/40 rounded-2xl p-6 text-center transition-colors">
+                            <Icons.image className="mx-auto h-10 w-10 text-rose-400 mb-2" />
+                            <label
+                                htmlFor="manage-homepage-banner-upload"
+                                className="cursor-pointer font-bold text-xs sm:text-sm text-rose-600 hover:text-rose-700 underline block"
+                            >
+                                <span>Click here to select and upload banner images (PNG, JPG, WEBP)</span>
+                                <input
+                                    id="manage-homepage-banner-upload"
+                                    type="file"
+                                    className="sr-only"
+                                    multiple
+                                    onChange={handleHomepageBannerUpload}
+                                    accept="image/*"
+                                    disabled={isUploadingHomepageBanner}
+                                />
+                            </label>
+                            <p className="text-[11px] text-slate-400 mt-1">Select one or multiple banners up to 5MB each</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col sm:flex-row gap-2">
+                            <Input
+                                placeholder="https://example.com/banner-photo.jpg"
+                                value={homepageBannerUrl}
+                                onChange={e => setHomepageBannerUrl(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleAddHomepageBannerUrl();
+                                    }
+                                }}
+                                className="flex-1 text-xs"
+                            />
+                            <Button
+                                type="button"
+                                onClick={handleAddHomepageBannerUrl}
+                                className="shrink-0 text-xs"
+                            >
+                                Add Image URL
+                            </Button>
+                        </div>
+                    )}
+
+                    {isUploadingHomepageBanner && (
+                        <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-rose-600 bg-rose-50 p-2.5 rounded-xl border border-rose-100">
+                            <Spinner size="sm" />
+                            <span>Uploading banner images...</span>
+                        </div>
+                    )}
+                    {homepageBannerUploadError && (
+                        <p className="mt-2 text-xs font-semibold text-red-600">{homepageBannerUploadError}</p>
+                    )}
+
+                    {/* Fixed, fully-visible list view with guaranteed visible Delete button */}
+                    <div className="mt-4 space-y-2.5">
+                        {(settings?.bannerUrls || []).length === 0 ? (
+                            <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                <Icons.image className="w-8 h-8 mx-auto text-slate-300 mb-1.5" />
+                                <p className="text-xs font-bold text-slate-600">No homepage slider banners added yet</p>
+                                <p className="text-[11px] text-slate-400 mt-0.5">Use the upload box above to add banner images to your storefront carousel.</p>
+                            </div>
+                        ) : (
+                            (settings?.bannerUrls || []).map((url, index) => (
+                                <div
+                                    key={index}
+                                    className="flex items-center justify-between gap-3 p-3 bg-white hover:bg-rose-50/20 rounded-xl border border-slate-200 shadow-2xs hover:border-slate-300 transition-all"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <div className="w-20 sm:w-28 aspect-video rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                                            <ImageWithFallback
+                                                src={url}
+                                                alt={`Banner ${index + 1}`}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-700 shrink-0">
+                                                    Slide #{index + 1}
+                                                </span>
+                                                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                                                    Active
+                                                </span>
+                                            </div>
+                                            <p className="text-xs sm:text-sm font-bold text-slate-800 truncate" title={url}>
+                                                {url.split('/').pop()?.split('?')[0] || `Banner Image ${index + 1}`}
+                                            </p>
+                                            <p className="text-[10px] text-slate-400 truncate hidden sm:block">
+                                                {url}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Prominently visible and styled delete button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteHomepageBanner(index)}
+                                        className="px-3 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-xl border border-rose-200 font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors shadow-2xs cursor-pointer"
+                                        title="Delete this banner"
+                                    >
+                                        <Icons.trash className="w-4 h-4 shrink-0" />
+                                        <span>Delete</span>
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* SECTION 2: Top Announcement & App Play Store Banner */}
             <div className="bg-white rounded-2xl p-5 sm:p-6 shadow-xs border border-rose-100">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-rose-100">
                     <div className="flex items-center gap-3">

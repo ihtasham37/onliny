@@ -1126,6 +1126,103 @@ app.get("/sitemap.xml", (req, res) => {
   res.send(xml);
 });
 
+// Ultra-Short Product Link Route with Dynamic OpenGraph preview & Fast Redirection
+app.get(["/p/:id", "/product/:id"], (req, res, next) => {
+  // If request accepts HTML (browsers, social crawlers)
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : (req.params.id || '');
+  if (!id || id === 'undefined') return next();
+
+  const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "https";
+  const host = req.get("host") || "localhost:3000";
+  const origin = `${proto}://${host}`;
+
+  let product: any = null;
+  let savedAppName = "onliny";
+  let savedLogo = "";
+
+  try {
+    const catalogPath = path.resolve(process.cwd(), "data", "staticCatalog.json");
+    if (fs.existsSync(catalogPath)) {
+      const raw = fs.readFileSync(catalogPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed?.settings?.appName) savedAppName = parsed.settings.appName;
+      if (parsed?.settings?.logoUrl) savedLogo = parsed.settings.logoUrl;
+      const products = parsed?.products || [];
+      product = products.find((p: any) => p.id === id || p.customId === id);
+    }
+  } catch (e) {}
+
+  const rawTitle = product?.name || `Product - ${savedAppName}`;
+  const fullTitle = `${rawTitle} | ${savedAppName}`;
+  const rawDesc = product?.description || `Explore this product on ${savedAppName}. Best prices, cash on delivery, and quick delivery across Pakistan.`;
+  const rawPrice = product?.price ? `Price: Rs. ${Number(product.price).toLocaleString()} - ` : '';
+  const displayDesc = `${rawPrice}${rawDesc}`.slice(0, 200);
+
+  let rawImage = product?.images?.[0] || savedLogo || '/pwa-512x512.png';
+  if (rawImage.startsWith('/')) {
+    rawImage = `${origin}${rawImage}`;
+  }
+
+  const targetPath = `/#/product/${encodeURIComponent(product?.id || id)}`;
+
+  const escapeHtml = (text: string) => (text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  const safeTitle = escapeHtml(fullTitle);
+  const safeDesc = escapeHtml(displayDesc);
+  const safeImage = escapeHtml(rawImage);
+  const safeAppName = escapeHtml(savedAppName);
+  const safeTargetUrl = escapeHtml(targetPath);
+  const safeCanonical = escapeHtml(`${origin}/p/${encodeURIComponent(id)}`);
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${safeTitle}</title>
+  
+  <meta name="title" content="${safeTitle}">
+  <meta name="description" content="${safeDesc}">
+  
+  <!-- Open Graph / WhatsApp / Facebook / Telegram -->
+  <meta property="og:type" content="product">
+  <meta property="og:site_name" content="${safeAppName}">
+  <meta property="og:url" content="${safeCanonical}">
+  <meta property="og:title" content="${safeTitle}">
+  <meta property="og:description" content="${safeDesc}">
+  <meta property="og:image" content="${safeImage}">
+  <meta property="og:image:secure_url" content="${safeImage}">
+  <meta property="og:image:alt" content="${safeTitle}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${safeTitle}">
+  <meta name="twitter:description" content="${safeDesc}">
+  <meta name="twitter:image" content="${safeImage}">
+  
+  <meta http-equiv="refresh" content="0;url=${safeTargetUrl}">
+  <script>window.location.replace("${safeTargetUrl}");</script>
+</head>
+<body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #fff1f2;">
+  <div style="background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; max-width: 90%;">
+    <h2 style="margin: 0 0 8px; color: #be123c;">${safeTitle}</h2>
+    <p style="color: #64748b; font-size: 14px;">Opening product page...</p>
+    <a href="${safeTargetUrl}" style="display: inline-block; margin-top: 12px; padding: 8px 16px; background: #e11d48; color: white; border-radius: 8px; text-decoration: none; font-weight: bold;">Click if not redirected</a>
+  </div>
+</body>
+</html>`;
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
+});
+
 // Dynamic Social Share Route with OpenGraph tags for WhatsApp, Facebook, Twitter, Telegram
 app.get("/share", (req, res) => {
   const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "https";
@@ -1240,8 +1337,8 @@ const handleManifestRequest = (req: express.Request, res: express.Response) => {
   if (vendorId || categoryId || rawName || rawLogo || savedLogo) {
     const appName = rawName || (vendorId ? "Vendor Store" : (categoryId ? "Category Store" : savedAppName));
     const shortName = appName.length > 12 ? appName.slice(0, 12).trim() : appName;
-    const startUrl = vendorId ? `/?vendor=${encodeURIComponent(vendorId)}` : (categoryId ? `/?category=${encodeURIComponent(categoryId)}` : "/?source=pwa");
-    const manifestId = vendorId ? `/?vendor=${encodeURIComponent(vendorId)}` : (categoryId ? `/?category=${encodeURIComponent(categoryId)}` : "/?source=pwa");
+    const startUrl = vendorId ? `/?vendor=${encodeURIComponent(vendorId)}` : (categoryId ? `/?category=${encodeURIComponent(categoryId)}` : "/");
+    const manifestId = vendorId ? `/?vendor=${encodeURIComponent(vendorId)}` : (categoryId ? `/?category=${encodeURIComponent(categoryId)}` : "/");
 
     const effectiveLogo = rawLogo || savedLogo;
     const icon192 = effectiveLogo

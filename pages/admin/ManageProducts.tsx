@@ -11,12 +11,13 @@ import { ProductModal } from '../../components/admin/ProductModal';
 import { MoveCopyProductModal } from '../../components/admin/MoveCopyProductModal';
 
 const ManageProducts = () => {
-  const { myProducts: products, deleteProduct, toggleProductVisibility, isLoading } = useStore();
+  const { myProducts: products, deleteProduct, deleteAllProducts, toggleProductVisibility, isLoading } = useStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isMoveCopyModalOpen, setIsMoveCopyModalOpen] = useState(false);
   const [productToMoveCopy, setProductToMoveCopy] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   const openModal = (product: Product | null = null) => {
     setSelectedProduct(product);
@@ -28,9 +29,28 @@ const ManageProducts = () => {
     setIsMoveCopyModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      deleteProduct(id);
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this product? It will be removed permanently and will not return on refresh.')) {
+      await deleteProduct(id);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (window.confirm(`Are you sure you want to delete ALL ${products.length} products?\n\nThis will completely wipe them from the database and the static file. They will NEVER return upon refreshing the page.`)) {
+      setIsDeletingAll(true);
+      try {
+        if (deleteAllProducts) {
+          await deleteAllProducts();
+        } else {
+          for (const p of products) {
+            await deleteProduct(p.id);
+          }
+        }
+      } catch (err: any) {
+        alert("Failed to delete all products: " + err?.message);
+      } finally {
+        setIsDeletingAll(false);
+      }
     }
   };
 
@@ -46,9 +66,22 @@ const ManageProducts = () => {
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Manage All Products</h1>
-        <Button onClick={() => openModal()} size="md">
-             <Icons.plus className="w-5 h-5 mr-2" /> Add New Product
-        </Button>
+        <div className="flex items-center gap-2">
+          {products.length > 0 && (
+            <button
+              type="button"
+              onClick={handleDeleteAll}
+              disabled={isDeletingAll}
+              className="px-3.5 py-2 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 font-bold text-xs sm:text-sm flex items-center transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <Icons.trash className="w-4 h-4 mr-1.5 text-rose-600" />
+              {isDeletingAll ? 'Deleting All...' : `Delete All (${products.length})`}
+            </button>
+          )}
+          <Button onClick={() => openModal()} size="md">
+               <Icons.plus className="w-5 h-5 mr-2" /> Add New Product
+          </Button>
+        </div>
       </div>
       
       <div className="mb-4">

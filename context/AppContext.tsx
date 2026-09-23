@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback, useContext, useMemo } from 'react';
 import { 
-    getFirestore, collection, doc, onSnapshot, orderBy, query, addDoc, setDoc, deleteDoc, updateDoc, where, getDocs, writeBatch, getDoc
+    getFirestore, collection, doc, onSnapshot, orderBy, query, addDoc, setDoc, deleteDoc, updateDoc, where, getDocs, writeBatch, getDoc, limit
 } from 'firebase/firestore';
 import { 
     getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User
@@ -54,6 +54,8 @@ export interface AppContextType {
   exportCatalogSnapshot: () => Promise<{ success: boolean; message: string; data?: CatalogBundle }>;
   syncCatalogBundle: (overrides?: Partial<CatalogBundle>) => Promise<void>;
   refreshCatalog: () => Promise<void>;
+  loadOrders: (limitCount?: number) => Promise<void>;
+  trackOrderById: (orderId: string) => Promise<Order | null>;
 
   addToCart: (product: Product, quantity: number, selectedSizes?: Record<string, string>, additionalInfo?: string) => void;
   removeFromCart: (productId: string, selectedSizes?: Record<string, string>) => void;
@@ -62,6 +64,7 @@ export interface AppContextType {
   addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => Promise<void>;
   updateProduct: (product: Product) => Promise<void>;
   deleteProduct: (productId: string) => Promise<void>;
+  deleteAllProducts: () => Promise<void>;
   toggleProductVisibility: (productId: string, isVisible: boolean) => Promise<void>;
   moveProduct: (productId: string, newCategory: string) => Promise<void>;
   copyProduct: (productId: string, destinationCategory: string) => Promise<void>;
@@ -136,14 +139,22 @@ const getInitialProducts = (): Product[] => {
     const sessionCached = sessionStorage.getItem('ali_cart_catalog_bundle_cache_v1');
     if (sessionCached) {
       const parsed = JSON.parse(sessionCached);
-      if (Array.isArray(parsed?.products) && parsed.products.length > 0) return parsed.products;
+      if (Array.isArray(parsed?.products)) return parsed.products;
     }
     const localCached = localStorage.getItem('ali_cart_catalog_bundle_cache_local_v1');
     if (localCached) {
       const parsed = JSON.parse(localCached);
-      if (Array.isArray(parsed?.data?.products) && parsed.data.products.length > 0) return parsed.data.products;
+      if (Array.isArray(parsed?.data?.products)) return parsed.data.products;
     }
   } catch (e) {}
+
+  // If store was already initialized by admin or user, honor empty products state
+  try {
+    if (localStorage.getItem('onliny_catalog_initialized') === 'true') {
+      return [];
+    }
+  } catch (e) {}
+
   return (INITIAL_STATIC_CATALOG.products || []) as Product[];
 };
 
@@ -178,6 +189,7 @@ export const defaultAppContextValue: AppContextType = {
   addProduct: async () => {},
   updateProduct: async () => {},
   deleteProduct: async () => {},
+  deleteAllProducts: async () => {},
   toggleProductVisibility: async () => {},
   moveProduct: async () => {},
   copyProduct: async () => {},
@@ -216,6 +228,8 @@ export const defaultAppContextValue: AppContextType = {
   deleteChallan: async () => {},
   syncCatalogBundle: async () => {},
   refreshCatalog: async () => {},
+  loadOrders: async () => {},
+  trackOrderById: async () => null,
 };
 
 export const AppContext = createContext<AppContextType>(defaultAppContextValue);
@@ -384,7 +398,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       const bundleToSave: CatalogBundle = {
-        products: overrides?.products ?? allProducts,
+        products: overrides?.products !== undefined ? overrides.products : allProducts,
         settings: safeSettings,
         banners: overrides?.banners ?? banners,
         coupons: overrides?.coupons ?? coupons,
@@ -394,11 +408,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         vendorsMap: overrides?.vendorsMap ?? vendorsMap,
         lastUpdated: Date.now()
       };
-      await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(bundleToSave), { merge: true });
+      
       try {
+        await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(bundleToSave), { merge: true });
+      } catch (dbErr) {
+        console.warn("Firestore bundle doc sync skipped:", dbErr);
+      }
+
+      try {
+        localStorage.setItem('onliny_catalog_initialized', 'true');
         sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleToSave));
         localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleToSave }));
       } catch (e) {}
+
+      // Keep static JSON catalog on server synced immediately
+      try {
+        await fetch('/api/save-catalog', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ catalog: bundleToSave })
+        });
+      } catch (apiErr) {
+        console.warn("Could not save to /api/save-catalog:", apiErr);
+      }
     } catch (e) {
       console.warn("Could not sync catalog bundle:", e);
     }
@@ -408,18 +440,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const isVendor = userData?.role === UserRole.Vendor;
     const vendorId = isVendor ? userData.uid : (data.vendorId || undefined);
     const shopName = isVendor ? (userData.shopName || 'Vendor Store') : (data.shopName || (vendorId ? '' : (settings?.appName || 'Store')));
+    const generatedId = (data as any).id || `prod_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const productData = sanitizeForFirestore({
         ...data,
+        id: generatedId,
         createdAt: Date.now(),
         ...(vendorId && { vendorId, shopName }),
         ...(userData?.role === UserRole.Admin && !data.shopName && !vendorId && {
             shopName: settings?.appName || 'Store'
         })
     });
-    const docRef = await addDoc(collection(db, 'products'), productData);
-    const newProd = { id: docRef.id, ...productData } as Product;
+    const newProd = productData as Product;
     const updated = [newProd, ...allProducts];
     setAllProducts(updated);
+    // 1-WRITE: updates catalog_bundle doc and static server file
     await syncCatalogBundle({ products: updated });
   };
   const updateProduct = async (data: Product) => {
@@ -430,29 +464,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...(existing?.vendorId && !data.vendorId ? { vendorId: existing.vendorId, shopName: existing.shopName } : {})
     };
     const cleanData = sanitizeForFirestore(mergedData);
-    await setDoc(doc(db, 'products', mergedData.id), cleanData);
     const updated = allProducts.map(p => p.id === data.id ? cleanData : p);
     setAllProducts(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ products: updated });
   };
   const deleteProduct = async (id: string) => {
+    try {
+      localStorage.setItem('onliny_catalog_initialized', 'true');
+    } catch (e) {}
     const prod = allProducts.find(p => p.id === id);
     if (prod?.images) await Promise.all(prod.images.map(url => deleteFile(url)));
-    await deleteDoc(doc(db, 'products', id));
     const updated = allProducts.filter(p => p.id !== id);
     setAllProducts(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ products: updated });
   };
+  const deleteAllProducts = async () => {
+    try {
+      localStorage.setItem('onliny_catalog_initialized', 'true');
+    } catch (e) {}
+    setAllProducts([]);
+    // 1-WRITE:
+    await syncCatalogBundle({ products: [] });
+  };
   const toggleProductVisibility = async (id: string, isVisible: boolean) => {
-    await updateDoc(doc(db, 'products', id), { isVisible });
     const updated = allProducts.map(p => p.id === id ? { ...p, isVisible } : p);
     setAllProducts(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ products: updated });
   };
   const moveProduct = async (id: string, newCategory: string) => {
-    await updateDoc(doc(db, 'products', id), { category: newCategory });
     const updated = allProducts.map(p => p.id === id ? { ...p, category: newCategory } : p);
     setAllProducts(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ products: updated });
   };
   const copyProduct = async (id: string, cat: string) => {
@@ -636,125 +681,89 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   const trackWithEmailAndPhone = async (email: string, phone: string) => {
       const normPhone = normalizePhone(phone);
-      const inputEmail = email.trim().toLowerCase();
+      const inputEmail = email ? email.trim().toLowerCase() : '';
       
-      // Query by phone from orders collection to find matching orders
-      const q = query(collection(db, 'orders'), where('customerPhone', '==', normPhone));
-      const snap = await getDocs(q);
-      
-      if (!snap.empty) {
-          // Filter by email in memory
-          const foundOrders = snap.docs
-            .map(d => ({ id: d.id, ...d.data() } as Order))
-            .filter(o => o.email?.toLowerCase() === inputEmail);
-          
-          if (foundOrders.length > 0) {
-              setActiveCustomer({ email: inputEmail, phone: normPhone });
-              return true;
-          }
+      try {
+        // 1 single targeted query with limit(10) for this customer's orders! Exactly 1 read batch!
+        const q = query(collection(db, 'orders'), where('customerPhone', '==', normPhone), limit(10));
+        const snap = await getDocs(q);
+        
+        if (!snap.empty) {
+            let foundOrders = snap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+            if (inputEmail) {
+                const emailFiltered = foundOrders.filter(o => o.email?.toLowerCase() === inputEmail);
+                if (emailFiltered.length > 0) foundOrders = emailFiltered;
+            }
+            
+            if (foundOrders.length > 0) {
+                foundOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                setActiveCustomer({ email: inputEmail || foundOrders[0].email || '', phone: normPhone });
+                setCustomerOrders(foundOrders);
+                return true;
+            }
+        }
+      } catch (err) {
+        console.warn("Track orders error:", err);
       }
       return false;
+  };
+
+  const trackOrderById = async (orderId: string): Promise<Order | null> => {
+      const cleanId = orderId.trim();
+      if (!cleanId) return null;
+      try {
+          // Direct 1-read document fetch! Exactly 1 read!
+          const docSnap = await getDoc(doc(db, 'orders', cleanId));
+          if (docSnap.exists()) {
+              const order = { id: docSnap.id, ...docSnap.data() } as Order;
+              setCustomerOrders([order]);
+              setActiveCustomer({ email: order.email || '', phone: order.customerPhone });
+              return order;
+          }
+          // If customer typed custom ID, check with limit(1)
+          const q = query(collection(db, 'orders'), where('customId', '==', cleanId), limit(1));
+          const qSnap = await getDocs(q);
+          if (!qSnap.empty) {
+              const order = { id: qSnap.docs[0].id, ...qSnap.docs[0].data() } as Order;
+              setCustomerOrders([order]);
+              setActiveCustomer({ email: order.email || '', phone: order.customerPhone });
+              return order;
+          }
+      } catch (err) {
+          console.warn("Track order by ID error:", err);
+      }
+      return null;
   };
   
   const customerLogout = () => {
       setActiveCustomer(null);
       setCustomerOrders([]);
   };
-
-  useEffect(() => {
-    // Customer phone from active customer or local storage
-    const targetPhone = activeCustomer?.phone || localStorage.getItem('user_last_phone');
-    if (!targetPhone) return;
-
-    let isInitialLoad = true;
-    
-    // Request notification permission if default
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-    }
-
-    const normTargetPhone = normalizePhone(targetPhone);
-    const q = query(collection(db, 'orders'), where('customerPhone', '==', normTargetPhone));
-    
-    const unsub = onSnapshot(q, snap => {
-        if (!isInitialLoad) {
-            snap.docChanges().forEach(change => {
-                if (change.type === 'modified') {
-                    const order = { id: change.doc.id, ...change.doc.data() } as Order;
-                    
-                    // Sound effect for status update
-                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                    audio.play().catch(() => {});
-
-                    const orderDisplayId = (order as any).customId || order.id.substring(0, 6).toUpperCase();
-                    const notifTitle = `Order Status Updated - ${settings?.appName || 'Zivio Store'}`;
-                    const notifBody = `Your order #${orderDisplayId} is now: ${order.status.toUpperCase()} (آپ کے آرڈر کا اسٹیٹس: ${order.status})`;
-
-                    // 1. Browser/PWA Native Notification
-                    if ('Notification' in window && Notification.permission === 'granted') {
-                        try {
-                            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                                navigator.serviceWorker.ready.then(reg => {
-                                    reg.showNotification(notifTitle, {
-                                        body: notifBody,
-                                        icon: '/favicon.svg',
-                                        badge: '/pwa-192x192.png',
-                                        tag: `order-update-${order.id}`,
-                                        data: { url: `/?track=${encodeURIComponent(targetPhone)}` }
-                                    });
-                                });
-                            } else {
-                                new Notification(notifTitle, {
-                                    body: notifBody,
-                                    icon: '/favicon.svg'
-                                });
-                            }
-                        } catch (e) {
-                            new Notification(notifTitle, { body: notifBody, icon: '/favicon.svg' });
-                        }
-                    } else {
-                        // Fallback alert
-                        alert(`📦 ${notifTitle}\n${notifBody}`);
-                    }
-                }
-            });
-        }
-        isInitialLoad = false;
-
-        if (activeCustomer) {
-            const results = snap.docs
-                .map(d => ({ id: d.id, ...d.data() } as Order))
-                .filter(o => !activeCustomer.email || o.email?.toLowerCase() === activeCustomer.email.toLowerCase());
-            
-            setCustomerOrders(results.sort((a, b) => b.createdAt - a.createdAt));
-        }
-    });
-    return () => unsub();
-  }, [activeCustomer, settings]);
   
   const addCoupon = async (data: Omit<Coupon, 'id' | 'createdAt'>) => {
     const couponData = sanitizeForFirestore({
       ...data,
+      id: (data as any).id || `coupon_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       createdAt: Date.now(),
       vendorId: userData?.role === UserRole.Vendor ? userData.uid : (data.vendorId || null)
     });
-    const docRef = await addDoc(collection(db, 'coupons'), couponData);
-    const newCoupon = { id: docRef.id, ...couponData };
+    const newCoupon = couponData as Coupon;
     const updated = [newCoupon, ...coupons];
     setCoupons(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ coupons: updated });
   };
   const updateCoupon = async (data: Coupon) => {
     const cleanData = sanitizeForFirestore(data);
-    await setDoc(doc(db, 'coupons', data.id), cleanData);
     const updated = coupons.map(c => c.id === data.id ? cleanData : c);
     setCoupons(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ coupons: updated });
   };
   const deleteCoupon = async (id: string) => {
-    await deleteDoc(doc(db, 'coupons', id));
     const updated = coupons.filter(c => c.id !== id);
     setCoupons(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ coupons: updated });
   };
 
@@ -767,7 +776,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       const bundleToSave: CatalogBundle = {
-        products: allProducts.length > 0 ? allProducts : INITIAL_STATIC_CATALOG.products,
+        products: allProducts,
         settings: safeSettings,
         banners: banners,
         coupons: coupons,
@@ -821,28 +830,60 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const isLive = localStorage.getItem('ali_cart_firebase_mode') !== 'false';
 
-    // 1. Instant Cache Render (Stale-While-Revalidate for 0ms initial load)
+    // 1. Instant Cache Render (0 Firestore reads for browsing!)
+    let hasLoadedData = false;
     try {
       const cached = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (parsed && Array.isArray(parsed.products) && parsed.products.length > 0) {
+        if (parsed && Array.isArray(parsed.products)) {
           applyBundleData(parsed);
+          hasLoadedData = true;
           setIsLoading(false);
+          // If not forced and already loaded, DO NOT call Firestore! (0 READS)
+          if (!forceRefresh) return;
         }
       } else {
         const localCached = localStorage.getItem(CATALOG_LOCAL_CACHE_KEY);
         if (localCached) {
           const parsedLocal = JSON.parse(localCached);
-          if (parsedLocal?.data?.products && parsedLocal.data.products.length > 0) {
+          if (parsedLocal?.data && Array.isArray(parsedLocal.data.products)) {
             applyBundleData(parsedLocal.data);
+            hasLoadedData = true;
             setIsLoading(false);
+            if (!forceRefresh) return;
           }
         }
       }
     } catch (e) {}
 
-    // 2. Fetch Live Data from Firestore
+    // 2. If Firebase mode is OFF: Never make any Firestore reads! (0 READS)
+    if (!isLive) {
+      if (!hasLoadedData) {
+        applyBundleData(INITIAL_STATIC_CATALOG);
+      }
+      setIsLoading(false);
+      return;
+    }
+
+    // 3. 1-READ BUNDLE ARCHITECTURE: Exactly 1 Firestore Read for entire store!
+    try {
+      const bundleSnap = await getDoc(doc(db, 'settings', 'catalog_bundle'));
+      if (bundleSnap.exists()) {
+        const bundleData = bundleSnap.data() as CatalogBundle;
+        applyBundleData(bundleData);
+        try {
+          sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleData));
+          localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleData }));
+        } catch (e) {}
+        setIsLoading(false);
+        return;
+      }
+    } catch (bundleErr) {
+      console.warn("1-read catalog_bundle fetch note:", bundleErr);
+    }
+
+    // 4. One-time First Setup Fallback (compiles bundle and saves so all future reads are 1 read!)
     try {
       const [settingsSnap, productsSnap, couponsSnap, bannersSnap, challansSnap, updatesSnap, vendorsSnap] = await Promise.all([
         getDoc(doc(db, 'settings', 'main')),
@@ -869,8 +910,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         vMap[d.id] = { ...u, uid: d.id };
       });
 
-      // If Firestore contains products, prioritize real Firestore items over static defaults
-      const finalProducts = loadedProducts.length > 0 ? loadedProducts : INITIAL_STATIC_CATALOG.products;
+      const hasCatalogHistory = settingsSnap.exists() || localStorage.getItem('onliny_catalog_initialized') === 'true';
+      const finalProducts = (loadedProducts.length > 0 || hasCatalogHistory) ? loadedProducts : INITIAL_STATIC_CATALOG.products;
 
       const compiledBundle: CatalogBundle = {
         products: finalProducts,
@@ -888,16 +929,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(compiledBundle));
         localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: compiledBundle }));
-      } catch (e) {}
-
-      // Keep catalog_bundle doc updated in Firestore
-      try {
+        // Save to catalog_bundle doc so all future visits take exactly 1 read!
         await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(compiledBundle), { merge: true });
-      } catch (writeErr) {}
+      } catch (e) {}
     } catch (fallbackErr) {
       console.warn("Error fetching live Firestore catalog, keeping cached data or static fallback:", fallbackErr);
-      // Fallback only if no products have been loaded
-      if (!sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY) && !localStorage.getItem(CATALOG_LOCAL_CACHE_KEY)) {
+      if (!hasLoadedData) {
         applyBundleData(INITIAL_STATIC_CATALOG);
       }
     } finally {
@@ -912,158 +949,105 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addBanner = async (data: Omit<Banner, 'id' | 'createdAt'>) => {
     const effectiveVendorId = data.vendorId !== undefined ? data.vendorId : (userData?.role === UserRole.Vendor ? userData.uid : undefined);
     const bannerData = sanitizeForFirestore({ 
-      ...data, 
+      ...data,
+      id: (data as any).id || `banner_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       createdAt: Date.now(),
       ...(effectiveVendorId && { vendorId: effectiveVendorId })
     });
-    const docRef = await addDoc(collection(db, 'banners'), bannerData);
-    const newBanner = { id: docRef.id, ...bannerData };
+    const newBanner = bannerData as Banner;
     const updated = [newBanner, ...banners];
     setBanners(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ banners: updated });
   };
   const updateBanner = async (data: Banner) => {
     const cleanData = sanitizeForFirestore(data);
-    await setDoc(doc(db, 'banners', data.id), cleanData);
     const updated = banners.map(b => b.id === data.id ? cleanData : b);
     setBanners(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ banners: updated });
   };
   const deleteBanner = async (banner: Banner) => {
     if(banner.imageUrl) await deleteFile(banner.imageUrl);
-    await deleteDoc(doc(db, 'banners', banner.id));
     const updated = banners.filter(b => b.id !== banner.id);
     setBanners(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ banners: updated });
   };
 
   const addChallan = async (data: Omit<Challan, 'id' | 'createdAt'>) => {
-    const challanData = sanitizeForFirestore({ ...data, createdAt: Date.now() });
-    const docRef = await addDoc(collection(db, 'challans'), challanData);
-    const newChallan = { id: docRef.id, ...challanData };
+    const challanData = sanitizeForFirestore({
+      ...data,
+      id: (data as any).id || `challan_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      createdAt: Date.now()
+    });
+    const newChallan = challanData as Challan;
     const updated = [newChallan, ...challans];
     setChallans(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ challans: updated });
   };
 
   const deleteChallan = async (id: string) => {
-    await deleteDoc(doc(db, 'challans', id));
     const updated = challans.filter(c => c.id !== id);
     setChallans(updated);
+    // 1-WRITE:
     await syncCatalogBundle({ challans: updated });
   };
+
+  // On-demand Orders Fetch for Admin (1 batch read instead of continuous listeners!)
+  const loadOrders = useCallback(async (limitCount = 100) => {
+    const isLive = localStorage.getItem('ali_cart_firebase_mode') !== 'false';
+    if (!isLive) return;
+    try {
+      const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(limitCount));
+      const snap = await getDocs(q);
+      setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
+    } catch (err) {
+      console.warn("loadOrders error:", err);
+    }
+  }, []);
 
   useEffect(() => {
     // 1-Read Visit Fetch: Loads bundle once per visit
     loadCatalog();
 
-    let unsubOrders = () => {}, unsubChat = () => {}, unsubUserData = () => {};
-    const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
+    const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      unsubOrders(); unsubChat(); unsubUserData();
       if (currentUser) {
-        let previousStatus: string | null = null;
-        unsubUserData = onSnapshot(doc(db, 'users', currentUser.uid), (snap) => {
-            if (snap.exists()) {
-                const uData = snap.data() as AppUser;
-                setUserData(uData);
-
-                // Notify pending vendor on acceptance/approval
-                if (previousStatus === 'pending' && uData.status === 'active') {
-                    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                    audio.play().catch(() => {});
-                    
-                    if ('Notification' in window && Notification.permission === 'granted') {
-                        new Notification('Account Approved!', {
-                            body: `Congratulations ${uData.firstName}! Your vendor shop "${uData.shopName}" has been accepted. You can now access your dashboard.`,
-                            icon: '/favicon.svg'
-                        });
-                    } else {
-                        alert(`Congratulations! Your vendor shop "${uData.shopName}" has been accepted.`);
-                    }
-                }
-                previousStatus = uData.status;
-            } else {
-                setUserData({
-                    uid: currentUser.uid,
-                    email: currentUser.email || '',
-                    role: UserRole.Admin,
-                    status: 'active',
-                    createdAt: Date.now()
-                });
-            }
-        });
-        let isInitialOrdersLoad = true;
-        const sessionStartTime = Date.now();
-        
-        // Helper to get already notified order IDs
-        const getNotifiedOrders = (): Set<string> => {
-          try {
-            const raw = localStorage.getItem('admin_notified_order_ids');
-            return new Set(raw ? JSON.parse(raw) : []);
-          } catch {
-            return new Set();
+        // Fetch user profile doc once (1 read) upon login
+        try {
+          const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userSnap.exists()) {
+            const uData = userSnap.data() as AppUser;
+            setUserData(uData);
+          } else {
+            setUserData({
+              uid: currentUser.uid,
+              email: currentUser.email || '',
+              role: UserRole.Admin,
+              status: 'active',
+              createdAt: Date.now()
+            });
           }
-        };
-
-        const markOrderNotified = (orderId: string) => {
-          try {
-            const notified = getNotifiedOrders();
-            notified.add(orderId);
-            localStorage.setItem('admin_notified_order_ids', JSON.stringify(Array.from(notified).slice(-200)));
-          } catch {}
-        };
-
-        // Admin notification permission
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
+        } catch (e) {
+          setUserData({
+            uid: currentUser.uid,
+            email: currentUser.email || '',
+            role: UserRole.Admin,
+            status: 'active',
+            createdAt: Date.now()
+          });
         }
-
-        unsubOrders = onSnapshot(query(collection(db, 'orders'), orderBy('createdAt', 'desc')), (snap) => {
-            const notifiedSet = getNotifiedOrders();
-
-            if (!isInitialOrdersLoad) {
-                snap.docChanges().forEach(change => {
-                    if (change.type === 'added') {
-                        const order = { id: change.doc.id, ...change.doc.data() } as Order;
-                        const isVendor = userData?.role === UserRole.Vendor;
-                        const isAdmin = !userData?.role || userData.role === UserRole.Admin;
-                        
-                        const isForThisVendor = isVendor && order.vendorIds?.includes(currentUser.uid);
-                        const isForAdmin = isAdmin && (!order.vendorIds || order.vendorIds.length === 0 || order.vendorIds.includes('admin'));
-
-                        // ONLY notify if order was created after this session started AND not already notified
-                        const isNewInThisSession = (order.createdAt || 0) >= (sessionStartTime - 10000);
-                        const notYetNotified = !notifiedSet.has(order.id);
-
-                        if ((isForThisVendor || isForAdmin) && isNewInThisSession && notYetNotified) {
-                            markOrderNotified(order.id);
-
-                            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                            audio.play().catch(() => {});
-
-                            if ('Notification' in window && Notification.permission === 'granted') {
-                                new Notification('New Order Received!', {
-                                    body: `Order from ${order.customerName} for ${order.total.toLocaleString()} PKR.`,
-                                    icon: '/favicon.svg'
-                                });
-                            }
-                        }
-                    }
-                });
-            } else {
-                // On initial snapshot load, mark ALL existing orders as seen so they never trigger notifications
-                snap.docs.forEach(d => markOrderNotified(d.id));
-            }
-            isInitialOrdersLoad = false;
-            setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
-        });
-        unsubChat = onSnapshot(query(collection(db, "chatMessages"), orderBy("timestamp", "asc")), (snap) => setChatMessages(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage))));
-      } else { setOrders([]); setChatMessages([]); }
+      } else {
+        setUserData(null);
+        setOrders([]);
+        setChatMessages([]);
+      }
     });
 
     return () => {
-      unsubOrders(); unsubChat(); unsubUserData(); unsubAuth();
+      unsubAuth();
     };
   }, [loadCatalog]);
 
@@ -1071,7 +1055,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     products, allProducts, cart, orders, settings, chatMessages, coupons, banners, updatePosts,
     isLoading, error, user, userData, myProducts, myOrders, wishlist, activeCustomer, customerOrders,
     addToCart, removeFromCart, updateCartQuantity, clearCart,
-    addProduct, updateProduct, deleteProduct, toggleProductVisibility, moveProduct, copyProduct,
+    addProduct, updateProduct, deleteProduct, deleteAllProducts, toggleProductVisibility, moveProduct, copyProduct,
     addOrder, updateOrderStatus, deleteOrder,
     sendChatMessage, sendAdminReply, deleteChatMessage,
     updateSettings, addCategory, deleteCategory, updateCategory, moveCategory, copyCategory,
@@ -1086,7 +1070,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     toggleFirebaseMode,
     exportCatalogSnapshot,
     syncCatalogBundle,
-    refreshCatalog
+    refreshCatalog,
+    loadOrders,
+    trackOrderById
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

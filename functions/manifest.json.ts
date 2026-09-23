@@ -26,10 +26,10 @@ export const onRequestGet = async (context: { request: Request; env: Env }): Pro
   const icon512 = effectiveLogo || "/pwa-512x512.png";
 
   const manifest = {
-    id: "/?source=pwa",
+    id: "/",
     name: `${effectiveName} - Online Shopping Pakistan`,
     short_name: shortName,
-    start_url: "/?source=pwa",
+    start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

@@ -44,7 +44,10 @@ const ProductDetail = () => {
   const [additionalInfo, setAdditionalInfo] = useState('');
   const [showShareMenu, setShowShareMenu] = useState(false);
 
-  const product = useMemo(() => (allProducts || []).find(p => p.id === id), [allProducts, id]);
+  const product = useMemo(
+    () => (allProducts || []).find(p => p.id === id || (p.customId && p.customId === id)),
+    [allProducts, id]
+  );
   const [vendorData, setVendorData] = useState<AppUser | null>(null);
 
   const applicableCoupons = useMemo(() => {
@@ -268,6 +271,7 @@ const ProductDetail = () => {
   };
 
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const productIdToShare = product?.customId || product?.id || '';
 
   const handleShareProduct = async () => {
     if (!product) return;
@@ -276,7 +280,7 @@ const ProductDetail = () => {
     
     await shareContent({
       type: 'product',
-      id: product.id,
+      id: productIdToShare,
       title: product.name,
       description: product.description || `Buy ${product.name} at ${appName}. Price: ${formatCurrency(product.price)}.`,
       image: firstImage,
@@ -289,20 +293,33 @@ const ProductDetail = () => {
     setShowShareMenu(false);
   };
 
-  const copyProductLink = handleShareProduct;
+  const copyProductLink = async () => {
+    if (!product) return;
+    const url = getSmartShareUrl({
+      type: 'product',
+      id: productIdToShare,
+      title: product.name,
+      price: product.price,
+      appName: settings?.appName || 'Online store',
+    });
+    const copied = await copyToClipboard(url);
+    setShareToast(copied ? 'Short product link copied!' : 'Link ready to share!');
+    setTimeout(() => setShareToast(null), 3500);
+    setShowShareMenu(false);
+  };
 
   const smartShareUrl = useMemo(() => {
     if (!product) return '';
     return getSmartShareUrl({
       type: 'product',
-      id: product.id,
+      id: productIdToShare,
       title: product.name,
       description: product.description,
       image: product.images?.[0],
       price: product.price,
       appName: settings?.appName || 'Online store',
     });
-  }, [product, settings?.appName]);
+  }, [product, productIdToShare, settings?.appName]);
 
   const whatsappNumber = vendorData?.whatsappNumber || settings?.whatsappNumber;
   const whatsappMessage = `Hello! I’m interested in this product:\n*${product.name}* (Rs. ${Number(product.price).toLocaleString()})\n${smartShareUrl}`;

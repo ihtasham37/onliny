@@ -54,13 +54,13 @@ export const Search = () => {
                 const category = safeLower(product.category);
                 const description = safeLower(product.description || '');
 
-                // Exact ID match
+                // Exact ID match (Internal scoring boost without exposing ID label to users)
                 if (customId === lowerQuery || id === lowerQuery) {
                     score += 5000;
-                    reason = 'Exact Product ID';
+                    reason = 'Top Match';
                 } else if (customId.includes(lowerQuery) || id.includes(lowerQuery)) {
                     score += 2500;
-                    reason = 'Product ID Match';
+                    reason = 'Best Match';
                 }
 
                 // Exact full title match
@@ -474,7 +474,7 @@ export const Search = () => {
                     <div className="space-y-1">
                         <h4 className="text-lg font-bold text-slate-800 font-serif">No Matching Baby Products Found</h4>
                         <p className="text-xs sm:text-sm text-slate-500">
-                            We couldn't find items for "{query}". Try searching by Product ID, baby clothes (e.g. "romper", "frock", "suit"), or select a category above.
+                            We couldn't find items for "{query}". Try searching by product name, category, or select a filter above.
                         </p>
                     </div>
                     <button

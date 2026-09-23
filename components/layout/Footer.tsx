@@ -25,13 +25,10 @@ const NavItem = ({ to, icon: Icon, label }: { to: string; icon: React.ComponentT
       {({ isActive }) => (
         <>
           {isActive ? (
-            /* Active State: Elevated Half-Out Circle Protruding Above Footer with Shining Glow */
+            /* Active State: Clean elevated circle protruding above footer without blurry reflection */
             <div className="flex flex-col items-center justify-center -translate-y-4 sm:-translate-y-4.5 transition-transform duration-300 relative z-20">
-              {/* Outer Radiant Glow Effect */}
-              <span className="absolute -inset-1 rounded-full bg-[#e60067]/45 blur-md pointer-events-none animate-pulse" />
-              
-              {/* Floating Glowing Half-Circle Button */}
-              <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#d80064] via-[#e60067] to-rose-400 flex items-center justify-center text-white ring-4 ring-white shadow-[0_0_18px_rgba(230,0,103,0.75),0_6px_16px_rgba(230,0,103,0.4)] transition-all">
+              {/* Elevated Floating Button */}
+              <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#d80064] via-[#e60067] to-rose-400 flex items-center justify-center text-white ring-4 ring-white shadow-md transition-all">
                 <Icon className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-white stroke-[2.4]" />
                 {label === 'Cart' && cartItemCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-900 text-[10px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center ring-2 ring-white shadow-xs">
@@ -44,8 +41,8 @@ const NavItem = ({ to, icon: Icon, label }: { to: string; icon: React.ComponentT
               <span className="text-[10px] font-black tracking-tight text-[#e60067] mt-1">
                 {label}
               </span>
-              {/* Active glowing dot */}
-              <span className="w-1.5 h-1.5 rounded-full bg-[#e60067] shadow-[0_0_6px_rgba(230,0,103,0.9)] mt-0.5" />
+              {/* Active indicator dot */}
+              <span className="w-1.5 h-1.5 rounded-full bg-[#e60067] mt-0.5" />
             </div>
           ) : (
             /* Inactive State: Clean, standard footer layout */

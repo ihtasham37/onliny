@@ -1,6 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../../hooks/useStore';
 import { Settings as SettingsType } from '../../types';
 import { Button } from '../../components/ui/Button';
@@ -335,21 +336,41 @@ const Settings = () => {
 
                         {/* Action Buttons */}
                         <div className="flex flex-wrap items-center gap-3 shrink-0">
-                            {/* Toggle Button */}
-                            <button
-                                type="button"
+                            {/* Interactive Toggle Switch */}
+                            <div
                                 onClick={() => toggleFirebaseMode()}
-                                className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md active:scale-95 ${
-                                    isFirebaseLiveMode
-                                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-400/50'
-                                    : 'bg-emerald-600 hover:bg-emerald-500 text-white ring-2 ring-emerald-400/40'
-                                }`}
+                                role="switch"
+                                aria-checked={isFirebaseLiveMode}
+                                tabIndex={0}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFirebaseMode(); } }}
+                                className="cursor-pointer select-none px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 flex items-center gap-3 shadow-md transition-all active:scale-95"
                             >
                                 <span className="text-base">{isFirebaseLiveMode ? '🔥' : '⚡'}</span>
-                                <span>
-                                    Firebase Mode: <strong>{isFirebaseLiveMode ? 'ON (لائیو ڈیٹا)' : 'OFF (فاسٹ موڈ)'}</strong>
-                                </span>
-                            </button>
+                                <div className="text-left">
+                                    <div className="text-[11px] font-medium text-slate-400">Firebase Mode</div>
+                                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <span>{isFirebaseLiveMode ? 'Live Mode' : 'Static Mode'}</span>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-sm font-black ${
+                                            isFirebaseLiveMode ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
+                                        }`}>
+                                            {isFirebaseLiveMode ? 'ON' : 'OFF'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Slider track & thumb */}
+                                <div
+                                    className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ml-1 ${
+                                        isFirebaseLiveMode ? 'bg-amber-500' : 'bg-slate-600'
+                                    }`}
+                                >
+                                    <div
+                                        className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
+                                            isFirebaseLiveMode ? 'translate-x-5' : 'translate-x-0'
+                                        }`}
+                                    />
+                                </div>
+                            </div>
 
                             {/* Sync Catalog Button */}
                             <button
@@ -779,40 +800,26 @@ const Settings = () => {
                         <Input label="Facebook Page URL" value={formData.facebookPageUrl || ''} onChange={e => setFormData({...formData, facebookPageUrl: e.target.value})} />
                     </div>
                 </div>
-                 <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h2 className="text-xl font-bold mb-4">Homepage Banners</h2>
-                    <div className="flex gap-2 my-2 border-b pb-3">
-                        <Button type="button" size="sm" variant={bannerInputMode === 'upload' ? 'primary' : 'secondary'} onClick={() => setBannerInputMode('upload')}>Upload File</Button>
-                        <Button type="button" size="sm" variant={bannerInputMode === 'url' ? 'primary' : 'secondary'} onClick={() => setBannerInputMode('url')}>Add from URL</Button>
-                    </div>
-                    {bannerInputMode === 'upload' ? (
-                        <div className="mt-2 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                            <div className="space-y-1 text-center">
-                                <Icons.image className="mx-auto h-12 w-12 text-gray-400" />
-                                <label htmlFor="banner-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-pink-600 hover:text-pink-500 focus-within:outline-none">
-                                    <span>Upload banner images</span>
-                                    <input id="banner-upload" name="banner-upload" type="file" className="sr-only" multiple onChange={handleBannerUpload} accept="image/*" disabled={isUploadingBanner}/>
-                                </label>
-                                <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex gap-2 mt-2">
-                            <Input label="Banner URL" placeholder="https://example.com/banner.jpg" value={bannerUrl} onChange={e => setBannerUrl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddBannerUrl(); } }}/>
-                            <Button type="button" onClick={handleAddBannerUrl} className="self-end">Add URL</Button>
-                        </div>
-                    )}
-                    {isUploadingBanner && <div className="mt-2"><Spinner size="sm" /></div>}
-                    {bannerUploadError && <p className="mt-2 text-sm text-red-500">{bannerUploadError}</p>}
-                    <div className="mt-4 space-y-2">
-                        {formData.bannerUrls.map((url, index) => (
-                            <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                <div className="flex items-center gap-3"><ImageWithFallback src={url} className="w-16 h-9 object-cover rounded" /><span className="text-sm truncate pr-2">{url.split('/').pop()}</span></div>
-                                <button onClick={() => setFormData({...formData, bannerUrls: formData.bannerUrls.filter((_, i) => i !== index)})} className="text-red-500"><Icons.trash className="w-4 h-4"/></button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                 {/* Homepage Banners Notice: Moved to dedicated Banner Management section */}
+                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-rose-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                     <div className="flex items-center gap-3">
+                         <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                             <Icons.image className="w-5 h-5" />
+                         </div>
+                         <div>
+                             <h3 className="font-bold text-slate-800 text-sm">Homepage Banners Moved to Banner Management</h3>
+                             <p className="text-xs text-slate-500 mt-0.5">
+                                 Homepage slider images and banners are now managed in the dedicated Banner Management section with improved photo previews and delete buttons.
+                             </p>
+                         </div>
+                     </div>
+                     <Link 
+                         to="/admin/banners" 
+                         className="px-4 py-2.5 bg-gradient-to-r from-rose-600 to-amber-600 text-white text-xs font-bold rounded-xl shadow-xs hover:from-rose-700 hover:to-amber-700 transition-all shrink-0 text-center"
+                     >
+                         Manage Banners Here →
+                     </Link>
+                 </div>
                 <div className="bg-white p-4 rounded-lg shadow-sm">
                     <h2 className="text-xl font-bold mb-4">Payment Methods</h2>
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 border p-4 rounded-md mb-4">

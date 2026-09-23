@@ -79,7 +79,8 @@ const AdminLayout = () => {
     syncCatalogBundle,
     isFirebaseLiveMode,
     toggleFirebaseMode,
-    exportCatalogSnapshot
+    exportCatalogSnapshot,
+    loadOrders
   } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -124,6 +125,8 @@ const AdminLayout = () => {
         if (!user) {
             navigate('/vendor/login');
         } else {
+            // Load orders on-demand once (1 read batch) for the admin dashboard
+            loadOrders?.();
             // Wait for userData to be loaded in context if needed
             if ('Notification' in window && Notification.permission === 'default') {
                 Notification.requestPermission();
@@ -213,21 +216,39 @@ const AdminLayout = () => {
             </button>
             <h1 className="text-lg md:text-xl font-bold text-slate-800 font-serif">{getPageTitle(location.pathname)}</h1>
             <div className="flex items-center gap-2 md:gap-3">
-                {/* Firebase Mode Toggle in Topbar */}
-                <button
-                    type="button"
+                {/* Firebase Mode Toggle Switch in Topbar */}
+                <div
                     onClick={() => toggleFirebaseMode()}
-                    title={isFirebaseLiveMode ? "Switch to Fast Static Mode (0 reads)" : "Switch to Live Firebase Mode"}
-                    className={`text-xs px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 font-bold transition-all shadow-xs ${
+                    role="switch"
+                    aria-checked={isFirebaseLiveMode}
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFirebaseMode(); } }}
+                    title={isFirebaseLiveMode ? "Firebase Live Mode ON (Realtime sync) - Click to toggle OFF" : "Static Mode Active (0 Firestore reads) - Click to toggle ON"}
+                    className={`cursor-pointer select-none flex items-center gap-2 px-2.5 py-1.5 rounded-full border transition-all shadow-xs ${
                         isFirebaseLiveMode
-                        ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
-                        : 'bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-emerald-200'
+                        ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+                        : 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
                     }`}
                 >
-                    <span>{isFirebaseLiveMode ? '🔥' : '⚡'}</span>
-                    <span className="hidden sm:inline">Firebase:</span>
-                    <span>{isFirebaseLiveMode ? 'Live (ON)' : 'Static (OFF)'}</span>
-                </button>
+                    <span className="text-xs font-bold flex items-center gap-1">
+                        <span>{isFirebaseLiveMode ? '🔥' : '⚡'}</span>
+                        <span className="hidden sm:inline">Firebase:</span>
+                        <span>{isFirebaseLiveMode ? 'ON' : 'OFF'}</span>
+                    </span>
+
+                    {/* Sliding Toggle Pill Track & Knob */}
+                    <div 
+                        className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-300 ${
+                            isFirebaseLiveMode ? 'bg-amber-500' : 'bg-slate-300'
+                        }`}
+                    >
+                        <div 
+                            className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
+                                isFirebaseLiveMode ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                        />
+                    </div>
+                </div>
 
                 <button
                     onClick={handleManualSync}

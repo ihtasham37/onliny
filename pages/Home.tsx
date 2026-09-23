@@ -160,18 +160,9 @@ const Home = () => {
 
   // Categories from collection page (settings.categories)
   const categoriesToShow = useMemo(() => {
-    const direct = (settings?.categories || []).filter(c => 
+    return (settings?.categories || []).filter(c => 
       c && c.isVisible && !c.parentId && (!c.vendorId || c.vendorId === 'admin')
     );
-    if (direct.length > 0) return direct;
-    return [
-      { id: 'women', name: 'Women', isVisible: true },
-      { id: 'men', name: 'Men', isVisible: true },
-      { id: 'kids', name: 'Kids', isVisible: true },
-      { id: 'accessories', name: 'Accessories', isVisible: true },
-      { id: 'shoes', name: 'Shoes', isVisible: true },
-      { id: 'beauty', name: 'Beauty', isVisible: true }
-    ];
   }, [settings?.categories]);
 
   // Personalized Interest & Randomized Product Order on Page Load/Open
@@ -500,52 +491,54 @@ const Home = () => {
       </div>
 
       {/* Categories from Collection Page (Circular layout with shining glow, direct link to category page, no All button) */}
-      <div className="pt-0.5 pb-0">
-        <div className="flex items-center justify-between mb-2 sm:mb-2.5 px-1">
-          <h2 className="text-lg sm:text-xl font-extrabold font-serif text-slate-900 px-1 border-l-4 border-rose-600 pl-3 tracking-tight">
-            Explore Categories
-          </h2>
-          <Link 
-            to="/categories" 
-            className="text-xs font-bold text-pink-600 hover:text-pink-700 flex items-center gap-0.5 group"
-          >
-            <span>View All</span>
-            <Icons.chevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
-        </div>
+      {categoriesToShow.length > 0 && (
+        <div className="pt-0.5 pb-0">
+          <div className="flex items-center justify-between mb-2 sm:mb-2.5 px-1">
+            <h2 className="text-lg sm:text-xl font-extrabold font-serif text-slate-900 px-1 border-l-4 border-rose-600 pl-3 tracking-tight">
+              Explore Categories
+            </h2>
+            <Link 
+              to="/categories" 
+              className="text-xs font-bold text-pink-600 hover:text-pink-700 flex items-center gap-0.5 group"
+            >
+              <span>View All</span>
+              <Icons.chevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          </div>
 
-        {/* Horizontal Scrollable Glowing Circular Categories */}
-        <div className="flex items-center gap-3.5 sm:gap-5 md:gap-6 lg:gap-8 xl:gap-10 overflow-x-auto pb-2 pt-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          {categoriesToShow.map((cat) => {
-            const avatarUrl = getCategoryAvatar(cat.name, cat.imageUrl);
+          {/* Horizontal Scrollable Glowing Circular Categories */}
+          <div className="flex items-center gap-3.5 sm:gap-5 md:gap-6 lg:gap-8 xl:gap-10 overflow-x-auto pb-2 pt-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {categoriesToShow.map((cat) => {
+              const avatarUrl = getCategoryAvatar(cat.name, cat.imageUrl);
 
-            return (
-              <Link
-                key={cat.id}
-                to={`/category/${encodeURIComponent(cat.id)}`}
-                className="flex flex-col items-center gap-2 shrink-0 group cursor-pointer text-center outline-none"
-              >
-                {/* Clean Circular Avatar Container */}
-                <div className="relative p-[2.5px] rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-rose-400 shadow-xs border border-pink-100/80 group-hover:scale-105 transition-all duration-300">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-28 lg:h-28 xl:w-32 xl:h-32 rounded-full overflow-hidden bg-slate-100 border border-white">
-                    <img
-                      src={avatarUrl}
-                      alt={cat.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                    />
+              return (
+                <Link
+                  key={cat.id}
+                  to={`/category/${encodeURIComponent(cat.id)}`}
+                  className="flex flex-col items-center gap-2 shrink-0 group cursor-pointer text-center outline-none"
+                >
+                  {/* Clean Circular Avatar Container */}
+                  <div className="relative p-[2.5px] rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-rose-400 shadow-xs border border-pink-100/80 group-hover:scale-105 transition-all duration-300">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-28 lg:h-28 xl:w-32 xl:h-32 rounded-full overflow-hidden bg-slate-100 border border-white">
+                      <img
+                        src={avatarUrl}
+                        alt={cat.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Category Label */}
-                <span className="text-xs sm:text-xs md:text-sm lg:text-base font-extrabold text-slate-800 group-hover:text-pink-600 transition-colors tracking-tight text-center max-w-[72px] sm:max-w-[85px] md:max-w-[105px] lg:max-w-[135px] xl:max-w-[155px] truncate">
-                  {cat.name}
-                </span>
-              </Link>
-            );
-          })}
+                  {/* Category Label */}
+                  <span className="text-xs sm:text-xs md:text-sm lg:text-base font-extrabold text-slate-800 group-hover:text-pink-600 transition-colors tracking-tight text-center max-w-[72px] sm:max-w-[85px] md:max-w-[105px] lg:max-w-[135px] xl:max-w-[155px] truncate">
+                    {cat.name}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Products Section with Luxury Heading */}
       <div className="pt-0">

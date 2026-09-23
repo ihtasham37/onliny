@@ -247,8 +247,10 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
 };
 
 const TrackOrder = () => {
-    const { activeCustomer, customerOrders, trackWithEmailAndPhone, customerLogout, isLoading: isContextLoading } = useStore();
+    const { activeCustomer, customerOrders, trackWithEmailAndPhone, trackOrderById, customerLogout, isLoading: isContextLoading } = useStore();
     const location = useLocation();
+    const [trackMode, setTrackMode] = useState<'id' | 'phone'>('id');
+    const [orderId, setOrderId] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -261,17 +263,19 @@ const TrackOrder = () => {
             const hashSearchIndex = hash.indexOf('?');
             const hashParams = hashSearchIndex !== -1 ? new URLSearchParams(hash.substring(hashSearchIndex)) : new URLSearchParams();
 
+            const queryOrderId = searchParams.get('id') || searchParams.get('orderId') || hashParams.get('id') || hashParams.get('orderId') || '';
             const queryPhone = searchParams.get('phone') || searchParams.get('track') || hashParams.get('phone') || hashParams.get('track') || '';
             const queryEmail = searchParams.get('email') || hashParams.get('email') || '';
 
-            if (queryPhone) {
+            if (queryOrderId) {
+                setOrderId(queryOrderId);
+                setTrackMode('id');
+                setIsLoading(true);
+                trackOrderById?.(queryOrderId).finally(() => setIsLoading(false));
+            } else if (queryPhone) {
                 setPhone(queryPhone);
-            }
-            if (queryEmail) {
-                setEmail(queryEmail);
-            }
-            if (queryPhone) {
-                // Auto track orders if phone parameter is present in URL
+                if (queryEmail) setEmail(queryEmail);
+                setTrackMode('phone');
                 trackWithEmailAndPhone(queryEmail, queryPhone);
             }
         } catch (e) {}
@@ -282,12 +286,20 @@ const TrackOrder = () => {
         setError('');
         setIsLoading(true);
         try {
-            const success = await trackWithEmailAndPhone(email, phone);
-            if (!success) {
-                setError('No orders found for this email and phone number combination. Please check your details and try again.');
+            if (trackMode === 'id') {
+                if (!orderId.trim()) {
+                    setError('Please enter your Order ID.');
+                    setIsLoading(false);
+                    return;
+                }
+                const found = await trackOrderById?.(orderId.trim());
+                if (!found) {
+                    setError('No order found with this Order ID. Please check the ID and try again.');
+                }
             } else {
-                if ('Notification' in window && Notification.permission === 'default') {
-                    Notification.requestPermission();
+                const success = await trackWithEmailAndPhone(email, phone);
+                if (!success) {
+                    setError('No orders found for this phone number. Please check your details and try again.');
                 }
             }
         } catch (err) {
@@ -339,25 +351,63 @@ const TrackOrder = () => {
                 <p className="text-gray-500">Enter your order details to see its status.</p>
             </div>
 
+            <div className="flex rounded-xl bg-gray-100 p-1">
+                <button
+                    type="button"
+                    onClick={() => { setTrackMode('id'); setError(''); }}
+                    className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+                        trackMode === 'id'
+                            ? 'bg-white text-rose-600 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    Order ID
+                </button>
+                <button
+                    type="button"
+                    onClick={() => { setTrackMode('phone'); setError(''); }}
+                    className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+                        trackMode === 'phone'
+                            ? 'bg-white text-rose-600 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    Phone & Email
+                </button>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
-                <Input
-                    label="Email Address"
-                    type="email"
-                    name="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    placeholder="you@example.com"
-                />
-                <Input
-                    label="Phone Number"
-                    type="tel"
-                    name="phone"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                    placeholder="03001234567"
-                />
+                {trackMode === 'id' ? (
+                    <Input
+                        label="Order ID / آرڈر نمبر"
+                        type="text"
+                        name="orderId"
+                        value={orderId}
+                        onChange={(e) => setOrderId(e.target.value)}
+                        required
+                        placeholder="e.g. ORD-1234 or Order ID"
+                    />
+                ) : (
+                    <>
+                        <Input
+                            label="Phone Number / فون نمبر"
+                            type="tel"
+                            name="phone"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            required
+                            placeholder="03001234567"
+                        />
+                        <Input
+                            label="Email Address (Optional)"
+                            type="email"
+                            name="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="you@example.com"
+                        />
+                    </>
+                )}
                 {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
                 <Button
                     type="submit"
@@ -366,7 +416,7 @@ const TrackOrder = () => {
                     size="lg"
                     disabled={isLoading}
                 >
-                    {isLoading ? <Spinner size="sm" /> : 'Find My Orders'}
+                    {isLoading ? <Spinner size="sm" /> : 'Find Order'}
                 </Button>
             </form>
         </div>

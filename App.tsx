@@ -44,71 +44,22 @@ const AppContent = () => {
 
         document.title = appName;
 
-        // Generate dynamic Web Manifest with real uploaded logoUrl so PWA installation displays the exact store/vendor branding
-        let dynamicBlobUrl: string | null = null;
+        // Ensure manifest link always points to valid HTTP/HTTPS endpoint (never a blob: URL which causes Android WebAPK install failure)
         try {
-            const effectiveIcon192 = logoUrl || '/pwa-192x192.png';
-            const effectiveIcon512 = logoUrl || '/pwa-512x512.png';
-            const iconType = logoUrl && logoUrl.includes('webp') ? 'image/webp' : 'image/png';
-
-            const dynamicManifest = {
-                id: manifestId,
-                name: `${appName} - Online Shopping Pakistan`,
-                short_name: appName.length > 14 ? appName.slice(0, 14).trim() : appName,
-                start_url: startUrl,
-                scope: "/",
-                display: "standalone",
-                orientation: "portrait",
-                background_color: "#ffffff",
-                theme_color: "#be185d",
-                description: `${appName} - Official online shopping destination for fashion and fast cash on delivery.`,
-                prefer_related_applications: false,
-                categories: ["shopping", "lifestyle"],
-                icons: [
-                    {
-                        src: effectiveIcon192,
-                        sizes: "192x192",
-                        type: iconType,
-                        purpose: "any"
-                    },
-                    {
-                        src: effectiveIcon512,
-                        sizes: "512x512",
-                        type: iconType,
-                        purpose: "any"
-                    },
-                    {
-                        src: effectiveIcon512,
-                        sizes: "512x512",
-                        type: iconType,
-                        purpose: "maskable"
-                    }
-                ],
-                screenshots: [
-                    {
-                        src: effectiveIcon512,
-                        sizes: "512x512",
-                        type: iconType,
-                        form_factor: "narrow",
-                        label: `${appName} Store`
-                    }
-                ]
-            };
-
-            const manifestBlob = new Blob([JSON.stringify(dynamicManifest, null, 2)], {
-                type: 'application/manifest+json'
-            });
-            dynamicBlobUrl = URL.createObjectURL(manifestBlob);
-
             let manifestLink = document.querySelector('link[rel="manifest"]');
             if (!manifestLink) {
                 manifestLink = document.createElement('link');
                 manifestLink.setAttribute('rel', 'manifest');
                 document.head.appendChild(manifestLink);
             }
-            manifestLink.setAttribute('href', dynamicBlobUrl);
+            const targetManifestHref = isStandalone && (vendorId || categoryId)
+                ? `/manifest.json?${vendorId ? `vendor=${encodeURIComponent(vendorId)}` : `category=${encodeURIComponent(categoryId || '')}`}`
+                : '/manifest.json';
+            if (manifestLink.getAttribute('href') !== targetManifestHref) {
+                manifestLink.setAttribute('href', targetManifestHref);
+            }
         } catch (err) {
-            console.warn("Failed to set dynamic manifest:", err);
+            console.warn("Failed to set manifest href:", err);
         }
 
         // Update Favicon & App Icons directly in head

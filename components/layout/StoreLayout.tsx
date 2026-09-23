@@ -47,6 +47,7 @@ const StoreLayout = () => {
             <Route path="/home" element={<Home />} />
             <Route path="/index" element={<Home />} />
             <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/p/:id" element={<ProductDetail />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order-success" element={<OrderSuccess />} />
@@ -55,6 +56,7 @@ const StoreLayout = () => {
             <Route path="/search" element={<Search />} />
             <Route path="/categories" element={<CategoriesPage />} />
             <Route path="/category/:categoryId" element={<CategoryProductsPage />} />
+            <Route path="/c/:categoryId" element={<CategoryProductsPage />} />
             <Route path="/store/c/:categoryId/categories" element={<CategoriesPage isStandalone={true} />} />
             <Route path="/store/c/:categoryId" element={<CategoryProductsPage isStandalone={true} />} />
             <Route path="/standalone/:categoryId/categories" element={<CategoriesPage isStandalone={true} />} />

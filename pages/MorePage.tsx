@@ -9,7 +9,8 @@ import { usePWAInstall } from '../hooks/usePWAInstall';
 const MorePage = () => {
     const { settings } = useStore();
     const { isInstalled, isInstallable, isIOS, installPWA } = usePWAInstall();
-    const [iosGuideOpen, setIosGuideOpen] = useState(false);
+    const [guideOpen, setGuideOpen] = useState(false);
+    const [guideType, setGuideType] = useState<'ios' | 'android'>('android');
 
     const whatsappLink = settings?.whatsappNumber ? `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}` : '';
     const emailLink = settings?.adminEmail ? `mailto:${settings.adminEmail}` : '';
@@ -24,9 +25,14 @@ const MorePage = () => {
 
     const handleInstallClick = async () => {
         if (isIOS) {
-            setIosGuideOpen(true);
+            setGuideType('ios');
+            setGuideOpen(true);
         } else {
-            await installPWA();
+            const installed = await installPWA();
+            if (!installed) {
+                setGuideType('android');
+                setGuideOpen(true);
+            }
         }
     };
 
@@ -184,25 +190,41 @@ const MorePage = () => {
                 </p>
             </div>
 
-            {iosGuideOpen && (
+            {guideOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
                     <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl border border-gray-100">
                         <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                            <h3 className="font-bold text-gray-900 text-sm">Install on iPhone / iPad</h3>
-                            <button onClick={() => setIosGuideOpen(false)} className="text-gray-400 hover:text-gray-600 p-1">
+                            <h3 className="font-bold text-gray-900 text-sm">
+                                {guideType === 'ios' ? 'Install on iPhone / iPad' : `Install ${settings?.appName || 'Onliny'} App`}
+                            </h3>
+                            <button onClick={() => setGuideOpen(false)} className="text-gray-400 hover:text-gray-600 p-1">
                                 <Icons.x className="w-4 h-4" />
                             </button>
                         </div>
-                        <div className="py-4 space-y-3 text-xs text-gray-600">
-                            <p>1. Tap the <strong>Share</strong> button <Icons.share className="inline w-3.5 h-3.5 text-teal-600 mb-0.5 mx-0.5" /> in Safari.</p>
-                            <p>2. Tap <strong>Add to Home Screen</strong>.</p>
-                            <p>3. Tap <strong>Add</strong> at top right to complete installation.</p>
+                        <div className="py-4 space-y-3 text-xs text-gray-700">
+                            {guideType === 'ios' ? (
+                                <>
+                                    <p>1. Tap the <strong>Share</strong> button <Icons.share className="inline w-3.5 h-3.5 text-rose-600 mb-0.5 mx-0.5" /> in Safari.</p>
+                                    <p>2. Tap <strong>Add to Home Screen</strong>.</p>
+                                    <p>3. Tap <strong>Add</strong> at top right to complete installation.</p>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-rose-700 font-semibold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                                        💡 Shortcut ke bajaye full App install karne ke liye:
+                                    </div>
+                                    <p>1. Chrome ke ooper 3-dots menu <strong>(⋮)</strong> par tap karein.</p>
+                                    <p>2. Menu mein <strong>"Install app"</strong> (یا <strong>"Add to Home screen"</strong>) par click karein.</p>
+                                    <p>3. <strong>"Install"</strong> dabayein. App official mobile app ban kar download ho jayegi!</p>
+                                </>
+                            )}
                         </div>
                         <button
-                            onClick={() => setIosGuideOpen(false)}
-                            className="w-full py-2 bg-teal-600 text-white font-bold text-xs rounded-xl"
+                            type="button"
+                            onClick={() => setGuideOpen(false)}
+                            className="w-full py-2.5 bg-gradient-to-r from-rose-600 to-amber-600 text-white font-bold text-xs rounded-xl shadow-xs"
                         >
-                            Done
+                            Got It / سمجھ آ گئی
                         </button>
                     </div>
                 </div>

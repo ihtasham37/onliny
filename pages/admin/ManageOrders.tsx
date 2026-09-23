@@ -265,10 +265,21 @@ const OrderDetailsModal = ({ order, onClose }: { order: Order | null; onClose: (
 
 const ManageOrders = () => {
     const { userData } = useAuth();
-    const { myOrders: orders, updateOrderStatus, deleteOrder, isLoading, settings, vendorsMap } = useStore();
+    const { myOrders: orders, updateOrderStatus, deleteOrder, isLoading, settings, vendorsMap, loadOrders } = useStore();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    useEffect(() => {
+        loadOrders?.();
+    }, [loadOrders]);
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        await loadOrders?.();
+        setIsRefreshing(false);
+    };
 
     useEffect(() => {
         if (!userData || orders.length === 0) return;
@@ -304,7 +315,19 @@ const ManageOrders = () => {
 
     return (
         <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4">Manage Orders</h1>
+            <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Manage Orders</h1>
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="flex items-center gap-2 border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                    {isRefreshing ? <Spinner size="sm" /> : <Icons.refresh className="w-4 h-4" />}
+                    <span>Refresh Orders</span>
+                </Button>
+            </div>
             <div className="bg-white p-3 rounded-lg shadow-sm mb-4 flex flex-col md:flex-row gap-4">
                 <Input
                     placeholder="Search by name, phone, or ID..."
