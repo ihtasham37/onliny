@@ -816,32 +816,89 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const exportCatalogSnapshot = useCallback(async () => {
     try {
-      const rawSettings = settings || INITIAL_STATIC_CATALOG.settings;
-      const safeSettings = rawSettings ? { ...rawSettings } : rawSettings;
+      // 1. Fetch fresh live state directly from Firestore for ALL collections to detect all updates & deletions
+      let freshProducts = allProducts;
+      let freshBanners = banners;
+      let freshCoupons = coupons;
+      let freshChallans = challans;
+      let freshUpdates = updatePosts;
+      let freshSettings = settings || INITIAL_STATIC_CATALOG.settings;
+      let freshVendorsStatus = vendorsStatus;
+      let freshVendorsMap = vendorsMap;
+
+      try {
+        const [settingsSnap, productsSnap, couponsSnap, bannersSnap, challansSnap, updatesSnap, vendorsSnap] = await Promise.all([
+          getDoc(doc(db, 'settings', 'main')),
+          getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'coupons'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'banners'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'challans'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'updatePosts'), orderBy('createdAt', 'desc'))),
+          getDocs(query(collection(db, 'users'), where('role', '==', UserRole.Vendor)))
+        ]);
+
+        if (settingsSnap.exists()) {
+          freshSettings = settingsSnap.data() as Settings;
+        }
+        if (!productsSnap.empty) {
+          freshProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
+        }
+        if (!couponsSnap.empty) {
+          freshCoupons = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
+        }
+        if (!bannersSnap.empty) {
+          freshBanners = bannersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Banner));
+        }
+        if (!challansSnap.empty) {
+          freshChallans = challansSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challan));
+        }
+        if (!updatesSnap.empty) {
+          freshUpdates = updatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as UpdatePost));
+        }
+
+        const vStatus: Record<string, string> = {};
+        const vMap: Record<string, AppUser> = {};
+        vendorsSnap.docs.forEach(d => {
+          const u = d.data() as AppUser;
+          vStatus[d.id] = u.status;
+          vMap[d.id] = { ...u, uid: d.id };
+        });
+        if (vendorsSnap.docs.length > 0) {
+          freshVendorsStatus = vStatus;
+          freshVendorsMap = vMap;
+        }
+      } catch (firestoreFetchErr) {
+        console.warn("Snapshot direct Firestore fetch warning (falling back to current memory state):", firestoreFetchErr);
+      }
+
+      const safeSettings = freshSettings ? { ...freshSettings } : freshSettings;
       if (safeSettings && (safeSettings as any).gmailAppPassword) {
         delete (safeSettings as any).gmailAppPassword;
       }
 
       const bundleToSave: CatalogBundle = {
-        products: allProducts,
+        products: freshProducts,
         settings: safeSettings,
-        banners: banners,
-        coupons: coupons,
-        updatePosts: updatePosts,
-        challans: challans,
-        vendorsStatus: vendorsStatus,
-        vendorsMap: vendorsMap,
+        banners: freshBanners,
+        coupons: freshCoupons,
+        updatePosts: freshUpdates,
+        challans: freshChallans,
+        vendorsStatus: freshVendorsStatus,
+        vendorsMap: freshVendorsMap,
         lastUpdated: Date.now()
       };
 
-      // 1. Save in local browser storage
+      // 2. Immediately update current React state across app
+      applyBundleData(bundleToSave);
+
+      // 3. Save in local browser storage
       try {
         localStorage.setItem('onliny_catalog_initialized', 'true');
         sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleToSave));
         localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleToSave }));
       } catch (e) {}
 
-      // 2. Save on server-side static JSON file
+      // 4. Save on server-side static JSON file (/api/save-catalog) so all laptops, mobiles, and visitors get exact same data
       try {
         await fetch('/api/save-catalog', {
           method: 'POST',
@@ -849,10 +906,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           body: JSON.stringify({ catalog: bundleToSave })
         });
       } catch (err) {
-        console.warn("Could not save to /api/save-catalog (fallback to client store):", err);
+        console.warn("Could not save to /api/save-catalog:", err);
       }
 
-      // 3. Sync to Firestore bundle doc so live Firebase mode also gets this exact snapshot
+      // 5. Sync to Firestore bundle doc
       try {
         await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(bundleToSave), { merge: true });
       } catch (dbErr) {
@@ -871,7 +928,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         message: e?.message || 'Failed to export catalog snapshot'
       };
     }
-  }, [allProducts, settings, banners, coupons, updatePosts, challans, vendorsStatus, vendorsMap]);
+  }, [allProducts, settings, banners, coupons, updatePosts, challans, vendorsStatus, vendorsMap, applyBundleData]);
 
   const loadCatalog = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
