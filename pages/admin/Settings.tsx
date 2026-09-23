@@ -82,6 +82,10 @@ const Settings = () => {
         if (formData) {
             setIsSaving(true);
             try {
+                const settingsToSave: SettingsType = {
+                    ...formData,
+                    isFirebaseLiveMode: isFirebaseLiveMode
+                };
                 // Securely save credentials to server-side isolated config
                 if (formData.gmailUser || formData.gmailAppPassword) {
                     await fetch('/api/save-email-settings', {
@@ -91,11 +95,11 @@ const Settings = () => {
                             gmailUser: formData.gmailUser,
                             gmailAppPassword: formData.gmailAppPassword,
                             adminNotificationEmail: formData.adminNotificationEmail,
-                            appName: formData.appName || 'Zivio Store'
+                            appName: formData.appName || 'onliny'
                         })
                     }).catch(err => console.warn("Failed to save email settings to server:", err));
                 }
-                await updateSettings(formData);
+                await updateSettings(settingsToSave);
                 alert("Settings saved successfully!");
             } catch (error) {
                 console.error("Failed to save settings:", error);

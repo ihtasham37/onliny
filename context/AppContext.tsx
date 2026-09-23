@@ -132,6 +132,7 @@ const getInitialSettings = (): Settings => {
     gmailUser: '',
     gmailAppPassword: '',
     enableOrderEmailAlerts: true,
+    isFirebaseLiveMode: false,
   } as unknown as Settings;
 };
 
@@ -305,26 +306,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [isFirebaseLiveMode, setIsFirebaseLiveMode] = useState<boolean>(() => {
     try {
+      const initSettings = getInitialSettings();
+      if (typeof initSettings?.isFirebaseLiveMode === 'boolean') {
+        return initSettings.isFirebaseLiveMode;
+      }
       const saved = localStorage.getItem('ali_cart_firebase_mode');
-      return saved === null ? true : saved === 'true';
+      return saved === null ? false : saved === 'true';
     } catch {
-      return true;
+      return false;
     }
   });
-
-  const toggleFirebaseMode = useCallback((enabled?: boolean) => {
-    setIsFirebaseLiveMode(prev => {
-      const next = typeof enabled === 'boolean' ? enabled : !prev;
-      try {
-        localStorage.setItem('ali_cart_firebase_mode', String(next));
-      } catch (e) {}
-      if (next) {
-        // If switched to Live mode, refresh from Firestore
-        loadCatalog(true);
-      }
-      return next;
-    });
-  }, []);
   
   const uploadFile = useCallback(async (file: File): Promise<string> => {
     // Strictly compress image to < 20 KB
@@ -383,6 +374,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (Array.isArray(data.products)) setAllProducts(data.products);
     if (data.settings) {
       setSettings(data.settings);
+      if (typeof data.settings.isFirebaseLiveMode === 'boolean') {
+        setIsFirebaseLiveMode(data.settings.isFirebaseLiveMode);
+        try {
+          localStorage.setItem('ali_cart_firebase_mode', String(data.settings.isFirebaseLiveMode));
+        } catch (e) {}
+      }
       syncDynamicPWABranding({
         appName: data.settings.appName,
         logoUrl: data.settings.logoUrl,
@@ -1011,6 +1008,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshCatalog = useCallback(async () => {
     await loadCatalog(true);
   }, [loadCatalog]);
+
+  const toggleFirebaseMode = useCallback((enabled?: boolean) => {
+    setIsFirebaseLiveMode(prev => {
+      const next = typeof enabled === 'boolean' ? enabled : !prev;
+      try {
+        localStorage.setItem('ali_cart_firebase_mode', String(next));
+      } catch (e) {}
+
+      // Synchronize in settings and push to Firestore + static catalog file
+      setSettings(currentSettings => {
+        const updated: Settings = currentSettings 
+          ? { ...currentSettings, isFirebaseLiveMode: next } 
+          : ({ ...getInitialSettings(), isFirebaseLiveMode: next } as Settings);
+        
+        syncCatalogBundle({ settings: updated });
+        try {
+          setDoc(doc(db, 'settings', 'main'), sanitizeForFirestore({ isFirebaseLiveMode: next }), { merge: true });
+        } catch (e) {}
+        return updated;
+      });
+
+      if (next) {
+        // If switched to Live mode, refresh from Firestore
+        loadCatalog(true);
+      }
+      return next;
+    });
+  }, [syncCatalogBundle, loadCatalog]);
 
   const addBanner = async (data: Omit<Banner, 'id' | 'createdAt'>) => {
     const effectiveVendorId = data.vendorId !== undefined ? data.vendorId : (userData?.role === UserRole.Vendor ? userData.uid : undefined);

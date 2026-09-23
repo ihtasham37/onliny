@@ -1427,14 +1427,8 @@ app.get("/share", (req, res) => {
   res.send(html);
 });
 
-// Dynamic PWA Manifest Route (WebAPK compliant, same-origin HTTPS, supports vendor/store branding)
-const handleManifestRequest = (req: express.Request, res: express.Response) => {
-  const vendorId = ((req.query.vendor as string) || (req.query.v as string) || "").trim();
-  const categoryId = ((req.query.category as string) || (req.query.c as string) || "").trim();
-  const rawName = ((req.query.name as string) || "").trim();
-  const rawLogo = ((req.query.logo as string) || "").trim();
-
-  // Read saved settings from static catalog if available
+// Helper to get latest saved store branding from disk
+const getSavedStoreBranding = () => {
   let savedAppName = "onliny";
   let savedLogo = "";
   try {
@@ -1446,98 +1440,24 @@ const handleManifestRequest = (req: express.Request, res: express.Response) => {
       if (parsed?.settings?.logoUrl) savedLogo = parsed.settings.logoUrl;
     }
   } catch (e) {}
-
-  // If request contains vendor, category, custom store name, custom logo or saved settings
-  if (vendorId || categoryId || rawName || rawLogo || savedLogo) {
-    const appName = rawName || (vendorId ? "Vendor Store" : (categoryId ? "Category Store" : savedAppName));
-    const shortName = appName.length > 12 ? appName.slice(0, 12).trim() : appName;
-    const startUrl = vendorId ? `/?vendor=${encodeURIComponent(vendorId)}` : (categoryId ? `/?category=${encodeURIComponent(categoryId)}` : "/");
-    const manifestId = vendorId ? `/?vendor=${encodeURIComponent(vendorId)}` : (categoryId ? `/?category=${encodeURIComponent(categoryId)}` : "/");
-
-    const effectiveLogo = rawLogo || savedLogo;
-    const isDataUri = effectiveLogo && effectiveLogo.startsWith("data:");
-    const icon192 = effectiveLogo
-      ? (isDataUri ? effectiveLogo : `/api/pwa-icon?size=192&url=${encodeURIComponent(effectiveLogo)}`)
-      : "/pwa-192x192.png";
-    const icon512 = effectiveLogo
-      ? (isDataUri ? effectiveLogo : `/api/pwa-icon?size=512&url=${encodeURIComponent(effectiveLogo)}`)
-      : "/pwa-512x512.png";
-    const iconMaskable = effectiveLogo
-      ? (isDataUri ? effectiveLogo : `/api/pwa-icon?size=512&maskable=1&url=${encodeURIComponent(effectiveLogo)}`)
-      : "/pwa-maskable-512x512.png";
-
-    const dynamicManifest = {
-      id: manifestId,
-      name: appName,
-      short_name: shortName,
-      start_url: startUrl,
-      scope: "/",
-      display: "standalone",
-      orientation: "portrait",
-      background_color: "#ffffff",
-      theme_color: "#be185d",
-      description: `Official ${appName} storefront with verified products and fast delivery.`,
-      prefer_related_applications: false,
-      categories: ["shopping", "lifestyle"],
-      icons: [
-        {
-          src: icon192,
-          sizes: "192x192",
-          type: "image/png",
-          purpose: "any",
-        },
-        {
-          src: icon512,
-          sizes: "512x512",
-          type: "image/png",
-          purpose: "any",
-        },
-        {
-          src: iconMaskable,
-          sizes: "512x512",
-          type: "image/png",
-          purpose: "maskable",
-        },
-      ],
-      screenshots: [
-        {
-          src: icon512,
-          sizes: "512x512",
-          type: "image/png",
-          form_factor: "narrow",
-          label: `${appName} Store`
-        }
-      ]
-    };
-
-    res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
-    return res.json(dynamicManifest);
-  }
-
-  // Fallback to static manifest for main store
-  const manifestPath = path.resolve("public/manifest.json");
-  if (fs.existsSync(manifestPath)) {
-    res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
-    return res.sendFile(manifestPath);
-  }
-  return res.status(404).end();
+  return { savedAppName, savedLogo };
 };
 
-app.get("/manifest.json", handleManifestRequest);
-app.get("/api/manifest.json", handleManifestRequest);
+// Core Icon Transformer / Streamer
+const servePwaIcon = async (req: express.Request, res: express.Response, defaultSize: number, defaultMaskable: boolean = false) => {
+  const size = parseInt(req.query.size as string, 10) || defaultSize;
+  const isMaskable = req.query.maskable === "1" || req.query.maskable === "true" || defaultMaskable;
+  const explicitUrl = ((req.query.url as string) || "").trim();
 
-// PWA Icon Proxy & Transformer (Ensures icons conform to WebAPK PNG requirements)
-app.get("/api/pwa-icon", async (req, res) => {
-  const size = parseInt(req.query.size as string, 10) || 192;
-  const isMaskable = req.query.maskable === "1" || req.query.maskable === "true";
-  const rawUrl = ((req.query.url as string) || "").trim();
+  const { savedLogo } = getSavedStoreBranding();
+  const rawUrl = explicitUrl || savedLogo;
 
   const fallbackFile = isMaskable
     ? path.resolve("public/pwa-maskable-512x512.png")
     : size >= 512
     ? path.resolve("public/pwa-512x512.png")
+    : size === 180
+    ? path.resolve("public/apple-touch-icon.png")
     : path.resolve("public/pwa-192x192.png");
 
   if (!rawUrl) {
@@ -1554,7 +1474,7 @@ app.get("/api/pwa-icon", async (req, res) => {
         const mimeType = match[1] || "image/png";
         const buffer = Buffer.from(match[2], "base64");
         res.setHeader("Content-Type", mimeType);
-        res.setHeader("Cache-Control", "public, max-age=86400");
+        res.setHeader("Cache-Control", "public, max-age=86400, must-revalidate");
         return res.send(buffer);
       }
     } catch (err) {
@@ -1565,7 +1485,7 @@ app.get("/api/pwa-icon", async (req, res) => {
   try {
     let targetImageUrl = rawUrl;
 
-    // If Cloudinary URL, transform dynamically to exact PNG dimensions and padded background
+    // If Cloudinary URL, transform dynamically to exact dimensions and padded background
     if (rawUrl.includes("res.cloudinary.com") && rawUrl.includes("/image/upload/")) {
       const padSize = isMaskable ? Math.round(size * 0.78) : size;
       const transform = isMaskable
@@ -1597,7 +1517,94 @@ app.get("/api/pwa-icon", async (req, res) => {
     res.setHeader("Cache-Control", "public, max-age=3600");
     return res.sendFile(fallbackFile);
   }
-});
+};
+
+// Dynamic PWA Icon Routes (Intercepts direct browser/device icon fetches for the admin logo)
+app.get("/pwa-192x192.png", (req, res) => servePwaIcon(req, res, 192, false));
+app.get("/pwa-512x512.png", (req, res) => servePwaIcon(req, res, 512, false));
+app.get("/pwa-maskable-512x512.png", (req, res) => servePwaIcon(req, res, 512, true));
+app.get("/apple-touch-icon.png", (req, res) => servePwaIcon(req, res, 180, false));
+app.get("/apple-touch-icon-precomposed.png", (req, res) => servePwaIcon(req, res, 180, false));
+app.get("/favicon.png", (req, res) => servePwaIcon(req, res, 192, false));
+app.get("/api/pwa-icon", (req, res) => servePwaIcon(req, res, 192, false));
+
+// Dynamic PWA Manifest Route (WebAPK compliant, same-origin HTTPS, supports vendor/store branding)
+const handleManifestRequest = (req: express.Request, res: express.Response) => {
+  const vendorId = ((req.query.vendor as string) || (req.query.v as string) || "").trim();
+  const categoryId = ((req.query.category as string) || (req.query.c as string) || "").trim();
+  const rawName = ((req.query.name as string) || "").trim();
+  const rawLogo = ((req.query.logo as string) || "").trim();
+
+  const { savedAppName, savedLogo } = getSavedStoreBranding();
+
+  const appName = rawName || (vendorId ? "Vendor Store" : (categoryId ? "Category Store" : (savedAppName || "onliny")));
+  const shortName = appName.length > 12 ? appName.slice(0, 12).trim() : appName;
+  const startUrl = vendorId ? `/?vendor=${encodeURIComponent(vendorId)}` : (categoryId ? `/?category=${encodeURIComponent(categoryId)}` : "/");
+  const manifestId = vendorId ? `/?vendor=${encodeURIComponent(vendorId)}` : (categoryId ? `/?category=${encodeURIComponent(categoryId)}` : "/");
+
+  const effectiveLogo = rawLogo || savedLogo;
+  const isDataUri = effectiveLogo && effectiveLogo.startsWith("data:");
+  const icon192 = effectiveLogo
+    ? (isDataUri ? effectiveLogo : `/pwa-192x192.png`)
+    : "/pwa-192x192.png";
+  const icon512 = effectiveLogo
+    ? (isDataUri ? effectiveLogo : `/pwa-512x512.png`)
+    : "/pwa-512x512.png";
+  const iconMaskable = effectiveLogo
+    ? (isDataUri ? effectiveLogo : `/pwa-maskable-512x512.png`)
+    : "/pwa-maskable-512x512.png";
+
+  const dynamicManifest = {
+    id: manifestId,
+    name: appName,
+    short_name: shortName,
+    start_url: startUrl,
+    scope: "/",
+    display: "standalone",
+    orientation: "portrait",
+    background_color: "#ffffff",
+    theme_color: "#be185d",
+    description: `Official ${appName} storefront with verified products and fast delivery.`,
+    prefer_related_applications: false,
+    categories: ["shopping", "lifestyle"],
+    icons: [
+      {
+        src: icon192,
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: icon512,
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: iconMaskable,
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
+    ],
+    screenshots: [
+      {
+        src: icon512,
+        sizes: "512x512",
+        type: "image/png",
+        form_factor: "narrow",
+        label: `${appName} Store`
+      }
+    ]
+  };
+
+  res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=60, must-revalidate");
+  return res.json(dynamicManifest);
+};
+
+app.get("/manifest.json", handleManifestRequest);
+app.get("/api/manifest.json", handleManifestRequest);
 
 // SEO Routes: Serve sitemap.xml and robots.txt explicitly with correct content-types
 app.get("/sitemap.xml", (req, res) => {

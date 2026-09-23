@@ -251,6 +251,7 @@ export interface Settings {
     popupBanner?: PopupBannerSettings;
     bannerProducts?: BannerProductItem[];
     globalReturnPolicy?: string; // Global return and refund policy (Markaz-style 7-day policy by default)
+    isFirebaseLiveMode?: boolean; // Global Firebase Mode sync across all devices & admin logins
 }
 
 export interface AppNotification {

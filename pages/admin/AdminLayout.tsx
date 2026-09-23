@@ -76,10 +76,6 @@ const AdminLayout = () => {
   const { 
     settings: appSettings, 
     myOrders, 
-    syncCatalogBundle,
-    isFirebaseLiveMode,
-    toggleFirebaseMode,
-    exportCatalogSnapshot,
     loadOrders
   } = useStore();
   const navigate = useNavigate();
@@ -87,25 +83,6 @@ const AdminLayout = () => {
   const [isAuthCheckComplete, setIsAuthCheckComplete] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [newOrderCount, setNewOrderCount] = useState(0);
-  const [isSyncingBundle, setIsSyncingBundle] = useState(false);
-  const [syncSuccess, setSyncSuccess] = useState(false);
-
-  const handleManualSync = async () => {
-    setIsSyncingBundle(true);
-    try {
-      if (exportCatalogSnapshot) {
-        await exportCatalogSnapshot();
-        setSyncSuccess(true);
-        setTimeout(() => setSyncSuccess(false), 3000);
-      } else if (syncCatalogBundle) {
-        await syncCatalogBundle();
-        setSyncSuccess(true);
-        setTimeout(() => setSyncSuccess(false), 2500);
-      }
-    } finally {
-      setIsSyncingBundle(false);
-    }
-  };
 
   useEffect(() => {
     const updateCount = () => {
@@ -210,75 +187,24 @@ const AdminLayout = () => {
       </aside>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-         <header className="bg-white border-b border-slate-200 shadow-sm flex justify-between items-center px-4 py-3">
-            <button className="text-slate-600 md:hidden p-1.5 rounded-lg hover:bg-slate-100" onClick={() => setIsSidebarOpen(true)}>
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
-            </button>
-            <h1 className="text-lg md:text-xl font-bold text-slate-800 font-serif">{getPageTitle(location.pathname)}</h1>
-            <div className="flex items-center gap-2 md:gap-3">
-                {/* Firebase Mode Toggle Switch in Topbar */}
-                <div
-                    onClick={() => toggleFirebaseMode()}
-                    role="switch"
-                    aria-checked={isFirebaseLiveMode}
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleFirebaseMode(); } }}
-                    title={isFirebaseLiveMode ? "Firebase Live Mode ON (Realtime sync) - Click to toggle OFF" : "Static Mode Active (0 Firestore reads) - Click to toggle ON"}
-                    className={`cursor-pointer select-none flex items-center gap-2 px-2.5 py-1.5 rounded-full border transition-all shadow-xs ${
-                        isFirebaseLiveMode
-                        ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
-                        : 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
-                    }`}
-                >
-                    <span className="text-xs font-bold flex items-center gap-1">
-                        <span>{isFirebaseLiveMode ? '🔥' : '⚡'}</span>
-                        <span className="hidden sm:inline">Firebase:</span>
-                        <span>{isFirebaseLiveMode ? 'ON' : 'OFF'}</span>
-                    </span>
-
-                    {/* Sliding Toggle Pill Track & Knob */}
-                    <div 
-                        className={`w-9 h-5 flex items-center rounded-full p-0.5 transition-colors duration-300 ${
-                            isFirebaseLiveMode ? 'bg-amber-500' : 'bg-slate-300'
-                        }`}
-                    >
-                        <div 
-                            className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
-                                isFirebaseLiveMode ? 'translate-x-4' : 'translate-x-0'
-                            }`}
-                        />
-                    </div>
-                </div>
-
-                <button
-                    onClick={handleManualSync}
-                    disabled={isSyncingBundle}
-                    title="Publish current data into single fast bundle/static catalog for store visitors"
-                    className={`text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-medium transition-all shadow-sm ${
-                        syncSuccess
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-300'
-                        : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
-                    }`}
-                >
-                    {isSyncingBundle ? (
-                        <>
-                            <Spinner size="sm" />
-                            <span>Syncing Catalog...</span>
-                        </>
-                    ) : syncSuccess ? (
-                        <>
-                            <span>✓ Static Catalog Updated</span>
-                        </>
-                    ) : (
-                        <>
-                            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            <span className="hidden sm:inline">Sync Static Catalog</span>
-                            <span className="sm:hidden">Sync</span>
-                        </>
-                    )}
-                </button>
+         <header className="bg-white border-b border-slate-200 shadow-xs flex justify-between items-center px-4 py-3">
+            <div className="flex items-center gap-3">
+              <button className="text-slate-600 md:hidden p-1.5 rounded-lg hover:bg-slate-100" onClick={() => setIsSidebarOpen(true)}>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+              </button>
+              <h1 className="text-lg md:text-xl font-bold text-slate-800 font-serif">{getPageTitle(location.pathname)}</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link 
+                to="/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center gap-1.5 transition-colors shadow-2xs"
+                title="Open Public Store in new tab"
+              >
+                <span>🛍️</span>
+                <span className="hidden sm:inline">View Store</span>
+              </Link>
             </div>
         </header>
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-100 p-3 md:p-6">
