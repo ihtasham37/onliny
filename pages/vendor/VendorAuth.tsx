@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useStore } from '../../hooks/useStore';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Spinner } from '../../components/ui/Spinner';
@@ -9,6 +10,9 @@ import { Icons } from '../../components/icons/Icons';
 import { UserRole } from '../../types';
 
 const VendorAuth = () => {
+  const { settings } = useStore();
+  const isVendorPortalEnabled = settings?.showVendorPortal !== false;
+
   const [isLogin, setIsLogin] = useState(true);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -22,6 +26,12 @@ const VendorAuth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { login, vendorRegister, user, userData } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isVendorPortalEnabled) {
+      setIsLogin(true);
+    }
+  }, [isVendorPortalEnabled]);
 
   useEffect(() => {
     if (user && userData) {
@@ -106,29 +116,31 @@ const VendorAuth = () => {
                 <Icons.store className="w-9 h-9 text-white" />
             </div>
           <h1 className="text-3xl font-bold text-gray-900 font-serif">
-              {isLogin ? 'Business Login' : 'Start Your Business'}
+              {!isVendorPortalEnabled ? 'Admin / Staff Login' : (isLogin ? 'Business Login' : 'Start Your Business')}
           </h1>
           <p className="text-gray-500 mt-2 text-sm">
-              {isLogin ? 'Sign in to manage your shop' : 'Create a vendor account to start selling'}
+              {!isVendorPortalEnabled ? 'Sign in to access store management' : (isLogin ? 'Sign in to manage your shop' : 'Create a vendor account to start selling')}
           </p>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-xl">
-            <button 
-                type="button"
-                onClick={() => setIsLogin(true)}
-                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-                Login
-            </button>
-            <button 
-                type="button"
-                onClick={() => setIsLogin(false)}
-                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${!isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-                Register
-            </button>
-        </div>
+        {isVendorPortalEnabled && (
+          <div className="flex bg-slate-100 p-1 rounded-xl">
+              <button 
+                  type="button"
+                  onClick={() => setIsLogin(true)}
+                  className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                  Login
+              </button>
+              <button 
+                  type="button"
+                  onClick={() => setIsLogin(false)}
+                  className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${!isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                  Register
+              </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (

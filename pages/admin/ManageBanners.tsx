@@ -89,19 +89,24 @@ const BannerModal = ({ isOpen, onClose, banner }: { isOpen: boolean; onClose: ()
                 <h2 className="text-xl font-bold text-slate-800 mb-4">{banner ? 'Edit Slider Banner' : 'Add New Slider Banner'}</h2>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Banner Image / Video</label>
-                        <div className="flex gap-2 my-2 border-b pb-3">
-                            <Button type="button" size="sm" variant={imageInputMode === 'upload' ? 'primary' : 'secondary'} onClick={() => setImageInputMode('upload')}>Upload File</Button>
-                            <Button type="button" size="sm" variant={imageInputMode === 'url' ? 'primary' : 'secondary'} onClick={() => setImageInputMode('url')}>Set URL</Button>
+                        <label className="block text-sm font-medium text-slate-800 mb-1">Banner Image or Video</label>
+                        <div className="flex gap-2 my-2 border-b border-slate-100 pb-2">
+                            <Button type="button" size="sm" variant={imageInputMode === 'upload' ? 'primary' : 'secondary'} onClick={() => setImageInputMode('upload')}>📁 Upload File</Button>
+                            <Button type="button" size="sm" variant={imageInputMode === 'url' ? 'primary' : 'secondary'} onClick={() => setImageInputMode('url')}>🔗 Paste URL</Button>
                         </div>
                         {imageInputMode === 'upload' ? (
-                            <Input type="file" onChange={handleImageUpload} accept="image/*,video/*" disabled={isUploading} />
+                            <div className="space-y-2">
+                                <Input type="file" onChange={handleImageUpload} accept="image/*,video/*" disabled={isUploading} />
+                                {formData.imageUrl && (
+                                    <Input label="Direct URL (or paste URL)" name="imageUrl" value={formData.imageUrl} onChange={handleChange} placeholder="https://example.com/banner.jpg" />
+                                )}
+                            </div>
                         ) : (
-                            <Input label="Image/Video URL" name="imageUrl" value={formData.imageUrl} onChange={handleChange} placeholder="https://example.com/banner.jpg" />
+                            <Input label="Image/Video URL" name="imageUrl" value={formData.imageUrl} onChange={handleChange} placeholder="https://example.com/banner.jpg" required />
                         )}
-                        {isUploading && <div className="mt-2"><Spinner size="sm" /></div>}
-                        {uploadError && <p className="mt-2 text-sm text-red-500">{uploadError}</p>}
-                        {formData.imageUrl && <MediaPreview src={formData.imageUrl} className="mt-2 w-full h-auto max-h-40 rounded-lg overflow-hidden border" />}
+                        {isUploading && <div className="mt-2 flex items-center gap-2 text-xs text-rose-600 font-semibold"><Spinner size="sm" /> <span>Uploading asset...</span></div>}
+                        {uploadError && <p className="mt-2 text-xs text-rose-600 font-semibold">{uploadError}</p>}
+                        {formData.imageUrl && <MediaPreview src={formData.imageUrl} className="mt-2 w-full h-auto max-h-40 rounded-xl overflow-hidden border shadow-xs" />}
                     </div>
 
                     <Input label="Redirect URL (Optional)" name="redirectUrl" value={formData.redirectUrl} onChange={handleChange} placeholder="https://yourstore.com/category/sale" />

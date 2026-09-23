@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, ReactNode, useCallback, useContext, useMemo } from 'react';
+import React, { createContext, useState, useEffect, ReactNode, useCallback, useContext, useMemo, useRef } from 'react';
 import { 
     getFirestore, collection, doc, onSnapshot, orderBy, query, addDoc, setDoc, deleteDoc, updateDoc, where, getDocs, writeBatch, getDoc, limit
 } from 'firebase/firestore';
@@ -371,13 +371,53 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const CATALOG_LOCAL_CACHE_KEY = 'ali_cart_catalog_bundle_cache_local_v1';
   const CATALOG_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes fresh
 
+  const latestStateRef = useRef({
+    allProducts,
+    settings,
+    banners,
+    coupons,
+    updatePosts,
+    challans,
+    vendorsStatus,
+    vendorsMap
+  });
+
+  useEffect(() => {
+    latestStateRef.current = {
+      allProducts,
+      settings,
+      banners,
+      coupons,
+      updatePosts,
+      challans,
+      vendorsStatus,
+      vendorsMap
+    };
+  }, [allProducts, settings, banners, coupons, updatePosts, challans, vendorsStatus, vendorsMap]);
+
   const applyBundleData = useCallback((data: Partial<CatalogBundle>) => {
     if (data.lastUpdated && typeof data.lastUpdated === 'number') {
       setLastCatalogTimestamp(prev => Math.max(prev, data.lastUpdated!));
     }
-    if (Array.isArray(data.products)) setAllProducts(data.products);
+    if (Array.isArray(data.products)) {
+      if (data.products.length > 0) {
+        setAllProducts(data.products);
+      } else {
+        setAllProducts(prev => (prev.length > 0 ? prev : []));
+      }
+    }
     if (data.settings) {
-      setSettings(data.settings);
+      const existingMethods = data.settings.paymentMethods || [];
+      const hasCod = existingMethods.some(m => m.id === 'cod' || (m.name && m.name.toLowerCase().includes('cash on delivery')));
+      const defaultCod = {
+        id: 'cod',
+        name: 'Cash on Delivery',
+        details: 'Pay in cash when your parcel arrives at your doorstep.'
+      };
+      const finalPaymentMethods = hasCod ? existingMethods : [defaultCod, ...existingMethods];
+      const settingsWithCod = { ...data.settings, paymentMethods: finalPaymentMethods };
+
+      setSettings(settingsWithCod);
       if (typeof data.settings.isFirebaseLiveMode === 'boolean') {
         setIsFirebaseLiveMode(data.settings.isFirebaseLiveMode);
         try {
@@ -389,8 +429,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         logoUrl: data.settings.logoUrl,
       });
     }
-    if (Array.isArray(data.banners)) setBanners(data.banners);
-    if (Array.isArray(data.coupons)) setCoupons(data.coupons);
+    if (Array.isArray(data.banners)) {
+      if (data.banners.length > 0) setBanners(data.banners);
+      else setBanners(prev => (prev.length > 0 ? prev : []));
+    }
+    if (Array.isArray(data.coupons)) {
+      if (data.coupons.length > 0) setCoupons(data.coupons);
+      else setCoupons(prev => (prev.length > 0 ? prev : []));
+    }
     if (Array.isArray(data.updatePosts)) setUpdatePosts(data.updatePosts);
     if (Array.isArray(data.challans)) setChallans(data.challans);
     if (data.vendorsStatus) setVendorsStatus(data.vendorsStatus);
@@ -399,21 +445,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const syncCatalogBundle = useCallback(async (overrides?: Partial<CatalogBundle>) => {
     try {
-      const rawSettings = overrides?.settings ?? settings;
+      const current = latestStateRef.current;
+      const rawSettings = overrides?.settings ?? current.settings;
       const safeSettings = rawSettings ? { ...rawSettings } : rawSettings;
       if (safeSettings && (safeSettings as any).gmailAppPassword) {
         delete (safeSettings as any).gmailAppPassword;
       }
 
+      const productsToSave = overrides?.products !== undefined && overrides.products.length > 0
+        ? overrides.products
+        : (current.allProducts.length > 0 ? current.allProducts : (overrides?.products || []));
+
+      const couponsToSave = overrides?.coupons !== undefined ? overrides.coupons : current.coupons;
+
       const bundleToSave: CatalogBundle = {
-        products: overrides?.products !== undefined ? overrides.products : allProducts,
+        products: productsToSave,
         settings: safeSettings,
-        banners: overrides?.banners ?? banners,
-        coupons: overrides?.coupons ?? coupons,
-        updatePosts: overrides?.updatePosts ?? updatePosts,
-        challans: overrides?.challans ?? challans,
-        vendorsStatus: overrides?.vendorsStatus ?? vendorsStatus,
-        vendorsMap: overrides?.vendorsMap ?? vendorsMap,
+        banners: overrides?.banners ?? current.banners,
+        coupons: couponsToSave,
+        updatePosts: overrides?.updatePosts ?? current.updatePosts,
+        challans: overrides?.challans ?? current.challans,
+        vendorsStatus: overrides?.vendorsStatus ?? current.vendorsStatus,
+        vendorsMap: overrides?.vendorsMap ?? current.vendorsMap,
         lastUpdated: Date.now()
       };
       
@@ -444,7 +497,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Could not sync catalog bundle:", e);
     }
-  }, [allProducts, settings, banners, coupons, updatePosts, challans, vendorsStatus, vendorsMap]);
+  }, []);
 
   const addProduct = async (data: Omit<Product, 'id' | 'createdAt'>) => {
     const isVendor = userData?.role === UserRole.Vendor;
@@ -792,29 +845,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   
   const addCoupon = async (data: Omit<Coupon, 'id' | 'createdAt'>) => {
+    const couponId = (data as any).id || `coupon_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const couponData = sanitizeForFirestore({
       ...data,
-      id: (data as any).id || `coupon_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: couponId,
       createdAt: Date.now(),
       vendorId: userData?.role === UserRole.Vendor ? userData.uid : (data.vendorId || null)
     });
     const newCoupon = couponData as Coupon;
     const updated = [newCoupon, ...coupons];
     setCoupons(updated);
-    // 1-WRITE:
+
+    try {
+      await setDoc(doc(db, 'coupons', couponId), couponData);
+    } catch (e) {
+      console.warn("Firestore coupon save skipped:", e);
+    }
+
     await syncCatalogBundle({ coupons: updated });
   };
+
   const updateCoupon = async (data: Coupon) => {
     const cleanData = sanitizeForFirestore(data);
     const updated = coupons.map(c => c.id === data.id ? cleanData : c);
     setCoupons(updated);
-    // 1-WRITE:
+
+    try {
+      await setDoc(doc(db, 'coupons', data.id), cleanData, { merge: true });
+    } catch (e) {
+      console.warn("Firestore coupon update skipped:", e);
+    }
+
     await syncCatalogBundle({ coupons: updated });
   };
+
   const deleteCoupon = async (id: string) => {
     const updated = coupons.filter(c => c.id !== id);
     setCoupons(updated);
-    // 1-WRITE:
+
+    try {
+      await deleteDoc(doc(db, 'coupons', id));
+    } catch (e) {
+      console.warn("Firestore coupon delete skipped:", e);
+    }
+
     await syncCatalogBundle({ coupons: updated });
   };
 
@@ -922,7 +996,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       return {
         success: true,
-        message: 'Static catalog snapshot created & synced across all users and devices successfully!',
+        message: 'تمام ڈیٹا ویب سائٹ اور تمام صارفین پر لائیو اپڈیٹ ہو گیا ہے! (Website Synced Live Successfully!)',
         data: bundleToSave
       };
     } catch (e: any) {
@@ -1104,6 +1178,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [lastCatalogTimestamp, applyBundleData]);
 
+  // 🚀 Global Real-Time Firebase Background Sync Service
+  // Subscribes directly to catalog_bundle in Firestore.
+  // When Admin updates any product/banner/category/settings, ALL user sessions (mobile, laptop, PWA)
+  // receive the update INSTANTLY without requiring a page reload or re-login!
+  useEffect(() => {
+    const unsubBundle = onSnapshot(
+      doc(db, 'settings', 'catalog_bundle'),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const bundleData = docSnap.data() as CatalogBundle;
+          if (bundleData && Array.isArray(bundleData.products)) {
+            applyBundleData(bundleData);
+            try {
+              sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleData));
+              localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleData }));
+            } catch (e) {}
+          }
+        }
+      },
+      (err) => {
+        console.warn("Real-time background catalog sync listener note:", err);
+      }
+    );
+
+    return () => unsubBundle();
+  }, [applyBundleData]);
+
   const toggleFirebaseMode = useCallback((enabled?: boolean) => {
     setIsFirebaseLiveMode(prev => {
       const next = typeof enabled === 'boolean' ? enabled : !prev;
@@ -1134,50 +1235,84 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const addBanner = async (data: Omit<Banner, 'id' | 'createdAt'>) => {
     const effectiveVendorId = data.vendorId !== undefined ? data.vendorId : (userData?.role === UserRole.Vendor ? userData.uid : undefined);
+    const bannerId = (data as any).id || `banner_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const bannerData = sanitizeForFirestore({ 
       ...data,
-      id: (data as any).id || `banner_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: bannerId,
       createdAt: Date.now(),
       ...(effectiveVendorId && { vendorId: effectiveVendorId })
     });
     const newBanner = bannerData as Banner;
     const updated = [newBanner, ...banners];
     setBanners(updated);
-    // 1-WRITE:
+
+    try {
+      await setDoc(doc(db, 'banners', bannerId), bannerData);
+    } catch (e) {
+      console.warn("Firestore banner save skipped:", e);
+    }
+
     await syncCatalogBundle({ banners: updated });
   };
+
   const updateBanner = async (data: Banner) => {
     const cleanData = sanitizeForFirestore(data);
     const updated = banners.map(b => b.id === data.id ? cleanData : b);
     setBanners(updated);
-    // 1-WRITE:
+
+    try {
+      await setDoc(doc(db, 'banners', data.id), cleanData, { merge: true });
+    } catch (e) {
+      console.warn("Firestore banner update skipped:", e);
+    }
+
     await syncCatalogBundle({ banners: updated });
   };
+
   const deleteBanner = async (banner: Banner) => {
     if(banner.imageUrl) await deleteFile(banner.imageUrl);
     const updated = banners.filter(b => b.id !== banner.id);
     setBanners(updated);
-    // 1-WRITE:
+
+    try {
+      await deleteDoc(doc(db, 'banners', banner.id));
+    } catch (e) {
+      console.warn("Firestore banner delete skipped:", e);
+    }
+
     await syncCatalogBundle({ banners: updated });
   };
 
   const addChallan = async (data: Omit<Challan, 'id' | 'createdAt'>) => {
+    const challanId = (data as any).id || `challan_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const challanData = sanitizeForFirestore({
       ...data,
-      id: (data as any).id || `challan_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: challanId,
       createdAt: Date.now()
     });
     const newChallan = challanData as Challan;
     const updated = [newChallan, ...challans];
     setChallans(updated);
-    // 1-WRITE:
+
+    try {
+      await setDoc(doc(db, 'challans', challanId), challanData);
+    } catch (e) {
+      console.warn("Firestore challan save skipped:", e);
+    }
+
     await syncCatalogBundle({ challans: updated });
   };
 
   const deleteChallan = async (id: string) => {
     const updated = challans.filter(c => c.id !== id);
     setChallans(updated);
-    // 1-WRITE:
+
+    try {
+      await deleteDoc(doc(db, 'challans', id));
+    } catch (e) {
+      console.warn("Firestore challan delete skipped:", e);
+    }
+
     await syncCatalogBundle({ challans: updated });
   };
 

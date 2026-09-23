@@ -40,6 +40,18 @@ const Checkout = () => {
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState('');
   
+  const effectivePaymentMethods = useMemo(() => {
+    const customMethods = settings?.paymentMethods || [];
+    const hasCod = customMethods.some(m => m.id === 'cod' || (m.name && m.name.toLowerCase().includes('cash on delivery')));
+    if (hasCod) return customMethods;
+    const defaultCod = {
+      id: 'cod',
+      name: 'Cash on Delivery',
+      details: 'Pay in cash when your parcel arrives at your doorstep.'
+    };
+    return [defaultCod, ...customMethods];
+  }, [settings?.paymentMethods]);
+
   const [formData, setFormData] = useState({
     customerName: '',
     customerPhone: '',
@@ -48,7 +60,7 @@ const Checkout = () => {
     city: '',
     customerAddress: '',
     landmark: '',
-    paymentMethod: settings?.paymentMethods?.[0]?.id || 'cod',
+    paymentMethod: 'cod',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -268,8 +280,8 @@ const Checkout = () => {
   };
 
   const selectedPaymentMethod = useMemo(() => {
-    return (settings?.paymentMethods || []).find(p => p.id === formData.paymentMethod);
-  }, [settings, formData.paymentMethod]);
+    return effectivePaymentMethods.find(p => p.id === formData.paymentMethod) || effectivePaymentMethods[0];
+  }, [effectivePaymentMethods, formData.paymentMethod]);
 
   const whatsappConfirmationNumber = useMemo(() => {
     const details = selectedPaymentMethod?.details || '';
@@ -321,7 +333,7 @@ const Checkout = () => {
           <div className="bg-white p-4 rounded-xl shadow-xs border border-rose-100">
             <h2 className="text-xl font-bold font-serif text-slate-900 mb-3">Payment Method</h2>
             <div className="space-y-2">
-              {(settings?.paymentMethods || []).map(method => (
+              {effectivePaymentMethods.map(method => (
                 <label key={method.id} className="flex items-center p-3 border border-rose-100 rounded-xl cursor-pointer has-[:checked]:bg-rose-50 has-[:checked]:border-rose-400 transition-colors">
                   <input type="radio" name="paymentMethod" value={method.id} checked={formData.paymentMethod === method.id} onChange={handleChange} className="h-4 w-4 text-rose-600 border-rose-300 focus:ring-rose-500"/>
                   <span className="ml-3">

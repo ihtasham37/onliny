@@ -51,7 +51,12 @@ const CouponModal = ({ isOpen, onClose, coupon }: { isOpen: boolean; onClose: ()
         }
         else {
             const isNumber = ['discountValue', 'minBill', 'minProducts'].includes(name);
-            setFormData({ ...formData, [name]: isNumber ? parseFloat(value) : value });
+            let parsedVal: any = value;
+            if (isNumber) {
+                const p = parseFloat(value);
+                parsedVal = isNaN(p) ? 0 : p;
+            }
+            setFormData({ ...formData, [name]: parsedVal });
         }
     };
     
@@ -150,12 +155,11 @@ const ManageCoupons = () => {
     const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null);
 
     const coupons = React.useMemo(() => {
-        if (!userData) return [];
+        if (!userData) return allCoupons;
         if (userData.role === UserRole.Vendor) {
             return allCoupons.filter(c => c.vendorId === userData.uid);
         }
-        // Admin sees admin coupons (where vendorId is null/empty)
-        return allCoupons.filter(c => !c.vendorId);
+        return allCoupons;
     }, [allCoupons, userData]);
 
     const openModal = (coupon: Coupon | null = null) => {

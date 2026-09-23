@@ -9,27 +9,26 @@ import { lazyRetry } from '../../utils/lazyLoad';
 import { PWAInstallBanner } from '../ui/PWAInstallBanner';
 import { useStore } from '../../hooks/useStore';
 
-// Replace standard React.lazy with lazyRetry to automatically handle chunk load errors
-const Home = lazyRetry(() => import('../../pages/Home'), 'Home');
-const ProductDetail = lazyRetry(() => import('../../pages/ProductDetail'), 'ProductDetail');
-const Cart = lazyRetry(() => import('../../pages/Cart'), 'Cart');
-const Checkout = lazyRetry(() => import('../../pages/Checkout'), 'Checkout');
-const OrderSuccess = lazyRetry(() => import('../../pages/OrderSuccess'), 'OrderSuccess');
-const Wishlist = lazyRetry(() => import('../../pages/Wishlist'), 'Wishlist');
-const TrackOrder = lazyRetry(() => import('../../pages/TrackOrder'), 'TrackOrder');
-const Search = lazyRetry(() => import('../../pages/Search'), 'Search');
-const CategoriesPage = lazyRetry(() => import('../../pages/CategoriesPage'), 'CategoriesPage');
-const CategoryProductsPage = lazyRetry(() => import('../../pages/CategoryProductsPage'), 'CategoryProductsPage');
-const MorePage = lazyRetry(() => import('../../pages/MorePage'), 'MorePage');
-const BlogPage = lazyRetry(() => import('../../pages/BlogPage'), 'BlogPage');
-const BlogPostPage = lazyRetry(() => import('../../pages/BlogPostPage'), 'BlogPostPage');
-const CommunityPage = lazyRetry(() => import('../../pages/CommunityPage'), 'CommunityPage');
-const PrivacyPolicy = lazyRetry(() => import('../../pages/PrivacyPolicy'), 'PrivacyPolicy');
-const RefundPolicy = lazyRetry(() => import('../../pages/RefundPolicy'), 'RefundPolicy');
-const TermsPage = lazyRetry(() => import('../../pages/TermsPage'), 'TermsPage');
-const AboutUs = lazyRetry(() => import('../../pages/AboutUs'), 'AboutUs');
-const VendorStore = lazyRetry(() => import('../../pages/VendorStore'), 'VendorStore');
-const VendorInfoPage = lazyRetry(() => import('../../pages/VendorInfoPage'), 'VendorInfoPage');
+import Home from '../../pages/Home';
+import ProductDetail from '../../pages/ProductDetail';
+import Cart from '../../pages/Cart';
+import Checkout from '../../pages/Checkout';
+import OrderSuccess from '../../pages/OrderSuccess';
+import Wishlist from '../../pages/Wishlist';
+import TrackOrder from '../../pages/TrackOrder';
+import Search from '../../pages/Search';
+import CategoriesPage from '../../pages/CategoriesPage';
+import CategoryProductsPage from '../../pages/CategoryProductsPage';
+import MorePage from '../../pages/MorePage';
+import BlogPage from '../../pages/BlogPage';
+import BlogPostPage from '../../pages/BlogPostPage';
+import CommunityPage from '../../pages/CommunityPage';
+import PrivacyPolicy from '../../pages/PrivacyPolicy';
+import RefundPolicy from '../../pages/RefundPolicy';
+import TermsPage from '../../pages/TermsPage';
+import AboutUs from '../../pages/AboutUs';
+import VendorStore from '../../pages/VendorStore';
+import VendorInfoPage from '../../pages/VendorInfoPage';
 
 
 const StoreLayout = () => {

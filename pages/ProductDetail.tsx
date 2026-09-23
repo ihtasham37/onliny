@@ -44,10 +44,23 @@ const ProductDetail = () => {
   const [additionalInfo, setAdditionalInfo] = useState('');
   const [showShareMenu, setShowShareMenu] = useState(false);
 
-  const product = useMemo(
-    () => (allProducts || []).find(p => p.id === id || (p.customId && p.customId === id)),
-    [allProducts, id]
-  );
+  const cleanId = useMemo(() => {
+    if (!id) return '';
+    try {
+      return decodeURIComponent(id).trim();
+    } catch (e) {
+      return id.trim();
+    }
+  }, [id]);
+
+  const product = useMemo(() => {
+    if (!allProducts || allProducts.length === 0) return null;
+    return allProducts.find(p => 
+      p.id === cleanId || 
+      p.id === id || 
+      (p.customId && (p.customId === cleanId || p.customId === id))
+    );
+  }, [allProducts, id, cleanId]);
   const [vendorData, setVendorData] = useState<AppUser | null>(null);
 
   const applicableCoupons = useMemo(() => {

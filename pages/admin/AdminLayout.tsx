@@ -76,13 +76,16 @@ const AdminLayout = () => {
   const { 
     settings: appSettings, 
     myOrders, 
-    loadOrders
+    loadOrders,
+    exportCatalogSnapshot
   } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [isAuthCheckComplete, setIsAuthCheckComplete] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [newOrderCount, setNewOrderCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncToast, setSyncToast] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     const updateCount = () => {
@@ -195,6 +198,38 @@ const AdminLayout = () => {
               <h1 className="text-lg md:text-xl font-bold text-slate-800 font-serif">{getPageTitle(location.pathname)}</h1>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsSyncing(true);
+                  setSyncToast(null);
+                  try {
+                    const res = await exportCatalogSnapshot();
+                    setSyncToast(res);
+                    setTimeout(() => setSyncToast(null), 5000);
+                  } catch (e: any) {
+                    setSyncToast({ success: false, message: e?.message || 'Sync failed' });
+                  } finally {
+                    setIsSyncing(false);
+                  }
+                }}
+                disabled={isSyncing}
+                className="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white flex items-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50 shrink-0 cursor-pointer border border-emerald-400/30"
+                title="Publish all products, banners, logo, and settings live to app & website storefront"
+              >
+                {isSyncing ? (
+                  <>
+                    <Spinner size="sm" />
+                    <span>Syncing Website...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm">🔄</span>
+                    <span>Sync Website Data</span>
+                  </>
+                )}
+              </button>
+
               <Link 
                 to="/" 
                 target="_blank" 
@@ -207,6 +242,18 @@ const AdminLayout = () => {
               </Link>
             </div>
         </header>
+
+        {/* Sync Success / Result Toast Overlay */}
+        {syncToast && (
+          <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2.5 border backdrop-blur-md transition-all ${
+            syncToast.success 
+            ? 'bg-emerald-950/90 text-emerald-200 border-emerald-500/80' 
+            : 'bg-rose-950/90 text-rose-200 border-rose-500/80'
+          }`}>
+            <span className="text-base">{syncToast.success ? '✅' : '❌'}</span>
+            <span>{syncToast.message}</span>
+          </div>
+        )}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-100 p-3 md:p-6">
             <Suspense fallback={<div className="flex justify-center p-16"><Spinner size="lg"/></div>}>
                 <Routes>

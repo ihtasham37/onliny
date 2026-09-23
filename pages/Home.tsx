@@ -15,33 +15,62 @@ import { BannerProductSlide } from '../components/ui/BannerProductSlide';
 import { VerticalScrollColumn, useBannerHeight } from '../components/ui/VerticalProductSlider';
 
 const CouponBannerCard: React.FC<{coupon: Coupon}> = ({ coupon }) => (
-    <div className="w-full h-full flex-shrink-0 bg-gradient-to-br from-fuchsia-600 to-orange-500 text-white flex flex-col items-center justify-center p-4 text-center">
-        <div className="bg-white/20 p-2 rounded-full mb-1 backdrop-blur-sm">
-            <Icons.ticket className="w-6 h-6" />
+    <div className="w-full h-full flex-shrink-0 bg-gradient-to-br from-fuchsia-600 via-rose-600 to-amber-500 text-white flex flex-col items-center justify-center p-4 text-center">
+        <div className="bg-white/20 p-2.5 rounded-2xl mb-2 backdrop-blur-md shadow-inner">
+            <Icons.ticket className="w-8 h-8 text-white" />
         </div>
-        <h2 className="text-xl font-extrabold tracking-tight drop-shadow-md">{coupon.code}</h2>
-        <p className="mt-0.5 text-xs font-medium opacity-90">{coupon.description}</p>
-        <div className="mt-2 inline-block bg-white text-fuchsia-800 font-bold px-4 py-1 rounded-full shadow-lg text-[10px] uppercase tracking-wide">
-            {coupon.discountType === 'percentage' ? `${coupon.discountValue}% OFF` : `Save ${coupon.discountValue}`}
-            {coupon.minBill > 0 && ` on orders over ${coupon.minBill}`}
+        <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest bg-white/25 px-2.5 py-0.5 rounded-full mb-1">
+          Exclusive Discount Code
+        </span>
+        <h2 className="text-2xl sm:text-3xl font-black tracking-wider drop-shadow-md border-2 border-dashed border-white/60 px-4 py-1.5 rounded-xl bg-white/10 my-1 font-mono">{coupon.code}</h2>
+        <p className="mt-1 text-xs sm:text-sm font-semibold opacity-95 max-w-xs">{coupon.description || 'Apply code at checkout for discount'}</p>
+        <div className="mt-3 inline-block bg-white text-rose-700 font-extrabold px-5 py-1.5 rounded-full shadow-lg text-xs uppercase tracking-wide">
+            {coupon.discountType === 'percentage' ? `${coupon.discountValue}% OFF` : `FLAT Rs. ${coupon.discountValue} OFF`}
+            {coupon.minBill > 0 && ` on orders over Rs. ${coupon.minBill}`}
         </div>
     </div>
 );
 
-// New component for coupons shown in the product grid
-const CouponGridCard: React.FC<{coupon: Coupon}> = ({ coupon }) => (
-    <div className="group rounded-lg overflow-hidden shadow-md hover:shadow-xl flex flex-col bg-gradient-to-br from-pink-500 to-orange-400 text-white transition-all duration-300 h-full items-center justify-center p-4 text-center relative border-2 border-white/20">
-         <div className="absolute top-2 left-2 bg-white/20 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">
-            Coupon
-         </div>
-         <Icons.ticket className="w-10 h-10 mb-2 opacity-90" />
-         <h3 className="text-2xl font-black tracking-wider mb-1 border-2 border-dashed border-white/50 px-3 py-1 rounded-md bg-white/10">{coupon.code}</h3>
-         <p className="text-sm font-medium leading-tight opacity-95 line-clamp-2 mb-3">{coupon.description}</p>
-         <div className="bg-white text-pink-600 text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">
-            {coupon.discountType === 'percentage' ? `${coupon.discountValue}% OFF` : `FLAT OFF`}
-         </div>
+// Row Highlight Banner for product grid every 3 lines
+const CouponRowBanner: React.FC<{ coupon: Coupon }> = ({ coupon }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(coupon.code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="w-full my-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 text-white shadow-md flex items-center justify-between gap-3 border border-rose-200">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0 shadow-inner">
+          <Icons.ticket className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider bg-white/25 px-2 py-0.5 rounded text-white">
+              Special Coupon
+            </span>
+            <span className="text-xs font-bold text-amber-200">
+              {coupon.discountType === 'percentage' ? `${coupon.discountValue}% OFF` : `FLAT Rs. ${coupon.discountValue} OFF`}
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm font-bold text-white/95 mt-0.5 line-clamp-1">{coupon.description || `Use coupon code on checkout`}</p>
+        </div>
+      </div>
+      <button
+        onClick={handleCopy}
+        className="px-3 sm:px-4 py-2 bg-white text-rose-700 font-extrabold rounded-xl shadow-sm text-xs sm:text-sm hover:bg-rose-50 transition-all shrink-0 flex items-center gap-1.5 active:scale-95 cursor-pointer"
+      >
+        <span className="font-mono text-xs sm:text-sm">{coupon.code}</span>
+        <span className="text-[10px] sm:text-xs font-sans px-1.5 py-0.5 bg-rose-100 text-rose-800 rounded">
+          {copied ? 'Copied!' : 'Copy'}
+        </span>
+      </button>
     </div>
-);
+  );
+};
 
 // Helper function to chunk an array into smaller arrays of a specific size.
 const chunk = <T,>(arr: T[], size: number): T[][] => {
@@ -80,7 +109,6 @@ const getCategoryAvatar = (catName: string, customImg?: string) => {
 
 const Home = () => {
   const { products, settings, coupons, isLoading, banners: dbBanners } = useStore();
-  const [shuffledProducts, setShuffledProducts] = useState<Product[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const { bannerRef, bannerHeight } = useBannerHeight();
   
@@ -138,7 +166,22 @@ const Home = () => {
       }
     });
 
-    // 3. Guaranteed High-Fashion Hero Slide if no custom banners exist
+    // 3. Active Coupons assigned to Banner or Both
+    const now = Date.now();
+    const bannerCoupons = (coupons || []).filter(c => {
+      const isValid = (!c.validFrom || now >= c.validFrom) && (!c.validTo || now <= c.validTo);
+      return isValid && (c.assignment === 'banner' || c.assignment === 'both');
+    });
+
+    bannerCoupons.forEach(coupon => {
+      slides.push({
+        type: 'coupon',
+        id: `coupon-${coupon.id}`,
+        coupon
+      });
+    });
+
+    // 4. Guaranteed High-Fashion Hero Slide if no custom banners exist
     if (slides.length === 0) {
       slides.push({
         type: 'media',
@@ -149,7 +192,15 @@ const Home = () => {
     }
 
     return slides;
-  }, [dbBanners, settings?.bannerUrls, settings?.bannerProducts, products]);
+  }, [dbBanners, settings?.bannerUrls, settings?.bannerProducts, products, coupons]);
+
+  const productCoupons = useMemo(() => {
+    const now = Date.now();
+    return (coupons || []).filter(c => {
+      const isValid = (!c.validFrom || now >= c.validFrom) && (!c.validTo || now <= c.validTo);
+      return isValid && (c.assignment === 'product' || c.assignment === 'both');
+    });
+  }, [coupons]);
 
   // Keep currentIndex bounded
   useEffect(() => {
@@ -165,67 +216,44 @@ const Home = () => {
     );
   }, [settings?.categories]);
 
-  // Personalized Interest & Randomized Product Order on Page Load/Open
-  useEffect(() => {
-    const visible = products.filter(p => p.isVisible);
-    if (visible.length === 0) return;
+  // Stable, instant product ordering (prioritizes user interests, then new arrivals)
+  const displayProducts = useMemo(() => {
+    const visible = (products || []).filter(p => p && p.isVisible !== false);
+    if (visible.length === 0) return [];
 
-    // 1. Get saved user interests from localStorage
     let userInterests: Record<string, number> = {};
     try {
       const stored = localStorage.getItem('user_interests');
       if (stored) userInterests = JSON.parse(stored);
-    } catch (e) {
-      console.error("Interest storage read error", e);
-    }
-
-    // 2. Fisher-Yates shuffle for randomized order every single load
-    const shuffle = <T,>(array: T[]): T[] => {
-      const arr = [...array];
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      return arr;
-    };
+    } catch (e) {}
 
     const interestedCategories = Object.keys(userInterests).filter(cat => userInterests[cat] > 0);
-    
+    if (interestedCategories.length === 0) {
+      return [...visible].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    }
+
     const interestMatches = visible.filter(p => interestedCategories.includes(p.category));
     const generalProducts = visible.filter(p => !interestedCategories.includes(p.category));
 
-    const shuffledInterest = shuffle(interestMatches);
-    const shuffledGeneral = shuffle(generalProducts);
-
-    // Combine interested and general items randomly
-    const finalMixed: Product[] = [];
-    let i = 0, g = 0;
-    while (i < shuffledInterest.length || g < shuffledGeneral.length) {
-      if (i < shuffledInterest.length) finalMixed.push(shuffledInterest[i++]);
-      if (i < shuffledInterest.length) finalMixed.push(shuffledInterest[i++]);
-      if (g < shuffledGeneral.length) finalMixed.push(shuffledGeneral[g++]);
-      if (g < shuffledGeneral.length) finalMixed.push(shuffledGeneral[g++]);
-    }
-
-    setShuffledProducts(finalMixed.length > 0 ? finalMixed : shuffle(visible));
+    return [...interestMatches, ...generalProducts];
   }, [products]);
 
   // Left & Right Side Columns (Desktop auto-sliding columns strictly constrained to banner height)
   const leftSideProducts = useMemo(() => {
-    if (shuffledProducts.length === 0) return [];
-    if (shuffledProducts.length <= 4) return shuffledProducts;
-    return shuffledProducts.slice(0, Math.ceil(shuffledProducts.length / 2));
-  }, [shuffledProducts]);
+    if (displayProducts.length === 0) return [];
+    if (displayProducts.length <= 4) return displayProducts;
+    return displayProducts.slice(0, Math.ceil(displayProducts.length / 2));
+  }, [displayProducts]);
 
   const rightSideProducts = useMemo(() => {
-    if (shuffledProducts.length === 0) return [];
-    if (shuffledProducts.length <= 4) return [...shuffledProducts].reverse();
-    return shuffledProducts.slice(Math.ceil(shuffledProducts.length / 2));
-  }, [shuffledProducts]);
+    if (displayProducts.length === 0) return [];
+    if (displayProducts.length <= 4) return [...displayProducts].reverse();
+    return displayProducts.slice(Math.ceil(displayProducts.length / 2));
+  }, [displayProducts]);
 
   const displayItems = useMemo(() => {
-    return shuffledProducts;
-  }, [shuffledProducts]);
+    return displayProducts;
+  }, [displayProducts]);
   
   // Chunk all displayable items into horizontally scrollable rows of 5.
   const productRows = useMemo(() => {
@@ -547,25 +575,32 @@ const Home = () => {
         </h2>
         {productRows.length > 0 ? (
             <div className="space-y-4">
-                {productRows.map((row, rowIndex) => (
-                    <div key={`row-${rowIndex}`} className="flex overflow-x-auto gap-3 pb-3 -mx-4 px-4 cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                        {row.map((item, itemIndex) => {
-                            const key = 'code' in item ? `row-${rowIndex}-coupon-${item.id}-${itemIndex}` : `row-${rowIndex}-product-${item.id}`;
-                            // Responsive widths: 2.5 on mobile, 3 on sm, 4 on md, exactly 5 on lg/xl
-                            const wrapperClasses = "w-[42%] sm:w-[30%] md:w-[23%] lg:w-[calc(20%-9.6px)] flex-shrink-0";
+                {productRows.map((row, rowIndex) => {
+                    const shouldShowCouponBanner = (rowIndex + 1) % 3 === 0 && productCoupons.length > 0;
+                    const assignedCoupon = productCoupons.length > 0 
+                      ? productCoupons[Math.floor(rowIndex / 3) % productCoupons.length] 
+                      : null;
 
-                            return (
-                                <div key={key} className={wrapperClasses}>
-                                    {'code' in item ? (
-                                        <CouponGridCard coupon={item as unknown as Coupon} />
-                                    ) : (
+                    return (
+                      <React.Fragment key={`row-group-${rowIndex}`}>
+                        <div className="flex overflow-x-auto gap-3 pb-3 -mx-4 px-4 cursor-grab active:cursor-grabbing [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                            {row.map((item) => {
+                                const key = `product-${item.id}`;
+                                const wrapperClasses = "w-[42%] sm:w-[30%] md:w-[23%] lg:w-[calc(20%-9.6px)] flex-shrink-0";
+
+                                return (
+                                    <div key={key} className={wrapperClasses}>
                                         <ProductCard product={item as Product} />
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                ))}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {shouldShowCouponBanner && assignedCoupon && (
+                          <CouponRowBanner coupon={assignedCoupon} />
+                        )}
+                      </React.Fragment>
+                    );
+                })}
             </div>
         ) : (
             <div className="text-center py-12 text-slate-500 bg-white rounded-2xl border border-slate-100 shadow-xs p-6">

@@ -12,11 +12,10 @@ import { lazyRetry } from './utils/lazyLoad';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { safeJsonStringify } from './utils/helpers';
 
-// Use lazyRetry for top-level routes to handle deployment updates gracefully
-const StoreLayout = lazyRetry(() => import('./components/layout/StoreLayout'), 'StoreLayout');
-const AdminLayout = lazyRetry(() => import('./pages/admin/AdminLayout'), 'AdminLayout');
-const VendorAuth = lazyRetry(() => import('./pages/vendor/VendorAuth'), 'VendorAuth');
-const VendorLayout = lazyRetry(() => import('./pages/vendor/VendorLayout'), 'VendorLayout');
+import StoreLayout from './components/layout/StoreLayout';
+import AdminLayout from './pages/admin/AdminLayout';
+import VendorAuth from './pages/vendor/VendorAuth';
+import VendorLayout from './pages/vendor/VendorLayout';
 
 const AppContent = () => {
     const { settings } = useStore();
@@ -127,7 +126,7 @@ function App() {
       <HelmetProvider>
         <AppProvider>
           {/* HashRouter is used for stability on static hosts (like InfinityFree) to prevent 404s on refresh */}
-          <HashRouter>
+          <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <AppContent />
           </HashRouter>
         </AppProvider>
