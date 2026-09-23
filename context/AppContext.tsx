@@ -303,6 +303,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [activeCustomer, setActiveCustomer] = useSessionStorage<{ email: string, phone: string } | null>('active-tracking-id', null);
   const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
+  const [lastCatalogTimestamp, setLastCatalogTimestamp] = useState<number>(0);
 
   const [isFirebaseLiveMode, setIsFirebaseLiveMode] = useState<boolean>(() => {
     try {
@@ -371,6 +372,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const CATALOG_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes fresh
 
   const applyBundleData = useCallback((data: Partial<CatalogBundle>) => {
+    if (data.lastUpdated && typeof data.lastUpdated === 'number') {
+      setLastCatalogTimestamp(prev => Math.max(prev, data.lastUpdated!));
+    }
     if (Array.isArray(data.products)) setAllProducts(data.products);
     if (data.settings) {
       setSettings(data.settings);
@@ -1065,6 +1069,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshCatalog = useCallback(async () => {
     await loadCatalog(true);
   }, [loadCatalog]);
+
+  // Periodically and on window focus, check for updated static catalog from server (0 Firestore reads!)
+  useEffect(() => {
+    const checkCatalogUpdates = async () => {
+      try {
+        const res = await fetch(`/api/catalog-data?_t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data && Array.isArray(json.data.products)) {
+            const serverTimestamp = json.data.lastUpdated || 0;
+            if (serverTimestamp > lastCatalogTimestamp) {
+              applyBundleData(json.data);
+              try {
+                sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(json.data));
+                localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: json.data }));
+              } catch (e) {}
+            }
+          }
+        }
+      } catch (e) {}
+    };
+
+    const handleFocus = () => {
+      checkCatalogUpdates();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    const interval = setInterval(checkCatalogUpdates, 15000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, [lastCatalogTimestamp, applyBundleData]);
 
   const toggleFirebaseMode = useCallback((enabled?: boolean) => {
     setIsFirebaseLiveMode(prev => {
