@@ -17,6 +17,8 @@ firebase-admin*.json
 node_modules/
 .pnp
 .pnp.js
+bun.lock
+bun.lockb
 
 # Build outputs
 dist/
