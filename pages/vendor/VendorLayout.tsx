@@ -99,7 +99,7 @@ const VendorLayout = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
         if (!user) {
-            navigate('/vendor/login');
+            navigate('/login');
         } else {
             setIsAuthCheckComplete(true);
         }
@@ -113,10 +113,10 @@ const VendorLayout = () => {
             if (userData.role === UserRole.Admin) {
                 navigate('/admin');
             } else {
-                navigate('/vendor/login');
+                navigate('/login');
             }
         } else if (userData.status !== 'active') {
-             navigate('/vendor/login');
+             navigate('/login');
         }
     }
   }, [isAuthCheckComplete, userData, navigate]);

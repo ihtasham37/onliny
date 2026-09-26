@@ -13,18 +13,17 @@ const Cart = () => {
   const rawSubtotal = cart.reduce((acc, item) => acc + (item.price || 0) * (item.quantity || 0), 0);
   const subtotal = isNaN(rawSubtotal) ? 0 : rawSubtotal;
   
-  // Calculate shipping fee from cart items or settings fallback
-  let shippingFee = cart.reduce((sum, item) => {
-    const itemFee = Number(item.shippingFee);
-    return sum + (isNaN(itemFee) ? 0 : itemFee);
-  }, 0);
-  
-  if (shippingFee === 0 && settings?.shippingFee !== undefined) {
-    const settingsFee = Number(settings.shippingFee);
-    shippingFee = isNaN(settingsFee) ? 0 : settingsFee;
-  }
+  // In cart, show only items price without adding shipping fee.
+  // Flat shipping fee set by admin is added only on Checkout page after customer details are entered.
+  const configuredShippingFee = (() => {
+    if (settings?.shippingFee !== undefined && settings?.shippingFee !== null) {
+      const fee = Number(settings.shippingFee);
+      return !isNaN(fee) ? fee : 99;
+    }
+    return 99;
+  })();
 
-  const total = subtotal + (isNaN(shippingFee) ? 0 : shippingFee);
+  const total = subtotal;
 
   if (cart.length === 0) {
     return (
@@ -85,18 +84,14 @@ const Cart = () => {
         <div className="lg:col-span-1">
           <div className="bg-white p-4 rounded-lg shadow-sm sticky top-24">
             <h2 className="text-2xl font-bold border-b pb-3 mb-3">Order Summary</h2>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span>{formatCurrency(subtotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Shipping Fee</span>
-                <span>{formatCurrency(shippingFee)}</span>
+            <div className="space-y-3">
+              <div className="flex justify-between text-base">
+                <span className="text-gray-600">Items Total</span>
+                <span className="font-semibold text-gray-900">{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between font-bold text-xl border-t pt-3 mt-3">
                 <span>Total</span>
-                <span>{formatCurrency(total)}</span>
+                <span className="text-rose-700">{formatCurrency(total)}</span>
               </div>
             </div>
             <Button onClick={() => navigate('/checkout')} className="w-full mt-4" size="lg">Proceed to Checkout</Button>

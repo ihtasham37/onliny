@@ -5,6 +5,8 @@
  * apple-touch-icon, and browser tab favicons.
  */
 
+import { safeJsonStringify } from './helpers';
+
 export interface PWABrandConfig {
   appName?: string;
   logoUrl?: string;
@@ -21,30 +23,31 @@ export function syncDynamicPWABranding(config: PWABrandConfig) {
     const rawName = (config.appName || '').trim();
     const appName = rawName || 'onliny';
     const shortName = appName.length > 12 ? appName.slice(0, 12).trim() : appName;
-    const logoUrl = (config.logoUrl || '').trim();
+    let logoUrl = (config.logoUrl || '').trim();
+    if (logoUrl && (logoUrl.includes('UklGRtYs') || logoUrl.toLowerCase().includes('zivio'))) {
+      logoUrl = '';
+    }
     const themeColor = config.themeColor || '#be185d';
     const startUrl = config.startUrl || '/';
+
+    // Notify server of updated branding in background
+    try {
+      fetch('/api/update-branding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appName, logoUrl, themeColor })
+      }).catch(() => {});
+    } catch (e) {}
 
     // Update document title if needed
     if (appName && appName.toLowerCase() !== 'online store') {
       document.title = `${appName} - Online Shopping`;
     }
 
-    // Determine icon URLs
-    const icon192 = logoUrl || '/pwa-192x192.png';
-    const icon512 = logoUrl || '/pwa-512x512.png';
-
-    const getMimeType = (url: string) => {
-      if (url.startsWith('data:image/svg')) return 'image/svg+xml';
-      if (url.startsWith('data:image/webp')) return 'image/webp';
-      if (url.startsWith('data:image/jpeg') || url.startsWith('data:image/jpg')) return 'image/jpeg';
-      if (url.endsWith('.svg')) return 'image/svg+xml';
-      if (url.endsWith('.webp')) return 'image/webp';
-      if (url.endsWith('.jpg') || url.endsWith('.jpeg')) return 'image/jpeg';
-      return 'image/png';
-    };
-
-    const iconType = logoUrl ? getMimeType(logoUrl) : 'image/png';
+    // Determine icon URLs (Always ensure compliant image/png)
+    const icon192 = '/pwa-192x192.png';
+    const icon512 = '/pwa-512x512.png';
+    const iconMaskable = '/pwa-maskable-512x512.png';
 
     // Construct dynamic Web App Manifest
     const dynamicManifest = {
@@ -64,19 +67,19 @@ export function syncDynamicPWABranding(config: PWABrandConfig) {
         {
           src: icon192,
           sizes: '192x192',
-          type: iconType,
+          type: 'image/png',
           purpose: 'any'
         },
         {
           src: icon512,
           sizes: '512x512',
-          type: iconType,
+          type: 'image/png',
           purpose: 'any'
         },
         {
-          src: icon512,
+          src: iconMaskable,
           sizes: '512x512',
-          type: iconType,
+          type: 'image/png',
           purpose: 'maskable'
         }
       ],
@@ -84,7 +87,7 @@ export function syncDynamicPWABranding(config: PWABrandConfig) {
         {
           src: icon512,
           sizes: '512x512',
-          type: iconType,
+          type: 'image/png',
           form_factor: 'narrow',
           label: `${appName} Store`
         }
@@ -115,28 +118,23 @@ export function syncDynamicPWABranding(config: PWABrandConfig) {
     manifestLink.setAttribute('href', manifestBlobUrl);
 
     // Update Favicons and Apple Touch Icon
-    if (logoUrl) {
-      let appleTouchIcon = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement | null;
-      if (!appleTouchIcon) {
-        appleTouchIcon = document.createElement('link');
-        appleTouchIcon.rel = 'apple-touch-icon';
-        appleTouchIcon.setAttribute('sizes', '180x180');
-        document.head.appendChild(appleTouchIcon);
-      }
-      appleTouchIcon.setAttribute('href', logoUrl);
-
-      const favicons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]');
-      favicons.forEach(el => {
-        el.setAttribute('href', logoUrl);
-        if (logoUrl.startsWith('data:')) {
-          el.setAttribute('type', getMimeType(logoUrl));
-        }
-      });
+    let appleTouchIcon = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement | null;
+    if (!appleTouchIcon) {
+      appleTouchIcon = document.createElement('link');
+      appleTouchIcon.rel = 'apple-touch-icon';
+      appleTouchIcon.setAttribute('sizes', '180x180');
+      document.head.appendChild(appleTouchIcon);
     }
+    appleTouchIcon.setAttribute('href', logoUrl || '/apple-touch-icon.png');
+
+    const favicons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]');
+    favicons.forEach(el => {
+      el.setAttribute('href', logoUrl || '/pwa-192x192.png');
+    });
 
     // Store in localStorage for instant retrieval on next cold boot
     try {
-      localStorage.setItem('pwa_brand_cache', JSON.stringify({
+      localStorage.setItem('pwa_brand_cache', safeJsonStringify({
         appName,
         logoUrl,
         themeColor,

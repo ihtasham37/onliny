@@ -72,7 +72,7 @@ const getPageTitle = (pathname: string) => {
 };
 
 const AdminLayout = () => {
-  const { logout, userData } = useAuth();
+  const { logout, user, userData } = useAuth();
   const { 
     settings: appSettings, 
     myOrders, 
@@ -101,31 +101,42 @@ const AdminLayout = () => {
   }, [myOrders]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, user => {
-        if (!user) {
-            navigate('/vendor/login');
-        } else {
-            // Load orders on-demand once (1 read batch) for the admin dashboard
-            loadOrders?.();
-            // Wait for userData to be loaded in context if needed
-            if ('Notification' in window && Notification.permission === 'default') {
-                Notification.requestPermission();
-            }
-        }
-        setIsAuthCheckComplete(true);
+    const unsub = onAuthStateChanged(auth, (currentUser) => {
+      setIsAuthCheckComplete(true);
+      if (!currentUser) {
+        navigate('/login', { replace: true });
+      }
     });
-    return () => unsubscribe();
+
+    const timer = setTimeout(() => {
+      setIsAuthCheckComplete(true);
+    }, 1500);
+
+    return () => {
+      unsub();
+      clearTimeout(timer);
+    };
   }, [navigate]);
 
   useEffect(() => {
-    if (isAuthCheckComplete && userData && userData.role !== UserRole.Admin) {
+    if (isAuthCheckComplete) {
+      if (!user) {
+        navigate('/login', { replace: true });
+      } else if (userData) {
         if (userData.role === UserRole.Vendor) {
-            navigate('/vendor');
-        } else {
-            navigate('/vendor/login');
+          navigate('/vendor', { replace: true });
+        } else if (userData.role !== UserRole.Admin) {
+          navigate('/login', { replace: true });
         }
+      }
     }
-  }, [isAuthCheckComplete, userData, navigate]);
+  }, [isAuthCheckComplete, user, userData, navigate]);
+
+  useEffect(() => {
+    if (userData?.role === UserRole.Admin) {
+      loadOrders?.();
+    }
+  }, [userData, loadOrders]);
   
   useEffect(() => {
     if (isSidebarOpen) {
@@ -133,8 +144,22 @@ const AdminLayout = () => {
     }
   }, [location.pathname]);
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      console.warn("Logout error:", err);
+    }
+    navigate('/login', { replace: true });
+  };
+
   if (!isAuthCheckComplete || !userData || userData.role !== UserRole.Admin) {
-    return <div className="flex items-center justify-center h-screen bg-slate-900 text-rose-400 font-bold"><Spinner size="lg" /></div>;
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-slate-300">
+        <Spinner size="lg" />
+        <p className="mt-4 text-xs font-semibold tracking-wider text-rose-400">Verifying Admin Access...</p>
+      </div>
+    );
   }
 
   return (
@@ -182,7 +207,7 @@ const AdminLayout = () => {
 
         {/* Bottom Fixed Section */}
         <div className="p-3 border-t border-slate-800/80 shrink-0 bg-slate-900">
-             <button onClick={logout} className="flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl transition-colors text-slate-400 hover:bg-rose-500/20 hover:text-rose-300 text-sm">
+             <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl transition-colors text-slate-400 hover:bg-rose-500/20 hover:text-rose-300 text-sm cursor-pointer">
                 <Icons.logOut className="w-4 h-4" />
                 <span className="font-medium">Logout</span>
             </button>

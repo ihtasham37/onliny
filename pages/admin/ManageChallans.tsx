@@ -45,9 +45,41 @@ const ManageChallans = () => {
         }
     }, [vendorsMap]);
 
+    const handleDirectCreate = async () => {
+        if (!bankAccount || !amount) {
+            alert("Please fill in bank account and amount");
+            return;
+        }
+        setIsGenerating(true);
+        try {
+            const effectiveVendorIds = selectedVendorIds.length > 0 ? selectedVendorIds : ['store_admin'];
+            await addChallan({
+                bankAccount,
+                amount: parseFloat(amount),
+                description,
+                vendorIds: effectiveVendorIds
+            });
+            alert("Challan created and saved successfully!");
+            setBankAccount('');
+            setAmount('');
+            setDescription('');
+            setSelectedVendorIds([]);
+            setShowVendorSelection(false);
+        } catch (err) {
+            console.error("Error creating challan:", err);
+            alert("Failed to create challan");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     const handleGenerateClick = () => {
         if (!bankAccount || !amount) {
             alert("Please fill in bank account and amount");
+            return;
+        }
+        if (vendors.length === 0) {
+            handleDirectCreate();
             return;
         }
         setShowVendorSelection(true);
@@ -55,19 +87,16 @@ const ManageChallans = () => {
     };
 
     const handleSend = async () => {
-        if (selectedVendorIds.length === 0) {
-            alert("Please select at least one vendor");
-            return;
-        }
         setIsGenerating(true);
         try {
+            const effectiveVendorIds = selectedVendorIds.length > 0 ? selectedVendorIds : (vendors.length > 0 ? vendors.map(v => v.uid) : ['store_admin']);
             await addChallan({
                 bankAccount,
                 amount: parseFloat(amount),
                 description,
-                vendorIds: selectedVendorIds
+                vendorIds: effectiveVendorIds
             });
-            alert("Challan sent successfully!");
+            alert("Challan saved and sent successfully!");
             setBankAccount('');
             setAmount('');
             setDescription('');

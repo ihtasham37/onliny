@@ -38,10 +38,33 @@ export const Icons = {
     </svg>
   ),
   brandBag: (props: React.SVGProps<SVGSVGElement>) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none" {...props}>
-      <path d="M11 11C11 6.8 14.1 3.5 18 3.5C21.9 3.5 25 6.8 25 11" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" />
-      <path d="M7 11H29L31 31.5C31 32.3 30.3 33 29.5 33H6.5C5.7 33 5 32.3 5 31.5L7 11Z" stroke="currentColor" strokeWidth="2.75" strokeLinejoin="round" />
-      <path d="M12 11C12 14.5 14.7 17.5 18 17.5C21.3 17.5 24 14.5 24 11" stroke="#EC4899" strokeWidth="2.75" strokeLinecap="round" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" {...props}>
+      {/* Top Handle: Deep dark indigo semi-circular arc */}
+      <path 
+        d="M 188 175 C 188 78, 324 78, 324 175" 
+        stroke="#0f172a" 
+        strokeWidth="32" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+      />
+
+      {/* Main Bag Body: Deep dark indigo smooth hum-shape */}
+      <path 
+        d="M 136 175 L 376 175 L 412 418 C 414 438, 398 454, 378 454 L 134 454 C 114 454, 98 438, 100 418 Z" 
+        stroke="#0f172a" 
+        strokeWidth="32" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+      />
+
+      {/* Nested Handle: Vibrant matte pink semi-circular arc nested just below top handle */}
+      <path 
+        d="M 188 175 C 188 272, 324 272, 324 175" 
+        stroke="#f43f5e" 
+        strokeWidth="32" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+      />
     </svg>
   ),
   sliders: (props: React.SVGProps<SVGSVGElement>) => (
@@ -259,6 +282,12 @@ export const Icons = {
       <circle cx="12" cy="12" r="3" />
     </svg>
   ),
+  eyeOff: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  ),
   ticket: (props: React.SVGProps<SVGSVGElement>) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
         <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
@@ -460,6 +489,31 @@ export const Icons = {
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <polygon points="23 7 16 12 23 17 23 7" />
       <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+    </svg>
+  ),
+  cloud: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+    </svg>
+  ),
+  cloudCheck: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="m9 14.5 2 2 4-4" />
+      <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+    </svg>
+  ),
+  save: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+  ),
+  database: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
     </svg>
   ),
 };

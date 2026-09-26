@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Spinner } from '../../components/ui/Spinner';
 import { Icons } from '../../components/icons/Icons';
-import { formatCurrency } from '../../utils/helpers';
+import { formatCurrency, matchCategory, normalizeCategoryName } from '../../utils/helpers';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { ProductModal } from '../../components/admin/ProductModal';
 import { MoveCopyProductModal } from '../../components/admin/MoveCopyProductModal';
@@ -40,19 +40,36 @@ const CategoryProducts = () => {
   const [categoryToMoveCopy, setCategoryToMoveCopy] = useState<Category | null>(null);
 
   const currentCategory = useMemo(() => {
-    return (settings?.categories || []).find(c => c.id === categoryId && (!c.vendorId || c.vendorId === 'admin'));
+    const rawId = decodeURIComponent(categoryId || '');
+    return (settings?.categories || []).find(c => 
+      c.id === rawId || 
+      c.id === categoryId || 
+      matchCategory(c.name, rawId)
+    );
   }, [settings?.categories, categoryId]);
 
   const isParentCategory = useMemo(() => currentCategory ? !currentCategory.parentId : false, [currentCategory]);
   
   const subCategories = useMemo(() => {
-      return (settings?.categories || []).filter(c => c.parentId === categoryId && (!c.vendorId || c.vendorId === 'admin'));
-  }, [settings?.categories, categoryId]);
+      if (!currentCategory) return [];
+      return (settings?.categories || []).filter(c => 
+        c.parentId === currentCategory.id || 
+        c.parentId === categoryId || 
+        c.parentId === currentCategory.name
+      );
+  }, [settings?.categories, currentCategory, categoryId]);
 
   const categoryProducts = useMemo(() => {
     if (!currentCategory) return [];
-    return products.filter(p => p.category === currentCategory.id || p.category === currentCategory.name);
-  }, [products, currentCategory]);
+    
+    // Find all descendant categories if parent
+    const targetCategories: { id: string; name: string }[] = [currentCategory];
+    subCategories.forEach(sub => targetCategories.push(sub));
+
+    return products.filter(p => {
+      return targetCategories.some(target => matchCategory(p.category, target));
+    });
+  }, [products, currentCategory, subCategories]);
 
   const handleAddBannerUrl = () => {
     if (newBannerUrlInput.trim()) {

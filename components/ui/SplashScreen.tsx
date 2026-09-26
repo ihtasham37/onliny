@@ -58,10 +58,12 @@ export const SplashScreen = () => {
                                     style={{ aspectRatio: '1 / 1' }}
                                 />
                             ) : (
-                                <div className="w-full h-full rounded-full bg-gradient-to-br from-rose-600 via-rose-700 to-amber-600 flex flex-col items-center justify-center text-white">
-                                    <span className="text-4xl sm:text-5xl font-black font-serif tracking-tight">O</span>
-                                    <span className="text-[7.5px] uppercase tracking-[0.25em] font-extrabold text-amber-200 mt-0.5">ONLINY</span>
-                                </div>
+                                <img
+                                    src="/default-logo.svg"
+                                    alt={displayName}
+                                    className="w-full h-full object-contain p-2 rounded-full aspect-square bg-white"
+                                    style={{ aspectRatio: '1 / 1' }}
+                                />
                             )}
                         </div>
                     </div>

@@ -14,6 +14,7 @@ import { safeJsonStringify } from './utils/helpers';
 
 import StoreLayout from './components/layout/StoreLayout';
 import AdminLayout from './pages/admin/AdminLayout';
+import AdminAuth from './pages/admin/AdminAuth';
 import VendorAuth from './pages/vendor/VendorAuth';
 import VendorLayout from './pages/vendor/VendorLayout';
 
@@ -105,7 +106,9 @@ const AppContent = () => {
     return (
         <Suspense fallback={<FullPageSpinner />}>
             <Routes>
-                {/* Admin Routes */}
+                {/* Universal Login & Portal Routes */}
+                <Route path="/login" element={<VendorAuth />} />
+                <Route path="/admin/login" element={<AdminAuth />} />
                 <Route path="/admin/*" element={<AdminLayout />} />
 
                 {/* Vendor Routes */}

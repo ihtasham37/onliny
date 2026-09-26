@@ -36,12 +36,17 @@ const Checkout = () => {
   const { isStandalone, standaloneType, vendorId, storeName, storeLogoUrl, storeWhatsapp } = useStandaloneCategory();
   const navigate = useNavigate();
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [isOrderPlaced, setIsOrderPlaced] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState('');
   
   const effectivePaymentMethods = useMemo(() => {
-    const customMethods = settings?.paymentMethods || [];
+    const customMethods = (settings?.paymentMethods || []).map(m => ({
+      ...m,
+      name: (m.name || '').replace(/[\u0600-\u06FF()]/g, '').trim() || m.name || 'Cash on Delivery',
+      details: (m.details || '').replace(/[\u0600-\u06FF]/g, '').trim() || m.details || 'Pay in cash when your parcel arrives at your doorstep.'
+    }));
     const hasCod = customMethods.some(m => m.id === 'cod' || (m.name && m.name.toLowerCase().includes('cash on delivery')));
     if (hasCod) return customMethods;
     const defaultCod = {
@@ -66,10 +71,10 @@ const Checkout = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (cart.length === 0 && !isPlacingOrder) {
+    if (cart.length === 0 && !isPlacingOrder && !isOrderPlaced) {
       navigate('/cart');
     }
-  }, [cart, navigate, isPlacingOrder]);
+  }, [cart, navigate, isPlacingOrder, isOrderPlaced]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -82,10 +87,11 @@ const Checkout = () => {
     if (!formData.customerName.trim()) newErrors.customerName = 'Full name is required.';
     if (!formData.customerPhone.trim()) newErrors.customerPhone = 'Phone number is required.';
     else if (!/^(03\d{2}|(\+92|92)3\d{2})\d{7}$/.test(formData.customerPhone)) newErrors.customerPhone = 'Please enter a valid Pakistani phone number.';
+    if (!formData.email.trim()) newErrors.email = 'Email address is required for order tracking and receipts.';
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Please enter a valid email address.';
     if (!formData.province) newErrors.province = 'Please select a province.';
     if (!formData.city.trim()) newErrors.city = 'City is required.';
     if (!formData.customerAddress.trim()) newErrors.customerAddress = 'Full address is required.';
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Please enter a valid email address.';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, [formData]);
@@ -94,15 +100,31 @@ const Checkout = () => {
     const sub = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
     const prodCount = cart.reduce((acc, item) => acc + item.quantity, 0);
     
-    // Calculate shipping fee from cart items or settings fallback
-    let shipFee = cart.reduce((sum, item) => {
-      const itemFee = Number(item.shippingFee);
-      return sum + (isNaN(itemFee) ? 0 : itemFee);
+    // Base store shipping fee (default Rs. 99 flat from admin settings)
+    let configuredFee = 99;
+    if (settings?.shippingFee !== undefined && settings?.shippingFee !== null) {
+      const parsedFee = Number(settings.shippingFee);
+      if (!isNaN(parsedFee)) {
+        configuredFee = parsedFee;
+      }
+    }
+
+    // Maximum individual product shipping fee in cart
+    const maxProductShippingFee = cart.reduce((max, item) => {
+      const itemFee = Number((item as any).shippingFee) || 0;
+      return Math.max(max, itemFee);
     }, 0);
-    
-    if (shipFee === 0 && settings?.shippingFee !== undefined) {
-      const settingsFee = Number(settings.shippingFee);
-      shipFee = isNaN(settingsFee) ? 0 : settingsFee;
+
+    // If product shipping fee exceeds base 99, only the delta above 99 is added (total = maxProductShippingFee).
+    // Regardless of how many products are in the cart, only one single highest shipping fee applies.
+    let shipFee = 0;
+    if (cart.length > 0) {
+      shipFee = Math.max(configuredFee, maxProductShippingFee);
+      
+      // Store-wide free delivery threshold check (if applicable and no heavy custom product fee)
+      if (settings?.freeDeliveryThreshold && sub >= Number(settings.freeDeliveryThreshold) && maxProductShippingFee === 0) {
+        shipFee = 0;
+      }
     }
 
     let discAmt = 0;
@@ -241,7 +263,7 @@ const Checkout = () => {
           const savedOrders = JSON.parse(localStorage.getItem('user_order_ids') || '[]');
           if (!savedOrders.includes(orderId)) {
             savedOrders.push(orderId);
-            localStorage.setItem('user_order_ids', JSON.stringify(savedOrders));
+            localStorage.setItem('user_order_ids', safeJsonStringify(savedOrders));
           }
         } catch (e) {}
       }
@@ -250,7 +272,7 @@ const Checkout = () => {
       fetch('/api/send-order-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: safeJsonStringify({
           order: fullOrder,
           credentials: {
             gmailUser: settings?.gmailUser || '',
@@ -263,14 +285,28 @@ const Checkout = () => {
         console.warn('Background order email delivery error:', emailErr);
       });
 
+      // Save order to session and local storage so order-success can always display it
+      try {
+        sessionStorage.setItem('last_placed_order', safeJsonStringify(fullOrder));
+        localStorage.setItem('last_placed_order', safeJsonStringify(fullOrder));
+      } catch (e) {}
+
       // Automatically set active customer for tracking and notifications
       if (order.email && order.customerPhone) {
+        try {
           await trackWithEmailAndPhone(order.email, order.customerPhone);
+        } catch (trackErr) {
+          console.warn('Customer tracking note:', trackErr);
+        }
       }
-      if ('Notification' in window && Notification.permission === 'default') {
+      try {
+        if ('Notification' in window && Notification.permission === 'default') {
           Notification.requestPermission();
-      }
-      navigate('/order-success', { state: { order: fullOrder } });
+        }
+      } catch (notifErr) {}
+
+      setIsOrderPlaced(true);
+      navigate('/order-success', { state: { order: fullOrder }, replace: true });
     } catch (err) {
       console.error("Order placement failed:", err);
       alert('Failed to place order. Please try again.');
@@ -292,7 +328,7 @@ const Checkout = () => {
 
   const whatsappLink = `https://wa.me/${normalizePhone(whatsappConfirmationNumber || '')}`;
 
-  if (cart.length === 0) return null;
+  if (cart.length === 0 && !isOrderPlaced) return null;
 
   return (
     <div className="container mx-auto">
@@ -308,8 +344,8 @@ const Checkout = () => {
               <FormField name="customerPhone" label="Phone Number *" error={errors.customerPhone}>
                 <Input id="customerPhone" name="customerPhone" type="tel" value={formData.customerPhone} onChange={handleChange} required />
               </FormField>
-              <FormField name="email" label="Email Address (Optional)" error={errors.email}>
-                <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} />
+              <FormField name="email" label="Email Address *" error={errors.email}>
+                <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="yourname@gmail.com" required />
               </FormField>
               <FormField name="province" label="Province *" error={errors.province}>
                 <select id="province" name="province" value={formData.province} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 bg-white border border-rose-200 rounded-xl shadow-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-rose-400 sm:text-sm">
@@ -387,9 +423,12 @@ const Checkout = () => {
                 {couponError && <p className="text-xs text-red-600 mt-1 font-semibold">{couponError}</p>}
             </div>
             <div className="space-y-2 mt-4 pt-4 border-t border-rose-100 text-sm">
-              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
+              <div className="flex justify-between text-slate-600"><span>Subtotal (Items)</span><span>{formatCurrency(subtotal)}</span></div>
               {appliedCoupon && <div className="flex justify-between text-rose-700 font-bold"><span>Discount ({appliedCoupon.code})</span><span>-{formatCurrency(discountAmount)}</span></div>}
-              <div className="flex justify-between text-slate-600"><span>Shipping</span><span>{formatCurrency(shippingFee)}</span></div>
+              <div className="flex justify-between text-slate-600">
+                <span>Shipping Fee</span>
+                <span className="font-semibold text-slate-800">{shippingFee === 0 ? 'Free Shipping' : formatCurrency(shippingFee)}</span>
+              </div>
               <div className="flex justify-between font-extrabold text-xl font-serif text-slate-900 border-t border-rose-100 pt-3 mt-3"><span>Total</span><span className="text-rose-700">{formatCurrency(total)}</span></div>
             </div>
             <Button type="submit" className="w-full mt-4 shadow-md py-3 text-base font-bold" size="lg" disabled={isPlacingOrder}>

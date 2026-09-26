@@ -663,6 +663,8 @@ const ProductDetail = () => {
                           <div className="flex flex-wrap gap-1.5">
                             {cat.sizes.map(size => {
                               const isSelected = selectedSizes[cat.categoryName] === size;
+                              const isColorCat = /colou?r/i.test(cat.categoryName);
+                              
                               return (
                                 <button
                                     key={size}
@@ -676,7 +678,15 @@ const ProductDetail = () => {
                                         : 'bg-white text-slate-800 border-rose-100 hover:bg-rose-50 hover:border-rose-200'
                                     }`}
                                 >
-                                    {size}
+                                    {isColorCat && (
+                                      <span 
+                                        className={`w-2.5 h-2.5 rounded-full border border-black/20 shrink-0 ${
+                                          isSelected ? 'ring-1 ring-white' : ''
+                                        }`}
+                                        style={{ backgroundColor: size.toLowerCase().replace(/\s+/g, '') }}
+                                      />
+                                    )}
+                                    <span>{size}</span>
                                 </button>
                               );
                             })}
@@ -725,24 +735,23 @@ const ProductDetail = () => {
                 </div>
               </div>
           </Accordion>
-          <Accordion title="Shipping & Returns">
-               <div className="text-sm text-slate-700 space-y-2">
-                  <p><strong>Shipping Fee:</strong> {shippingFeeText}</p>
-                  {product.deliveryTime && <p><strong>Estimated Delivery:</strong> {product.deliveryTime}</p>}
-                  {product.easyReturn && (
-                      <div className="flex items-center gap-2 text-emerald-700 font-semibold bg-emerald-50/80 p-2 rounded-xl border border-emerald-100">
-                          <Icons.checkCircle className="w-4 h-4 text-emerald-600"/>
-                          <span>7 Days Easy Return &amp; Replacement Available</span>
-                      </div>
-                  )}
+          <Accordion title="Return & Replacement Policy">
+               <div className="text-sm text-slate-700 space-y-2.5">
+                  <div className="flex items-center gap-2 text-emerald-800 font-bold bg-emerald-50/90 p-2.5 rounded-xl border border-emerald-200">
+                      <Icons.checkCircle className="w-4 h-4 text-emerald-600 shrink-0"/>
+                      <span>7 Days Easy Return &amp; Replacement Guarantee</span>
+                  </div>
+                  {product.deliveryTime && <p className="text-xs text-slate-600"><strong>Estimated Delivery Time:</strong> {product.deliveryTime}</p>}
                   {product.returnPolicy ? (
-                      <p><strong>Return Policy:</strong> {product.returnPolicy}</p>
+                      <div className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 whitespace-pre-line">
+                          <strong>Return Policy:</strong> {product.returnPolicy}
+                      </div>
                   ) : settings?.globalReturnPolicy ? (
-                      <div className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-200 whitespace-pre-line">
+                      <div className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 whitespace-pre-line">
                           <strong>Store Return Policy:</strong> {settings.globalReturnPolicy}
                       </div>
                   ) : (
-                      <p className="text-xs text-slate-600">Standard 7-day return policy applies on damaged, defective, or incorrect items.</p>
+                      <p className="text-xs text-slate-600">Standard 7-day return &amp; replacement policy applies on damaged, defective, or incorrect items. Open parcel with confidence.</p>
                   )}
                   <div className="pt-1">
                       <Link to="/refund-policy" className="text-xs text-rose-600 font-bold hover:underline inline-flex items-center gap-1">

@@ -9,7 +9,7 @@ import { MediaPreview } from '../components/ui/MediaPreview';
 import { Product, BannerProductItem } from '../types';
 import { SEO } from '../components/SEO';
 import { shareContent } from '../utils/shareHelper';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency, matchCategory, normalizeCategoryName } from '../utils/helpers';
 import { BannerProductSlide } from '../components/ui/BannerProductSlide';
 import { VerticalScrollColumn, useBannerHeight } from '../components/ui/VerticalProductSlider';
 
@@ -60,14 +60,15 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
     // Find category: either by route param categoryId or by standaloneCategory ID
     const currentCategory = useMemo(() => {
         if (categoryId) {
-            return allCategories.find(c => c.id === categoryId || c.name.toLowerCase() === categoryId.toLowerCase());
+            const raw = decodeURIComponent(categoryId);
+            return allCategories.find(c => c.id === raw || c.id === categoryId || matchCategory(c.name, raw));
         }
         return standaloneCategory;
     }, [allCategories, categoryId, standaloneCategory]);
 
     const subCategories = useMemo(() => {
         if (!currentCategory) return [];
-        return allCategories.filter(c => c.isVisible && c.parentId === currentCategory.id);
+        return allCategories.filter(c => c.isVisible && (c.parentId === currentCategory.id || c.parentId === currentCategory.name));
     }, [allCategories, currentCategory]);
     
     const isParentCategory = useMemo(() => currentCategory ? !currentCategory.parentId : false, [currentCategory]);
@@ -93,9 +94,6 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
     const productsToShow = useMemo(() => {
         if (!currentCategory) return [];
 
-        // STRICT ISOLATION:
-        // If current category belongs to a vendor, and we are NOT in that vendor's standalone store:
-        // DO NOT show vendor products in the main app!
         if (currentCategory.vendorId && (!isStandaloneMode || vendorId !== currentCategory.vendorId)) {
             return [];
         }
@@ -104,27 +102,12 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
             ? (allProducts || []).filter(p => p.vendorId === currentCategory.vendorId)
             : products;
 
-        if (isParentCategory) {
-            const descendantCategoryIdsOrNames = new Set<string>();
-            const queue: string[] = [currentCategory.id];
-            
-            while(queue.length > 0) {
-                const currentId = queue.shift()!;
-                const children = allCategories.filter(c => c.parentId === currentId);
-                for (const child of children) {
-                    if(child.parentId) {
-                        descendantCategoryIdsOrNames.add(child.name);
-                        descendantCategoryIdsOrNames.add(child.id);
-                    }
-                    queue.push(child.id);
-                }
-            }
-            return sourceProducts.filter(p => p.isVisible && (descendantCategoryIdsOrNames.has(p.category) || p.category === currentCategory.id || p.category === currentCategory.name));
-        }
-        
-        return sourceProducts.filter(p => p.isVisible && (p.category === currentCategory.id || p.category === currentCategory.name));
+        const targetCategories: { id: string; name: string }[] = [currentCategory];
+        subCategories.forEach(sub => targetCategories.push(sub));
 
-    }, [products, allProducts, currentCategory, allCategories, isParentCategory, isStandaloneMode, vendorId]);
+        return sourceProducts.filter(p => p.isVisible && targetCategories.some(target => matchCategory(p.category, target)));
+
+    }, [products, allProducts, currentCategory, subCategories, isStandaloneMode, vendorId]);
 
     useEffect(() => {
         const shuffled = [...productsToShow];

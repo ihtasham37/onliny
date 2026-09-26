@@ -96,7 +96,7 @@ const BlogPostPage = () => {
                     "datePublished": new Date(post.createdAt).toISOString(),
                     "author": {
                         "@type": "Organization",
-                        "name": settings?.appName || "Zivio"
+                        "name": settings?.appName || "onliny"
                     }
                 }}
             />

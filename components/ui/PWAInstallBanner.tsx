@@ -97,7 +97,7 @@ export const PWAInstallBanner = () => {
                         {logoUrl ? (
                             <img src={logoUrl} alt={appName} className="w-full h-full object-cover rounded-[10px] bg-white aspect-square" />
                         ) : (
-                            <Icons.logo className="w-5 h-5 text-white" />
+                            <img src="/default-logo.svg" alt={appName} className="w-full h-full object-contain p-0.5 rounded-[10px] bg-white aspect-square" />
                         )}
                         <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></span>
                     </div>

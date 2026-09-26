@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../hooks/useStore';
 import { Settings as SettingsType } from '../../types';
+import { SectionSyncKey } from '../../services/dataSyncService';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Spinner } from '../../components/ui/Spinner';
@@ -19,14 +20,51 @@ const Settings = () => {
         isLoading, 
         uploadFile, 
         deleteFile,
-        isFirebaseLiveMode,
+        isFirebaseLiveMode, 
         toggleFirebaseMode,
         exportCatalogSnapshot,
-        refreshCatalog
+        refreshCatalog,
+        fetchLatestSettingsFromFirestore,
+        pushSectionSettingsToFirestore,
+        syncState
     } = useStore();
-    const [formData, setFormData] = useState<SettingsType | null>(null);
+    const defaultSettingsData: SettingsType = {
+        appName: settings?.appName || 'onliny',
+        storeDomain: settings?.storeDomain || '',
+        logoUrl: settings?.logoUrl || '',
+        storeBannerUrl: settings?.storeBannerUrl || '',
+        bannerUrls: settings?.bannerUrls || [],
+        shippingFee: settings?.shippingFee !== undefined && settings?.shippingFee !== null ? Number(settings.shippingFee) : 99,
+        whatsappNumber: settings?.whatsappNumber || '',
+        adminEmail: settings?.adminEmail || '',
+        paymentMethods: settings?.paymentMethods || [{ id: 'cod', name: 'Cash on Delivery', details: 'Pay in cash upon delivery.' }],
+        sizeCategories: settings?.sizeCategories || [],
+        categories: settings?.categories || [],
+        whatsappGroupUrl: settings?.whatsappGroupUrl || '',
+        whatsappChannelUrl: settings?.whatsappChannelUrl || '',
+        telegramChannelUrl: settings?.telegramChannelUrl || '',
+        youtubeChannelUrl: settings?.youtubeChannelUrl || '',
+        instagramChannelUrl: settings?.instagramChannelUrl || '',
+        facebookPageUrl: settings?.facebookPageUrl || '',
+        showJoinCommunity: settings?.showJoinCommunity ?? true,
+        showLatestUpdates: settings?.showLatestUpdates ?? true,
+        showGetApp: settings?.showGetApp ?? true,
+        showContactWhatsapp: settings?.showContactWhatsapp ?? true,
+        showContactEmail: settings?.showContactEmail ?? true,
+        playStoreUrl: settings?.playStoreUrl || '',
+        adminNotificationEmail: settings?.adminNotificationEmail || '',
+        gmailUser: settings?.gmailUser || '',
+        gmailAppPassword: settings?.gmailAppPassword || '',
+        enableOrderEmailAlerts: settings?.enableOrderEmailAlerts ?? true,
+        globalReturnPolicy: settings?.globalReturnPolicy || '',
+    };
+
+    const [formData, setFormData] = useState<SettingsType>(defaultSettingsData);
     const [paymentInput, setPaymentInput] = useState({ id: '', name: '', details: ''});
     const [isSaving, setIsSaving] = useState(false);
+    const [isFetchingFirestore, setIsFetchingFirestore] = useState(false);
+    const [activeSyncSection, setActiveSyncSection] = useState<string | null>(null);
+    const [syncToast, setSyncToast] = useState<{ success: boolean; message: string } | null>(null);
     const [isSyncingStatic, setIsSyncingStatic] = useState(false);
     const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
     const [isUploadingBanner, setIsUploadingBanner] = useState(false);
@@ -40,16 +78,61 @@ const Settings = () => {
     const [isTestingEmail, setIsTestingEmail] = useState(false);
     const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null);
     const [showAppPassword, setShowAppPassword] = useState(false);
+    const [isSavingEmail, setIsSavingEmail] = useState(false);
+    const [emailSaveSuccess, setEmailSaveSuccess] = useState(false);
+
+    // Initial mount: Automatically fetch fresh settings from Firestore Cloud to prevent stale session overwrites
+    useEffect(() => {
+        let isMounted = true;
+        const autoFetchFirestore = async () => {
+            setIsFetchingFirestore(true);
+            try {
+                const fresh = await fetchLatestSettingsFromFirestore();
+                if (fresh && isMounted) {
+                    setFormData(prev => ({
+                        ...(prev || {}),
+                        ...fresh,
+                        appName: fresh.appName || 'onliny',
+                        shippingFee: fresh.shippingFee !== undefined && fresh.shippingFee !== null ? Number(fresh.shippingFee) : 99
+                    } as SettingsType));
+                }
+            } catch (err) {
+                console.warn("Auto-sync from Firestore on mount note:", err);
+            } finally {
+                if (isMounted) setIsFetchingFirestore(false);
+            }
+        };
+
+        const fetchEmailSettings = async () => {
+            try {
+                const res = await fetch('/api/get-email-settings');
+                const data = await res.json();
+                if (data.success && data.settings && isMounted) {
+                    setFormData(prev => ({
+                        ...(prev || {}),
+                        gmailUser: data.settings.gmailUser || prev?.gmailUser || '',
+                        gmailAppPassword: data.settings.gmailAppPassword || prev?.gmailAppPassword || '',
+                        adminNotificationEmail: data.settings.adminNotificationEmail || prev?.adminNotificationEmail || ''
+                    } as SettingsType));
+                }
+            } catch (err) {}
+        };
+
+        autoFetchFirestore();
+        fetchEmailSettings();
+        return () => { isMounted = false; };
+    }, [fetchLatestSettingsFromFirestore]);
     
     useEffect(() => {
         if (settings) {
             const settingsCopy: SettingsType = {
-                appName: settings.appName || 'Online store',
-                storeDomain: settings.storeDomain || 'https://zivio.pages.dev',
+                ...settings,
+                appName: settings.appName || 'onliny',
+                storeDomain: settings.storeDomain || 'https://onliny.co.uk',
                 logoUrl: settings.logoUrl || '',
                 storeBannerUrl: settings.storeBannerUrl || '',
                 bannerUrls: [...(settings.bannerUrls || [])],
-                shippingFee: settings.shippingFee ?? 0,
+                shippingFee: settings.shippingFee !== undefined && settings.shippingFee !== null ? Number(settings.shippingFee) : 99,
                 whatsappNumber: settings.whatsappNumber || '',
                 adminEmail: settings.adminEmail || '',
                 paymentMethods: (settings.paymentMethods || []).map(p => ({ ...p })),
@@ -71,6 +154,7 @@ const Settings = () => {
                 gmailUser: settings.gmailUser || '',
                 gmailAppPassword: settings.gmailAppPassword || '',
                 enableOrderEmailAlerts: settings.enableOrderEmailAlerts ?? true,
+                globalReturnPolicy: settings.globalReturnPolicy || '',
             };
             setFormData(settingsCopy);
         } else {
@@ -78,9 +162,72 @@ const Settings = () => {
         }
     }, [settings]);
     
+    const handleFetchFromFirestore = async () => {
+        setIsFetchingFirestore(true);
+        setSyncToast(null);
+        try {
+            const fresh = await fetchLatestSettingsFromFirestore();
+            if (fresh) {
+                setFormData(prev => ({
+                    ...(prev || {}),
+                    ...fresh,
+                    appName: fresh.appName || 'onliny',
+                    storeDomain: fresh.storeDomain || 'https://onliny.co.uk',
+                    shippingFee: fresh.shippingFee !== undefined && fresh.shippingFee !== null ? Number(fresh.shippingFee) : 99
+                } as SettingsType));
+                setSyncToast({
+                    success: true,
+                    message: "تازہ ترین ترتیبات فائر اسٹور سے کامیابی سے حاصل ہو گئیں! (Fresh settings fetched from Firestore Cloud!)"
+                });
+            } else {
+                setSyncToast({
+                    success: true,
+                    message: "فائر اسٹور ڈیٹا پہلے سے مکمل ہم آہنگ ہے۔ (Settings are already up-to-date with Firestore Cloud.)"
+                });
+            }
+        } catch (err: any) {
+            setSyncToast({
+                success: false,
+                message: `فائر اسٹور سے حاصل کرنے میں خرابی: ${err?.message || 'Error fetching from Firestore'}`
+            });
+        } finally {
+            setIsFetchingFirestore(false);
+            setTimeout(() => setSyncToast(null), 5000);
+        }
+    };
+
+    const handleSyncSection = async (section: SectionSyncKey, sectionTitle: string, partialData: Partial<SettingsType>) => {
+        if (!formData) return;
+        setActiveSyncSection(section);
+        setSyncToast(null);
+        try {
+            const success = await pushSectionSettingsToFirestore(section, partialData);
+            if (success) {
+                setSyncToast({
+                    success: true,
+                    message: `✅ ${sectionTitle} کامیابی سے فائر اسٹور پر پش ہو گیا! (${sectionTitle} successfully pushed to Firestore Cloud!)`
+                });
+            } else {
+                setSyncToast({
+                    success: false,
+                    message: `❌ ${sectionTitle} محفوظ نہیں ہو سکا۔ (Failed to push ${sectionTitle})`
+                });
+            }
+        } catch (e: any) {
+            setSyncToast({
+                success: false,
+                message: `ایرر: ${e?.message || 'Error syncing section'}`
+            });
+        } finally {
+            setActiveSyncSection(null);
+            setTimeout(() => setSyncToast(null), 4000);
+        }
+    };
+
     const handleSave = async () => {
         if (formData) {
             setIsSaving(true);
+            setSyncToast(null);
             try {
                 const settingsToSave: SettingsType = {
                     ...formData,
@@ -100,12 +247,19 @@ const Settings = () => {
                     }).catch(err => console.warn("Failed to save email settings to server:", err));
                 }
                 await updateSettings(settingsToSave);
-                alert("Settings saved successfully!");
-            } catch (error) {
+                setSyncToast({
+                    success: true,
+                    message: "✅ تمام ترتیبات فائر اسٹور، سرور بنڈل اور PWA پر کامیابی سے محفوظ ہو گئیں! (All settings pushed to Firestore!)"
+                });
+            } catch (error: any) {
                 console.error("Failed to save settings:", error);
-                alert("Error saving settings.");
+                setSyncToast({
+                    success: false,
+                    message: `❌ ترتیبات محفوظ کرنے میں ایرر: ${error?.message || 'Error saving settings'}`
+                });
             } finally {
                 setIsSaving(false);
+                setTimeout(() => setSyncToast(null), 5000);
             }
         }
     };
@@ -155,6 +309,37 @@ const Settings = () => {
             });
         } finally {
             setIsTestingEmail(false);
+        }
+    };
+
+    const handleSaveEmailCredentials = async () => {
+        if (!formData) return;
+        setIsSavingEmail(true);
+        setEmailSaveSuccess(false);
+        try {
+            await fetch('/api/save-email-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gmailUser: (formData.gmailUser || '').trim(),
+                    gmailAppPassword: (formData.gmailAppPassword || '').trim(),
+                    adminNotificationEmail: (formData.adminNotificationEmail || '').trim(),
+                    appName: formData.appName || 'onliny'
+                })
+            });
+            await pushSectionSettingsToFirestore('all', {
+                gmailUser: (formData.gmailUser || '').trim(),
+                gmailAppPassword: (formData.gmailAppPassword || '').trim(),
+                adminNotificationEmail: (formData.adminNotificationEmail || '').trim(),
+                enableOrderEmailAlerts: formData.enableOrderEmailAlerts ?? true
+            });
+            setEmailSaveSuccess(true);
+            setTimeout(() => setEmailSaveSuccess(false), 5000);
+        } catch (err: any) {
+            console.error("Error saving email settings:", err);
+            alert("Could not save email credentials: " + (err?.message || 'Error'));
+        } finally {
+            setIsSavingEmail(false);
         }
     };
 
@@ -215,13 +400,13 @@ const Settings = () => {
 
     const initializeSettings = async () => {
         const defaultSettings: SettingsType = {
-            appName: 'Zivio',
-            storeDomain: 'https://zivio.pages.dev',
+            appName: 'onliny',
+            storeDomain: 'https://onliny.co.uk',
             bannerUrls: [],
-            shippingFee: 0,
-            whatsappNumber: '+923001234567',
-            adminEmail: 'support@example.com',
-            paymentMethods: [{ id: 'cod', name: 'Cash on Delivery', details: 'Pay upon receiving your order.' }],
+            shippingFee: 99,
+            whatsappNumber: '03026947034',
+            adminEmail: 'support@onliny.co.uk',
+            paymentMethods: [{ id: 'cod', name: 'Cash on Delivery', details: 'Pay in cash upon delivery.' }],
             categories: [],
             sizeCategories: [],
             whatsappGroupUrl: '',
@@ -304,15 +489,75 @@ const Settings = () => {
         if (formData) setFormData({...formData, paymentMethods: formData.paymentMethods.filter(p => p.id !== id)});
     };
 
-    return (
-        <div>
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800">Store Settings</h1>
-                <Button onClick={handleSave} disabled={isSaving}>{isSaving ? <Spinner size="sm"/> : 'Save Changes'}</Button>
+    if (!formData) {
+        return (
+            <div className="flex flex-col items-center justify-center p-20 min-h-[50vh]">
+                <Spinner size="lg" />
+                <p className="mt-4 text-xs font-semibold text-slate-500">Loading Store Settings...</p>
             </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* Global Sync Toast Notification */}
+            {syncToast && (
+                <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-2.5 border backdrop-blur-md transition-all ${
+                    syncToast.success 
+                    ? 'bg-emerald-950/95 text-emerald-200 border-emerald-500/80 shadow-emerald-900/40' 
+                    : 'bg-rose-950/95 text-rose-200 border-rose-500/80 shadow-rose-900/40'
+                }`}>
+                    <span className="text-base">{syncToast.success ? '✅' : '❌'}</span>
+                    <span className="leading-tight">{syncToast.message}</span>
+                </div>
+            )}
+
+            {/* Top Page Header */}
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 font-serif tracking-tight">Store Settings</h1>
+                    <p className="text-xs text-slate-500 mt-1">
+                        Configure store identity, branding, shipping rates, contact channels, and system integrations.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    <Button 
+                        onClick={handleSave} 
+                        disabled={isSaving || isFetchingFirestore}
+                        className="bg-gradient-to-r from-rose-600 via-rose-700 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white shadow-md font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2"
+                    >
+                        {isSaving ? <Spinner size="sm"/> : <Icons.save className="w-4 h-4" />}
+                        <span>Save All Changes</span>
+                    </Button>
+                </div>
+            </div>
+
             <div className="space-y-6">
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h2 className="text-xl font-bold mb-4">General</h2>
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-4 border-b border-slate-100 gap-2">
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-800 font-serif">General &amp; Store Identity</h2>
+                            <p className="text-xs text-slate-500">Store branding, app name, logo, domain, and primary contacts</p>
+                        </div>
+                        <Button 
+                            type="button" 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={() => handleSyncSection('branding', 'Store Identity & Branding', {
+                                appName: formData.appName,
+                                storeDomain: formData.storeDomain,
+                                whatsappNumber: formData.whatsappNumber,
+                                adminEmail: formData.adminEmail,
+                                logoUrl: formData.logoUrl,
+                                storeBannerUrl: formData.storeBannerUrl
+                            })}
+                            disabled={isSaving || activeSyncSection === 'branding'}
+                            className="text-xs font-bold px-3 py-1.5 rounded-xl border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+                        >
+                            {activeSyncSection === 'branding' ? <Spinner size="sm" /> : <Icons.cloud className="w-3.5 h-3.5 text-rose-600" />}
+                            <span>Save Branding to Firestore</span>
+                        </Button>
+                    </div>
                     <div className="grid md:grid-cols-2 gap-6">
                         <div className="space-y-4">
                             <Input label="App Name" value={formData.appName} onChange={e => setFormData({...formData, appName: e.target.value})} placeholder="e.g. My Online Store" />
@@ -537,10 +782,86 @@ const Settings = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Flat Order Shipping Fee Settings */}
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-rose-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-4 border-b border-rose-100 gap-2">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 text-white flex items-center justify-center shadow-xs">
+                                <Icons.truck className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-800">Order Shipping Fee (آرڈر شیپنگ فیس)</h2>
+                                <p className="text-xs text-slate-500">
+                                    Set standard flat shipping fee for orders. Yeh fee sirf Checkout page par add hogi.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2.5 shrink-0">
+                            <span className="self-start sm:self-auto text-xs font-bold text-rose-700 bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
+                                Flat Rate: Rs. {formData.shippingFee ?? 99}
+                            </span>
+                            <Button 
+                                type="button" 
+                                size="sm" 
+                                variant="secondary"
+                                onClick={() => handleSyncSection('shipping', 'Shipping Fee', {
+                                    shippingFee: formData.shippingFee
+                                })}
+                                disabled={isSaving || activeSyncSection === 'shipping'}
+                                className="text-xs font-bold px-3 py-1.5 rounded-xl border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 flex items-center gap-1.5 shrink-0"
+                            >
+                                {activeSyncSection === 'shipping' ? <Spinner size="sm" /> : <Icons.cloud className="w-3.5 h-3.5 text-rose-600" />}
+                                <span>Save Shipping to Firestore</span>
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3 max-w-xl">
+                        <div>
+                            <Input 
+                                label="Flat Shipping Fee in PKR (روپے میں فلیٹ شیپنگ فیس)" 
+                                type="number" 
+                                min="0"
+                                value={formData.shippingFee ?? 99} 
+                                onChange={e => {
+                                    const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                    setFormData({ ...formData, shippingFee: val });
+                                }}
+                                placeholder="99" 
+                            />
+                            <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+                                💡 <strong>یہ کیسے کام کرتی ہے:</strong> کارٹ میں چاہے 1 پروڈکٹ ہو، 2 ہوں یا 5 ہوں، کسٹمر سے پورے آرڈر پر صرف ایک بار یہ فیس لی جائے گی۔ پروڈکٹ اور کارٹ پیج پر پروڈکٹ کی اصل قیمت بغیر شیپنگ فیس کے شو ہوگی اور یہ رقم صرف <strong>Checkout پیج</strong> پر آرڈر ٹوٹل میں جمع ہوگی۔
+                            </p>
+                        </div>
+                    </div>
+                </div>
                 
                 <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h2 className="text-xl font-bold mb-3 text-gray-800">App Menu Visibility Options</h2>
-                    <p className="text-sm text-gray-500 mb-4">Toggle visibility of these shortcuts and contact methods in the user-facing "More Options" menu.</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-3 border-b border-gray-100 gap-2">
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-800">App Menu Visibility Options</h2>
+                            <p className="text-sm text-gray-500">Toggle visibility of these shortcuts and contact methods in the user-facing "More Options" menu.</p>
+                        </div>
+                        <Button 
+                            type="button" 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={() => handleSyncSection('menu', 'Menu Visibility', {
+                                showJoinCommunity: formData.showJoinCommunity,
+                                showLatestUpdates: formData.showLatestUpdates,
+                                showGetApp: formData.showGetApp,
+                                showContactWhatsapp: formData.showContactWhatsapp,
+                                showContactEmail: formData.showContactEmail,
+                                showVendorPortal: formData.showVendorPortal
+                            })}
+                            disabled={isSaving || activeSyncSection === 'menu'}
+                            className="text-xs font-bold px-3 py-1.5 rounded-xl border border-teal-200 text-teal-700 bg-teal-50 hover:bg-teal-100 flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+                        >
+                            {activeSyncSection === 'menu' ? <Spinner size="sm" /> : <Icons.cloud className="w-3.5 h-3.5 text-teal-600" />}
+                            <span>Save Menu to Firestore</span>
+                        </Button>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
                             <input 
@@ -621,7 +942,7 @@ const Settings = () => {
                 </div>
                 {/* Global Store Return & Refund Policy Editor */}
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-rose-100">
-                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-rose-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-4 border-b border-rose-100 gap-2">
                         <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
                                 <Icons.refresh className="w-4 h-4" />
@@ -631,9 +952,24 @@ const Settings = () => {
                                 <p className="text-xs text-slate-500">Yeh policy aapki website ke Return Policy page aur har product page par show hoti hai.</p>
                             </div>
                         </div>
-                        <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                            Markaz-Style 7-Day Standard
-                        </span>
+                        <div className="flex items-center gap-2.5 shrink-0">
+                            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                                Markaz-Style 7-Day Standard
+                            </span>
+                            <Button 
+                                type="button" 
+                                size="sm" 
+                                variant="secondary"
+                                onClick={() => handleSyncSection('policy', 'Return Policy', {
+                                    globalReturnPolicy: formData.globalReturnPolicy
+                                })}
+                                disabled={isSaving || activeSyncSection === 'policy'}
+                                className="text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 flex items-center gap-1.5 shrink-0"
+                            >
+                                {activeSyncSection === 'policy' ? <Spinner size="sm" /> : <Icons.cloud className="w-3.5 h-3.5 text-emerald-600" />}
+                                <span>Save Policy to Firestore</span>
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="space-y-3">
@@ -656,8 +992,30 @@ const Settings = () => {
                 </div>
 
                 <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h2 className="text-xl font-bold mb-4">Community Links</h2>
-                    <p className="text-sm text-gray-500 mb-4">Add links to your social media channels. They will appear on the "Join Community" page. Leave blank to hide.</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-4 border-b border-gray-100 gap-2">
+                        <div>
+                            <h2 className="text-xl font-bold">Community Links</h2>
+                            <p className="text-sm text-gray-500">Add links to your social media channels. They will appear on the "Join Community" page. Leave blank to hide.</p>
+                        </div>
+                        <Button 
+                            type="button" 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={() => handleSyncSection('contact', 'Community Links', {
+                                whatsappGroupUrl: formData.whatsappGroupUrl,
+                                whatsappChannelUrl: formData.whatsappChannelUrl,
+                                telegramChannelUrl: formData.telegramChannelUrl,
+                                youtubeChannelUrl: formData.youtubeChannelUrl,
+                                instagramChannelUrl: formData.instagramChannelUrl,
+                                facebookPageUrl: formData.facebookPageUrl
+                            })}
+                            disabled={isSaving || activeSyncSection === 'contact'}
+                            className="text-xs font-bold px-3 py-1.5 rounded-xl border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+                        >
+                            {activeSyncSection === 'contact' ? <Spinner size="sm" /> : <Icons.cloud className="w-3.5 h-3.5 text-indigo-600" />}
+                            <span>Save Links to Firestore</span>
+                        </Button>
+                    </div>
                     <div className="grid md:grid-cols-2 gap-4">
                         <Input label="WhatsApp Group URL" value={formData.whatsappGroupUrl || ''} onChange={e => setFormData({...formData, whatsappGroupUrl: e.target.value})} />
                         <Input label="WhatsApp Channel URL" value={formData.whatsappChannelUrl || ''} onChange={e => setFormData({...formData, whatsappChannelUrl: e.target.value})} />
@@ -688,7 +1046,25 @@ const Settings = () => {
                      </Link>
                  </div>
                 <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h2 className="text-xl font-bold mb-4">Payment Methods</h2>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-4 border-b border-gray-100 gap-2">
+                        <div>
+                            <h2 className="text-xl font-bold">Payment Methods</h2>
+                            <p className="text-xs text-gray-500">Configure checkout payment options (COD, EasyPaisa, JazzCash, Bank Transfer)</p>
+                        </div>
+                        <Button 
+                            type="button" 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={() => handleSyncSection('payment', 'Payment Methods', {
+                                paymentMethods: formData.paymentMethods
+                            })}
+                            disabled={isSaving || activeSyncSection === 'payment'}
+                            className="text-xs font-bold px-3 py-1.5 rounded-xl border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+                        >
+                            {activeSyncSection === 'payment' ? <Spinner size="sm" /> : <Icons.cloud className="w-3.5 h-3.5 text-amber-600" />}
+                            <span>Save Payments to Firestore</span>
+                        </Button>
+                    </div>
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 border p-4 rounded-md mb-4">
                         <Input value={paymentInput.name} onChange={e => setPaymentInput({...paymentInput, name: e.target.value})} placeholder="Method Name"/>
                         <Input value={paymentInput.details} onChange={e => setPaymentInput({...paymentInput, details: e.target.value})} placeholder="Details"/>
@@ -819,9 +1195,33 @@ const Settings = () => {
                         <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center gap-3">
                             <Button 
                                 type="button" 
+                                onClick={handleSaveEmailCredentials} 
+                                disabled={isSavingEmail}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm flex items-center gap-2 text-xs py-2.5 px-4 rounded-xl"
+                            >
+                                {isSavingEmail ? (
+                                    <>
+                                        <Spinner size="sm" />
+                                        <span>Saving Password...</span>
+                                    </>
+                                ) : emailSaveSuccess ? (
+                                    <>
+                                        <span>✅</span>
+                                        <span>Saved Successfully!</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Icons.save className="w-4 h-4" />
+                                        <span>Save Google Credentials</span>
+                                    </>
+                                )}
+                            </Button>
+
+                            <Button 
+                                type="button" 
                                 onClick={handleSendTestEmail} 
                                 disabled={isTestingEmail}
-                                className="bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600 shadow-sm"
+                                className="bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-600 hover:to-amber-600 shadow-sm text-xs py-2.5 px-4 rounded-xl"
                             >
                                 {isTestingEmail ? (
                                     <div className="flex items-center gap-2">

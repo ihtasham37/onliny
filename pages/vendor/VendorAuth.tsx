@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useStore } from '../../hooks/useStore';
 import { Button } from '../../components/ui/Button';
@@ -11,7 +10,8 @@ import { UserRole } from '../../types';
 
 const VendorAuth = () => {
   const { settings } = useStore();
-  const isVendorPortalEnabled = settings?.showVendorPortal !== false;
+  const location = useLocation();
+  const isVendorRegistrationAllowed = settings?.showVendorPortal !== false && (settings as any)?.allowVendorRegistration !== false;
 
   const [isLogin, setIsLogin] = useState(true);
   const [firstName, setFirstName] = useState('');
@@ -27,17 +27,23 @@ const VendorAuth = () => {
   const { login, vendorRegister, user, userData } = useAuth();
   const navigate = useNavigate();
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   useEffect(() => {
-    if (!isVendorPortalEnabled) {
+    // If registration is off, always force Login mode
+    if (!isVendorRegistrationAllowed) {
       setIsLogin(true);
+    } else if (location.pathname.includes('/register')) {
+      setIsLogin(false);
     }
-  }, [isVendorPortalEnabled]);
+  }, [isVendorRegistrationAllowed, location.pathname]);
 
   useEffect(() => {
     if (user && userData) {
       if (userData.role === UserRole.Vendor) {
           if (userData.status === 'active') {
-            navigate('/vendor');
+            navigate('/vendor', { replace: true });
           } else if (userData.status === 'suspended') {
             setError('Your business account has been suspended. Please contact the administrator for support.');
             setIsLoading(false);
@@ -45,7 +51,7 @@ const VendorAuth = () => {
               // Stay here and show pending UI
           }
       } else if (userData.role === UserRole.Admin) {
-          navigate('/admin');
+          navigate('/admin', { replace: true });
       }
     }
   }, [user, userData, navigate]);
@@ -55,6 +61,10 @@ const VendorAuth = () => {
     setError('');
     
     if (!isLogin) {
+        if (!isVendorRegistrationAllowed) {
+            setError('New vendor registration is currently closed by the administrator.');
+            return;
+        }
         if (password !== confirmPassword) {
             setError('Passwords do not match');
             return;
@@ -68,15 +78,15 @@ const VendorAuth = () => {
     setIsLoading(true);
     try {
       if (isLogin) {
-        await login(email, password);
+        await login(email.trim().toLowerCase(), password);
       } else {
-        await vendorRegister(email, password, shopName, firstName, lastName, whatsappNumber);
+        await vendorRegister(email.trim().toLowerCase(), password, shopName, firstName, lastName, whatsappNumber);
         setIsPendingApproval(true);
       }
     } catch (err: any) {
       const msg = err.message || 'Authentication failed.';
       if (msg.includes('auth/invalid-credential') || msg.includes('auth/user-not-found') || msg.includes('auth/wrong-password')) {
-          setError('Invalid email or password.');
+          setError('Invalid email or password. Please check your credentials.');
       } else {
           setError(msg);
       }
@@ -86,21 +96,23 @@ const VendorAuth = () => {
 
   if (isPendingApproval) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-rose-50/50 px-4">
+      <div className="flex items-center justify-center min-h-screen bg-rose-50/40 px-4">
         <div className="w-full max-w-md p-8 text-center bg-white rounded-3xl shadow-xl border border-rose-100">
-           <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600">
+           <div className="bg-amber-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-amber-600 shadow-xs">
                 <Icons.clock className="w-10 h-10" />
             </div>
           <h1 className="text-2xl font-bold text-gray-900 font-serif">Pending Approval</h1>
-          <p className="text-gray-600 mt-4">
+          <p className="text-gray-600 mt-4 text-sm">
             Your registration for <span className="font-bold text-rose-600">"{userData?.shopName || shopName}"</span> has been submitted.
           </p>
-          <p className="text-sm text-gray-500 mt-2">
-            The administrator will review your request shortly. You will be able to access your panel once approved.
+          <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+            The administrator will review your request shortly. You will be able to access your vendor panel once approved.
           </p>
           <div className="mt-8">
             <Link to="/">
-              <Button className="w-full bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white border-none">Back to Store</Button>
+              <Button className="w-full bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white border-none py-2.5 rounded-xl font-bold shadow-md shadow-rose-200">
+                Back to Store
+              </Button>
             </Link>
           </div>
         </div>
@@ -109,41 +121,46 @@ const VendorAuth = () => {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-rose-50/50 px-4 py-8">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-3xl shadow-xl border border-rose-100">
+    <div className="flex items-center justify-center min-h-screen bg-rose-50/40 px-4 py-8 selection:bg-rose-500 selection:text-white">
+      <div className="w-full max-w-md p-6 sm:p-8 space-y-6 bg-white rounded-3xl shadow-xl border border-rose-100">
         <div className="text-center">
-            <div className="bg-gradient-to-tr from-rose-500 to-amber-500 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-md shadow-rose-200">
-                <Icons.store className="w-9 h-9 text-white" />
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center mx-auto mb-3.5 shadow-md shadow-rose-200 p-1">
+                {settings?.logoUrl ? (
+                  <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-cover rounded-xl" />
+                ) : (
+                  <Icons.store className="w-9 h-9 text-white" />
+                )}
             </div>
-          <h1 className="text-3xl font-bold text-gray-900 font-serif">
-              {!isVendorPortalEnabled ? 'Admin / Staff Login' : (isLogin ? 'Business Login' : 'Start Your Business')}
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 font-serif">
+              {isLogin ? (settings?.appName ? `${settings.appName} Login` : 'Account Login') : 'Start Your Business'}
           </h1>
-          <p className="text-gray-500 mt-2 text-sm">
-              {!isVendorPortalEnabled ? 'Sign in to access store management' : (isLogin ? 'Sign in to manage your shop' : 'Create a vendor account to start selling')}
+          <p className="text-gray-500 mt-1 text-xs sm:text-sm">
+              {isLogin ? 'Sign in to access your Admin or Vendor Dashboard' : 'Create a vendor account to start selling'}
           </p>
         </div>
 
-        {isVendorPortalEnabled && (
+        {/* Tab Switcher: Only visible when Vendor Registration is enabled in Admin Settings */}
+        {isVendorRegistrationAllowed ? (
           <div className="flex bg-slate-100 p-1 rounded-xl">
               <button 
                   type="button"
-                  onClick={() => setIsLogin(true)}
-                  className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => { setIsLogin(true); setError(''); }}
+                  className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
-                  Login
+                  Sign In
               </button>
               <button 
                   type="button"
-                  onClick={() => setIsLogin(false)}
-                  className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${!isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => { setIsLogin(false); setError(''); }}
+                  className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${!isLogin ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
                   Register
               </button>
           </div>
-        )}
+        ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
+          {!isLogin && isVendorRegistrationAllowed && (
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <Input label="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} required />
@@ -168,41 +185,83 @@ const VendorAuth = () => {
               </>
           )}
           <Input 
-            label="Business Email" 
+            label="Email Address" 
             type="email" 
             value={email} 
             onChange={(e) => setEmail(e.target.value)} 
             required 
-            placeholder="vendor@myshop.com"
+            placeholder="your@email.com"
           />
-          <Input 
-            label="Password" 
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            required 
-            placeholder="••••••••"
-          />
-          {!isLogin && (
-              <Input 
-                label="Confirm Password" 
-                type="password" 
-                value={confirmPassword} 
-                onChange={(e) => setConfirmPassword(e.target.value)} 
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Password
+            </label>
+            <div className="relative">
+              <input 
+                type={showPassword ? 'text' : 'password'}
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
                 required 
                 placeholder="••••••••"
+                className="w-full px-3.5 py-2.5 bg-white border border-rose-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-rose-400 transition-all pr-10"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                tabIndex={-1}
+              >
+                {showPassword ? <Icons.eyeOff className="w-4 h-4" /> : <Icons.eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          {!isLogin && isVendorRegistrationAllowed && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <input 
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)} 
+                    required 
+                    placeholder="••••••••"
+                    className="w-full px-3.5 py-2.5 bg-white border border-rose-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-rose-400 transition-all pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? <Icons.eyeOff className="w-4 h-4" /> : <Icons.eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
           )}
-          {error && <p className="text-sm text-red-500 bg-red-50 p-2 rounded border border-red-100">{error}</p>}
-          <Button type="submit" className="w-full bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-medium py-3 rounded-xl border-none shadow-md shadow-rose-200" size="lg" disabled={isLoading}>
-            {isLoading ? <Spinner size="sm" /> : (isLogin ? 'Sign In' : 'Register Business')}
+          {error && <p className="text-xs text-rose-700 bg-rose-50 p-3 rounded-xl border border-rose-200 font-medium">⚠️ {error}</p>}
+          <Button 
+            type="submit" 
+            className="w-full bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold py-3 rounded-xl border-none shadow-md shadow-rose-200" 
+            size="lg" 
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2">
+                <Spinner size="sm" />
+                <span>Processing...</span>
+              </div>
+            ) : (
+              <span>{isLogin ? 'Sign In' : 'Register Business'}</span>
+            )}
           </Button>
         </form>
         
-         <div className="mt-4 pt-4 border-t flex flex-col gap-3">
-             <Link to="/" className="w-full">
-                <Button type="button" variant="secondary" className="w-full">
-                    Back to Store
+        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-2.5 text-center">
+            <Link to="/" className="w-full">
+                <Button type="button" variant="secondary" className="w-full text-xs font-semibold py-2">
+                    ← Back to Storefront (مرکزی اسٹور پر واپس جائیں)
                 </Button>
             </Link>
         </div>

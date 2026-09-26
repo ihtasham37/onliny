@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useStore } from '../hooks/useStore';
 import { Input } from '../components/ui/Input';
@@ -49,12 +49,12 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
     
         const origin = getBaseAppUrl(settings);
         const vendorData = order.vendorId ? vendorsMap?.[order.vendorId] : null;
-        const appName = order.storeName || vendorData?.shopName || settings?.appName || 'Zivio';
+        const appName = order.storeName || vendorData?.shopName || settings?.appName || 'onliny';
         const storeLogoUrl = order.storeLogoUrl || vendorData?.shopLogoUrl || settings?.logoUrl || '';
         const storeWebUrl = order.storeLink || (order.vendorId ? `${origin}/#/store/v/${encodeURIComponent(order.vendorId)}` : `${origin}/#/`);
         const receiptTypeLabel = order.sourceStoreType === 'vendor' ? 'Official Vendor Store Receipt' : order.sourceStoreType === 'category' ? 'Official Category Store Receipt' : 'Official Customer Order Receipt';
         const paymentMethodDisplay = order.paymentMethod?.toLowerCase() === 'cod' ? 'Cash on Delivery (COD)' : (order.paymentMethod || 'Cash on Delivery');
-        const trackingUrl = `${origin}/#/track-order?phone=${encodeURIComponent(order.customerPhone)}`;
+        const trackingUrl = `${origin}/#/track-order?phone=${encodeURIComponent(order.customerPhone)}${order.email ? `&email=${encodeURIComponent(order.email)}` : ''}`;
         const orderCustomId = getDisplayOrderId(order);
     
         const itemRows = order.items.map((item: any, idx: number) => {
@@ -101,7 +101,7 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
                             ${receiptTypeLabel}
                         </div>
                         <div style="font-size: 11px; color: #be185d; font-weight: 600; margin-top: 4px;">
-                            🌐 <a href="${storeWebUrl}" target="_blank" style="color: #be185d; text-decoration: underline;">${storeWebUrl}</a>
+                            🌐 <a href="${storeWebUrl}" target="_blank" style="color: #be185d; font-weight: 700; text-decoration: underline;">${appName}</a>
                         </div>
                     </td>
                     <td style="vertical-align: middle; text-align: right; width: 40%;">
@@ -144,7 +144,7 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
                     </tr>
                 </table>
             </div>
-    
+
             <!-- Items Table -->
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
                 <thead>
@@ -157,7 +157,7 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
                     ${itemRows}
                 </tbody>
             </table>
-            
+
             <!-- Totals Breakdown -->
             <div style="margin-left: auto; width: 100%; max-width: 320px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px;">
                 <table style="width: 100%; border-collapse: collapse;">
@@ -194,10 +194,10 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
                     Phone: <strong>${order.customerPhone}</strong>
                 </div>
             </div>
-            
+
             <div style="margin-top: 24px; text-align: center; color: #94a3b8; font-size: 11px; border-top: 1px dashed #e2e8f0; padding-top: 12px;">
                 <p style="margin: 0;">Thank you for shopping with <strong style="color: #64748b;">${appName}</strong>!</p>
-                <p style="margin: 4px 0 0 0;">If you have any questions, please contact our customer support.</p>
+                ${storeWhatsapp ? `<p style="margin: 4px 0 0 0;">Customer Support WhatsApp: <strong style="color: #047857;">${storeWhatsapp}</strong></p>` : '<p style="margin: 4px 0 0 0;">If you have any questions, contact us via WhatsApp or support channel.</p>'}
             </div>
         </div>
         `;
@@ -209,36 +209,37 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
     const storeDisplayLink = order.storeLink || (order.vendorId ? `#/store/v/${encodeURIComponent(order.vendorId)}` : '#/');
 
     return (
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
+        <div className="bg-white p-4 rounded-xl shadow-xs border border-rose-100 hover:border-rose-200 transition-all">
             <div className="flex justify-between items-start mb-2">
                 <div>
-                    <h3 className="font-bold text-lg">Your Order</h3>
+                    <h3 className="font-bold text-base sm:text-lg text-slate-900">Your Order</h3>
                     {order.storeName && (
                         <p className="text-xs text-rose-600 font-semibold mb-0.5">
                             Store: <a href={storeDisplayLink} className="underline">{order.storeName}</a>
                         </p>
                     )}
-                    <p className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</p>
+                    <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
-                <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
-                    order.status === OrderStatus.Delivered ? 'bg-green-100 text-green-800' :
-                    order.status === OrderStatus.Cancelled ? 'bg-red-100 text-red-800' :
-                    'bg-yellow-100 text-yellow-800'
+                <span className={`px-3 py-1 text-xs font-bold rounded-full ${
+                    order.status === OrderStatus.Delivered ? 'bg-emerald-100 text-emerald-800' :
+                    order.status === OrderStatus.Cancelled ? 'bg-rose-100 text-rose-800' :
+                    order.status === OrderStatus.Shipped ? 'bg-blue-100 text-blue-800' :
+                    'bg-amber-100 text-amber-800'
                 }`}>{order.status}</span>
             </div>
-            <div className="border-t pt-2 mt-2">
+            <div className="border-t border-slate-100 pt-2.5 mt-2 space-y-1">
                 {order.items.map(item => (
-                    <div key={generateCartItemKey(item)} className="flex justify-between text-sm py-1">
-                        <span>{item.name} x {item.quantity}</span>
-                        <span>{formatCurrency(item.price * item.quantity)}</span>
+                    <div key={generateCartItemKey(item)} className="flex justify-between text-xs sm:text-sm py-1">
+                        <span className="font-medium text-slate-800">{item.name} &times; {item.quantity}</span>
+                        <span className="font-semibold text-slate-900">{formatCurrency(item.price * item.quantity)}</span>
                     </div>
                 ))}
             </div>
-            <div className="border-t pt-2 mt-2 font-bold flex justify-between items-center">
-                <Button variant="outline" size="sm" onClick={handleDownloadCustomerReceipt} className="text-rose-600 border-rose-300 hover:bg-rose-50 font-medium">
-                    <Icons.download className="w-4 h-4 mr-2" /> Receipt
+            <div className="border-t border-slate-100 pt-3 mt-3 flex justify-between items-center">
+                <Button variant="outline" size="sm" onClick={handleDownloadCustomerReceipt} className="text-rose-600 border-rose-300 hover:bg-rose-50 font-semibold text-xs py-1.5 px-3">
+                    <Icons.download className="w-3.5 h-3.5 mr-1.5" /> Download Receipt
                 </Button>
-                <div>
+                <div className="text-sm font-bold text-rose-600">
                     Total: {formatCurrency(order.total)}
                 </div>
             </div>
@@ -247,14 +248,25 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
 };
 
 const TrackOrder = () => {
-    const { activeCustomer, customerOrders, trackWithEmailAndPhone, trackOrderById, customerLogout, isLoading: isContextLoading } = useStore();
+    const { activeCustomer, customerOrders, trackWithEmailAndPhone, customerLogout, isLoading: isContextLoading } = useStore();
     const location = useLocation();
-    const [trackMode, setTrackMode] = useState<'id' | 'phone'>('id');
-    const [orderId, setOrderId] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+
+    const refreshCustomerOrders = useCallback(async () => {
+        const targetPhone = activeCustomer?.phone || phone;
+        const targetEmail = activeCustomer?.email || email;
+        if (targetPhone || targetEmail) {
+            setIsLoading(true);
+            try {
+                await trackWithEmailAndPhone(targetEmail, targetPhone);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+    }, [activeCustomer, phone, email, trackWithEmailAndPhone]);
 
     useEffect(() => {
         try {
@@ -263,20 +275,17 @@ const TrackOrder = () => {
             const hashSearchIndex = hash.indexOf('?');
             const hashParams = hashSearchIndex !== -1 ? new URLSearchParams(hash.substring(hashSearchIndex)) : new URLSearchParams();
 
-            const queryOrderId = searchParams.get('id') || searchParams.get('orderId') || hashParams.get('id') || hashParams.get('orderId') || '';
             const queryPhone = searchParams.get('phone') || searchParams.get('track') || hashParams.get('phone') || hashParams.get('track') || '';
             const queryEmail = searchParams.get('email') || hashParams.get('email') || '';
 
-            if (queryOrderId) {
-                setOrderId(queryOrderId);
-                setTrackMode('id');
-                setIsLoading(true);
-                trackOrderById?.(queryOrderId).finally(() => setIsLoading(false));
-            } else if (queryPhone) {
-                setPhone(queryPhone);
+            if (queryPhone || queryEmail) {
+                if (queryPhone) setPhone(queryPhone);
                 if (queryEmail) setEmail(queryEmail);
-                setTrackMode('phone');
-                trackWithEmailAndPhone(queryEmail, queryPhone);
+                setIsLoading(true);
+                trackWithEmailAndPhone(queryEmail, queryPhone).finally(() => setIsLoading(false));
+            } else if (activeCustomer) {
+                // Auto-refresh orders if customer was already saved in localStorage
+                refreshCustomerOrders();
             }
         } catch (e) {}
     }, [location.search]);
@@ -284,23 +293,30 @@ const TrackOrder = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        const cleanPhone = phone.trim();
+        const cleanEmail = email.trim().toLowerCase();
+
+        if (!cleanPhone) {
+            setError('Phone number is required (فون نمبر لکھنا ضروری ہے).');
+            return;
+        }
+
+        if (!cleanEmail) {
+            setError('Email address is required (ای میل ایڈریس لکھنا ضروری ہے).');
+            return;
+        }
+
+        if (!/\S+@\S+\.\S+/.test(cleanEmail)) {
+            setError('Please enter a valid email address (درست ای میل درج کریں).');
+            return;
+        }
+
         setIsLoading(true);
         try {
-            if (trackMode === 'id') {
-                if (!orderId.trim()) {
-                    setError('Please enter your Order ID.');
-                    setIsLoading(false);
-                    return;
-                }
-                const found = await trackOrderById?.(orderId.trim());
-                if (!found) {
-                    setError('No order found with this Order ID. Please check the ID and try again.');
-                }
-            } else {
-                const success = await trackWithEmailAndPhone(email, phone);
-                if (!success) {
-                    setError('No orders found for this phone number. Please check your details and try again.');
-                }
+            const success = await trackWithEmailAndPhone(cleanEmail, cleanPhone);
+            if (!success) {
+                setError('No orders found for this Phone Number and Email. Please check your details and try again.');
             }
         } catch (err) {
             console.error("Tracking Error:", err);
@@ -310,29 +326,49 @@ const TrackOrder = () => {
         }
     };
 
-    if (activeCustomer) {
+    if (activeCustomer && customerOrders.length > 0) {
         return (
-            <div className="container mx-auto">
-                <div className="flex justify-between items-center mb-4">
+            <div className="container mx-auto px-2 sm:px-4 max-w-4xl py-4 space-y-6">
+                <div className="bg-white p-5 rounded-2xl shadow-xs border border-rose-100 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold">My Orders</h1>
-                        <p className="text-gray-600">Viewing orders for {activeCustomer.email}</p>
+                        <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <h1 className="text-2xl font-bold font-serif text-slate-900">Tracked Orders</h1>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">
+                            Showing orders for Phone: <strong>{activeCustomer.phone}</strong> {activeCustomer.email ? `| Email: ${activeCustomer.email}` : ''}
+                        </p>
                     </div>
-                    <Button variant="secondary" onClick={customerLogout}>
-                        Sign Out
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button 
+                            variant="secondary" 
+                            size="sm" 
+                            onClick={refreshCustomerOrders}
+                            disabled={isLoading || isContextLoading}
+                            className="text-xs font-semibold flex items-center gap-1.5"
+                        >
+                            {isLoading ? <Spinner size="sm" /> : <Icons.refresh className="w-3.5 h-3.5" />}
+                            <span>Refresh</span>
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={customerLogout}
+                            className="text-xs font-semibold text-rose-600 border-rose-200 hover:bg-rose-50"
+                        >
+                            Sign Out / Change
+                        </Button>
+                    </div>
                 </div>
-                {isContextLoading ? <Spinner/> : customerOrders.length > 0 ? (
+
+                {isContextLoading || isLoading ? (
+                    <div className="flex justify-center items-center py-20"><Spinner size="lg" /></div>
+                ) : (
                     <div className="space-y-4">
                         {customerOrders.map(order => <OrderItemCard key={order.id} order={order} />)}
                     </div>
-                ) : (
-                    <div className="text-center py-16 text-gray-500 bg-gray-50 rounded-lg">
-                        <Icons.package className="w-16 h-16 mx-auto mb-4" />
-                        <h3 className="text-xl font-semibold">No Orders Yet</h3>
-                        <p>You haven't placed any orders with this account.</p>
-                    </div>
                 )}
+
                 <div className="mt-8">
                     <DownloadAppBanner />
                 </div>
@@ -341,85 +377,70 @@ const TrackOrder = () => {
     }
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8">
-        <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-lg border border-rose-100">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 px-2 py-4">
+        <div className="w-full max-w-md p-6 sm:p-8 space-y-6 bg-white rounded-3xl shadow-xl border border-rose-100">
             <div className="text-center space-y-3">
-                <div className="inline-block p-4 bg-rose-100 rounded-full">
+                <div className="inline-block p-4 bg-gradient-to-tr from-rose-100 to-amber-100 rounded-2xl shadow-xs">
                     <Icons.search className="w-10 h-10 text-rose-600" />
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900 font-serif">Track Your Order</h1>
-                <p className="text-gray-500">Enter your order details to see its status.</p>
-            </div>
-
-            <div className="flex rounded-xl bg-gray-100 p-1">
-                <button
-                    type="button"
-                    onClick={() => { setTrackMode('id'); setError(''); }}
-                    className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
-                        trackMode === 'id'
-                            ? 'bg-white text-rose-600 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    Order ID
-                </button>
-                <button
-                    type="button"
-                    onClick={() => { setTrackMode('phone'); setError(''); }}
-                    className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
-                        trackMode === 'phone'
-                            ? 'bg-white text-rose-600 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    Phone & Email
-                </button>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 font-serif">Track Your Order</h1>
+                <p className="text-xs sm:text-sm text-gray-500 max-w-xs mx-auto">
+                    Enter your Phone Number and Email Address to track your order status live.
+                </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-                {trackMode === 'id' ? (
+                <div>
                     <Input
-                        label="Order ID / آرڈر نمبر"
-                        type="text"
-                        name="orderId"
-                        value={orderId}
-                        onChange={(e) => setOrderId(e.target.value)}
+                        label="Phone Number / فون نمبر *"
+                        type="tel"
+                        name="phone"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
                         required
-                        placeholder="e.g. ORD-1234 or Order ID"
+                        placeholder="03001234567"
                     />
-                ) : (
-                    <>
-                        <Input
-                            label="Phone Number / فون نمبر"
-                            type="tel"
-                            name="phone"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            required
-                            placeholder="03001234567"
-                        />
-                        <Input
-                            label="Email Address (Optional)"
-                            type="email"
-                            name="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="you@example.com"
-                        />
-                    </>
+                    <p className="text-[11px] text-gray-400 mt-1">Order place karte waqt diya gaya mobile number.</p>
+                </div>
+
+                <div>
+                    <Input
+                        label="Email Address / ای میل ایڈریس *"
+                        type="email"
+                        name="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        placeholder="you@example.com"
+                    />
+                    <p className="text-[11px] text-gray-400 mt-1">Aapka email address jis par order confirmation bheji gayi.</p>
+                </div>
+
+                {error && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium">
+                        ⚠️ {error}
+                    </div>
                 )}
-                {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+
                 <Button
                     type="submit"
                     variant="primary"
-                    className="w-full !py-3 !text-base bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 border-none shadow-md shadow-rose-200"
+                    className="w-full !py-3 !text-base bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 border-none shadow-md shadow-rose-200 font-bold rounded-xl"
                     size="lg"
                     disabled={isLoading}
                 >
-                    {isLoading ? <Spinner size="sm" /> : 'Find Order'}
+                    {isLoading ? (
+                        <div className="flex items-center justify-center gap-2">
+                            <Spinner size="sm" />
+                            <span>Tracking Order...</span>
+                        </div>
+                    ) : (
+                        <span>Track Order (آرڈر ٹریک کریں)</span>
+                    )}
                 </Button>
             </form>
         </div>
+
         <div className="w-full max-w-md">
             <DownloadAppBanner />
         </div>

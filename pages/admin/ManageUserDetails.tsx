@@ -1,9 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { collection, getDocs, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { db } from '../../firebase';
 import { useStore } from '../../hooks/useStore';
 import { Icons } from '../../components/icons/Icons';
 import { Button } from '../../components/ui/Button';
+import { Spinner } from '../../components/ui/Spinner';
 import { formatCurrency } from '../../utils/helpers';
 import { copyToClipboard as safeCopyToClipboard } from '../../utils/shareHelper';
+import { Order } from '../../types';
 
 export interface CustomerSummary {
   name: string;
@@ -13,28 +17,118 @@ export interface CustomerSummary {
   totalSpent: number;
   city: string;
   province: string;
+  customerAddress?: string;
+  landmark?: string;
   lastOrderDate: number;
   firstOrderDate: number;
   statusList: string[];
 }
 
 export const ManageUserDetails: React.FC = () => {
-  const { myOrders: orders, isLoading } = useStore();
+  const { myOrders: storeOrders, loadOrders } = useStore();
+  const [firestoreCustomers, setFirestoreCustomers] = useState<CustomerSummary[]>([]);
+  const [directOrders, setDirectOrders] = useState<Order[]>([]);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Group and aggregate unique customers from real order submissions
+  const fetchLiveCustomersAndOrders = useCallback(async () => {
+    setIsLoadingCustomers(true);
+    try {
+      // 1. Fetch from dedicated Firestore 'customers' collection
+      const custSnap = await getDocs(collection(db, 'customers'));
+      const fetchedCustList: CustomerSummary[] = [];
+      custSnap.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data) {
+          fetchedCustList.push({
+            name: (data.name || 'Customer').trim(),
+            email: (data.email || '').trim().toLowerCase(),
+            phone: (data.phone || docSnap.id || '').trim(),
+            ordersCount: Number(data.ordersCount) || 1,
+            totalSpent: Number(data.totalSpent) || 0,
+            city: (data.city || '').trim(),
+            province: (data.province || '').trim(),
+            customerAddress: (data.customerAddress || '').trim(),
+            landmark: (data.landmark || '').trim(),
+            lastOrderDate: Number(data.lastOrderDate) || Date.now(),
+            firstOrderDate: Number(data.firstOrderDate) || Date.now(),
+            statusList: Array.isArray(data.statusList) ? data.statusList : []
+          });
+        }
+      });
+      setFirestoreCustomers(fetchedCustList);
+
+      // 2. Fetch from Firestore 'orders' collection
+      const ordSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(200)));
+      const fetchedOrders = ordSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+      setDirectOrders(fetchedOrders);
+    } catch (err) {
+      console.warn("Fetch live customers error:", err);
+    } finally {
+      setIsLoadingCustomers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLiveCustomersAndOrders();
+    loadOrders?.();
+
+    // Listen to real-time customer collection updates
+    const unsubCust = onSnapshot(collection(db, 'customers'), (snapshot) => {
+      const liveCustList: CustomerSummary[] = [];
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data) {
+          liveCustList.push({
+            name: (data.name || 'Customer').trim(),
+            email: (data.email || '').trim().toLowerCase(),
+            phone: (data.phone || docSnap.id || '').trim(),
+            ordersCount: Number(data.ordersCount) || 1,
+            totalSpent: Number(data.totalSpent) || 0,
+            city: (data.city || '').trim(),
+            province: (data.province || '').trim(),
+            customerAddress: (data.customerAddress || '').trim(),
+            landmark: (data.landmark || '').trim(),
+            lastOrderDate: Number(data.lastOrderDate) || Date.now(),
+            firstOrderDate: Number(data.firstOrderDate) || Date.now(),
+            statusList: Array.isArray(data.statusList) ? data.statusList : []
+          });
+        }
+      });
+      if (liveCustList.length > 0) {
+        setFirestoreCustomers(liveCustList);
+      }
+      setIsLoadingCustomers(false);
+    }, (err) => {
+      console.warn("Real-time customers listener note:", err);
+    });
+
+    return () => {
+      unsubCust();
+    };
+  }, [fetchLiveCustomersAndOrders, loadOrders]);
+
+  // Merge direct Firestore customers collection with orders for 100% comprehensive customer detail collection
   const customers = useMemo(() => {
     const map: Record<string, CustomerSummary> = {};
 
-    orders.forEach(order => {
-      // Clean identifier: phone or email or name
+    // 1. Seed with Firestore customers collection
+    firestoreCustomers.forEach(cust => {
+      const key = (cust.phone || cust.email || cust.name).toLowerCase();
+      if (key) {
+        map[key] = { ...cust };
+      }
+    });
+
+    // 2. Aggregate / Merge with all orders (direct + context)
+    const allOrdersToProcess = directOrders.length > 0 ? directOrders : storeOrders;
+    allOrdersToProcess.forEach(order => {
       const phoneClean = (order.customerPhone || '').trim();
       const emailClean = (order.email || '').trim().toLowerCase();
-      const nameClean = (order.customerName || '').trim() || 'Anonymous Customer';
+      const nameClean = (order.customerName || '').trim() || 'Customer';
 
-      // Use normalized phone as primary key, fallback to email or name
-      const key = phoneClean || emailClean || nameClean.toLowerCase();
+      const key = (phoneClean || emailClean || nameClean).toLowerCase();
       if (!key) return;
 
       const orderAmount = Number(order.total) || 0;
@@ -49,26 +143,31 @@ export const ManageUserDetails: React.FC = () => {
           totalSpent: orderAmount,
           city: (order.city || '').trim(),
           province: (order.province || '').trim(),
+          customerAddress: (order.customerAddress || '').trim(),
+          landmark: (order.landmark || '').trim(),
           lastOrderDate: orderDate,
           firstOrderDate: orderDate,
           statusList: [order.status]
         };
       } else {
         const item = map[key];
-        item.ordersCount += 1;
-        item.totalSpent += orderAmount;
+        if (item.name === 'Customer' || item.name === 'Anonymous Customer') {
+          if (nameClean && nameClean !== 'Customer') item.name = nameClean;
+        }
         if (!item.email && emailClean) item.email = emailClean;
         if (!item.phone && phoneClean) item.phone = phoneClean;
         if (!item.city && order.city) item.city = order.city.trim();
         if (!item.province && order.province) item.province = order.province.trim();
+        if (!item.customerAddress && order.customerAddress) item.customerAddress = order.customerAddress.trim();
+        if (!item.landmark && order.landmark) item.landmark = order.landmark.trim();
         if (orderDate > item.lastOrderDate) {
           item.lastOrderDate = orderDate;
-          if (nameClean && nameClean !== 'Anonymous Customer') item.name = nameClean;
+          if (nameClean && nameClean !== 'Customer') item.name = nameClean;
         }
         if (orderDate < item.firstOrderDate) {
           item.firstOrderDate = orderDate;
         }
-        if (!item.statusList.includes(order.status)) {
+        if (order.status && !item.statusList.includes(order.status)) {
           item.statusList.push(order.status);
         }
       }
@@ -76,7 +175,7 @@ export const ManageUserDetails: React.FC = () => {
 
     // Sort by latest order date descending
     return Object.values(map).sort((a, b) => b.lastOrderDate - a.lastOrderDate);
-  }, [orders]);
+  }, [firestoreCustomers, directOrders, storeOrders]);
 
   const filteredCustomers = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -168,6 +267,14 @@ export const ManageUserDetails: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-3">
           <Button
+            onClick={fetchLiveCustomersAndOrders}
+            disabled={isLoadingCustomers}
+            className="bg-slate-800 hover:bg-slate-900 text-white shadow-xs flex items-center gap-2 text-xs sm:text-sm font-semibold px-3.5 py-2.5 rounded-xl transition-all"
+          >
+            {isLoadingCustomers ? <Spinner size="sm" /> : <Icons.refreshCw className="w-4 h-4" />}
+            <span>{isLoadingCustomers ? 'Fetching...' : 'Refresh Live'}</span>
+          </Button>
+          <Button
             onClick={handleDownloadCSV}
             disabled={customers.length === 0}
             className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs flex items-center gap-2 text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition-all"
@@ -186,10 +293,12 @@ export const ManageUserDetails: React.FC = () => {
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
           <span className="text-xs text-slate-500 font-medium">Total Orders Placed</span>
-          <p className="text-2xl font-black text-rose-600 font-serif mt-1">{orders.length}</p>
+          <p className="text-2xl font-black text-rose-600 font-serif mt-1">
+            {customers.reduce((acc, curr) => acc + curr.ordersCount, 0)}
+          </p>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-          <span className="text-xs text-slate-500 font-medium">Lifetime Order Value</span>
+          <span className="text-xs text-slate-500 font-medium">Lifetime Customer Value</span>
           <p className="text-2xl font-black text-amber-600 font-serif mt-1">
             {formatCurrency(customers.reduce((acc, curr) => acc + curr.totalSpent, 0))}
           </p>

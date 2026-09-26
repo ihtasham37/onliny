@@ -32,8 +32,7 @@ const MorePage = () => {
     const mainListItems = [
         { label: 'Join Our Community', href: '/community', icon: Icons.users, isExternal: false, show: (settings?.showJoinCommunity ?? true) && !!hasCommunityLinks },
         { label: 'Blog & Updates', href: '/blog', icon: Icons.star, isExternal: false, show: settings?.showLatestUpdates ?? true },
-        { label: 'Business / Vendor Portal', href: '/vendor/login', icon: Icons.store, isExternal: false, show: settings?.showVendorPortal ?? true },
-        { label: 'Admin Login', href: '/admin/login', icon: Icons.user, isExternal: false },
+        { label: 'Login', href: '/login', icon: Icons.user, isExternal: false },
         { label: 'Contact on WhatsApp', href: whatsappLink, icon: Icons.whatsapp, isExternal: true, show: (settings?.showContactWhatsapp ?? true) && !!whatsappLink },
         { label: 'Contact by Email', href: emailLink, icon: Icons.envelope, isExternal: true, show: (settings?.showContactEmail ?? true) && !!emailLink },
     ].filter(item => item.show !== false);
@@ -57,14 +56,16 @@ const MorePage = () => {
                             className="w-full h-full object-cover rounded-full bg-white aspect-square" 
                         />
                     ) : (
-                        <div className="text-2xl font-extrabold font-serif text-white">
-                            {settings?.appName?.[0] || '✨'}
-                        </div>
+                        <img 
+                            src="/default-logo.svg" 
+                            alt={settings?.appName || 'App Logo'} 
+                            className="w-full h-full object-contain p-1 rounded-full bg-white aspect-square" 
+                        />
                     )}
                 </div>
                 <div className="min-w-0">
                     <h2 className="text-xl font-bold font-serif truncate leading-tight">
-                        {settings?.appName || 'Zivio'}
+                        {settings?.appName || 'onliny'}
                     </h2>
                     <p className="text-xs text-rose-100/90 font-medium mt-0.5">
                         Official Mobile App & Store

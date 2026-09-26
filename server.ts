@@ -95,7 +95,8 @@ const app = express();
 const PORT = 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Set up Multer for temporary storage
 const uploadDir = (process.env.VERCEL || process.env.NETLIFY) ? "/tmp" : path.resolve("uploads");
@@ -196,6 +197,23 @@ function saveStoredEmailSettings(creds: Record<string, any>) {
 }
 
 // API Route for Admin to Save Email Credentials strictly on Server
+app.get("/api/get-email-settings", (req, res) => {
+  try {
+    const stored = getStoredEmailSettings();
+    res.json({
+      success: true,
+      settings: {
+        gmailUser: stored.gmailUser || process.env.GMAIL_USER || '',
+        gmailAppPassword: stored.gmailAppPassword || process.env.GMAIL_APP_PASSWORD || '',
+        adminNotificationEmail: stored.adminNotificationEmail || process.env.ADMIN_NOTIFICATION_EMAIL || '',
+        appName: stored.appName || 'onliny'
+      }
+    });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e?.message || "Failed to get email settings" });
+  }
+});
+
 app.post("/api/save-email-settings", (req, res) => {
   try {
     const { gmailUser, gmailAppPassword, adminNotificationEmail, appName } = req.body;
@@ -203,7 +221,7 @@ app.post("/api/save-email-settings", (req, res) => {
     if (gmailUser !== undefined) toSave.gmailUser = String(gmailUser).trim();
     if (gmailAppPassword !== undefined) toSave.gmailAppPassword = String(gmailAppPassword).trim();
     if (adminNotificationEmail !== undefined) toSave.adminNotificationEmail = String(adminNotificationEmail).trim();
-    if (appName !== undefined) toSave.appName = String(appName).trim();
+    if (appName !== undefined) toSave.appName = String(appName).trim() || 'onliny';
 
     saveStoredEmailSettings(toSave);
     res.json({ success: true, message: "Email settings saved securely on server." });
@@ -228,7 +246,7 @@ app.post("/api/send-order-email", async (req, res) => {
       gmailUser: (credentials?.gmailUser || stored.gmailUser || process.env.GMAIL_USER || '').trim(),
       gmailAppPassword: (credentials?.gmailAppPassword || stored.gmailAppPassword || process.env.GMAIL_APP_PASSWORD || '').trim(),
       adminNotificationEmail: (credentials?.adminNotificationEmail || stored.adminNotificationEmail || process.env.ADMIN_NOTIFICATION_EMAIL || '').trim(),
-      appName: credentials?.appName || stored.appName || 'Zivio Store',
+      appName: credentials?.appName || stored.appName || 'onliny',
     };
 
     const result = await sendOrderNotificationEmail(order, effectiveCredentials);
@@ -662,7 +680,7 @@ async function parseProductUrl(url: string): Promise<{
 }> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const resp = await fetch(url, {
       signal: controller.signal,
       headers: {
@@ -685,15 +703,23 @@ async function parseProductUrl(url: string): Promise<{
     let sku: string | null = null;
     let deliveryTime: string | null = null;
     let shippingFee: number | null = null;
+    const primaryImages: Set<string> = new Set();
     const imageUrls: Set<string> = new Set();
     const extractedSizes: Set<string> = new Set();
+    const extractedColors: Set<string> = new Set();
+    const extractedDesigns: Set<string> = new Set();
 
     // Helper to sanitize and normalize image URL to full resolution
-    const addCleanImageUrl = (rawUrl: string) => {
+    const addCleanImageUrl = (rawUrl: string, isPrimary = false) => {
       if (!rawUrl || typeof rawUrl !== 'string') return;
       let clean = rawUrl.replace(/&amp;/g, '&').trim();
       
-      // Handle Markaz / API image proxies: /api/img?url=https%3A%2F%2F...
+      const lower = clean.toLowerCase();
+      if (lower.includes('logo') || lower.includes('favicon') || lower.includes('avatar') || lower.includes('icon') || lower.includes('badge')) {
+        return;
+      }
+
+      // Handle Markaz / API image proxies
       if (clean.includes('/api/img?url=')) {
         try {
           const match = clean.match(/url=([^&]+)/);
@@ -709,11 +735,209 @@ async function parseProductUrl(url: string): Promise<{
       }
 
       if (clean.startsWith('http://') || clean.startsWith('https://')) {
+        if (isPrimary) {
+          primaryImages.add(clean);
+        }
         imageUrls.add(clean);
       }
     };
 
-    // 1. JSON-LD Schema.org parsing (Markaz, Daraz, Shopify, Next.js stores)
+    // Known color lists and regex for advanced Color category extraction
+    const KNOWN_COLORS = [
+      "Black", "White", "Red", "Blue", "Navy Blue", "Navy", "Royal Blue", "Sky Blue", "Baby Blue", "Ice Blue",
+      "Pink", "Baby Pink", "Rose", "Hot Pink", "Dusty Pink", "Blush Pink",
+      "Green", "Dark Green", "Olive Green", "Olive", "Mint Green", "Mint", "Bottle Green", "Sea Green",
+      "Yellow", "Mustard", "Lemon Yellow", "Orange", "Peach", "Rust",
+      "Purple", "Lavender", "Lilac", "Violet", "Plum", "Magenta",
+      "Maroon", "Burgundy", "Wine",
+      "Brown", "Chocolate", "Coffee", "Beige", "Cream", "Off White", "Off-White", "Skin", "Khaki", "Camel",
+      "Grey", "Gray", "Light Gray", "Light Grey", "Dark Gray", "Dark Grey", "Charcoal", "Ash Gray",
+      "Silver", "Gold", "Golden", "Copper", "Bronze", "Teal", "Turquoise", "Cyan", "Coral", "Emerald",
+      "Multicolour", "Multi-Color", "Multi Color", "Multi", "Printed", "Floral"
+    ];
+    const COLOR_SET = new Set(KNOWN_COLORS.map(c => c.toLowerCase()));
+
+    const isRecognizedColor = (val: string): boolean => {
+      if (!val || typeof val !== 'string') return false;
+      const clean = val.trim().toLowerCase();
+      if (COLOR_SET.has(clean)) return true;
+      if (/^(?:dark|light|deep|bright|pale|neon|pastel|soft)\s+[a-z]+$/i.test(clean)) return true;
+      return false;
+    };
+
+    const normalizeColor = (val: string): string => {
+      const clean = val.trim();
+      return clean.replace(/\b\w/g, l => l.toUpperCase());
+    };
+
+    const isStandardSize = (val: string): boolean => {
+      if (!val || typeof val !== 'string') return false;
+      const s = val.trim();
+      if (/^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|6XL|Small|Medium|Large|Extra Large|Free Size|Standard|Unstitched|Stitched)$/i.test(s)) return true;
+      if (/^\d+\s*cm$/i.test(s)) return true;
+      if (/^\d+\s*inch(?:es)?$/i.test(s)) return true;
+      if (/^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)$/i.test(s)) return true;
+      if (/^(?:3[4-9]|4[0-8]|5|6|7|8|9|10|11|12)(?:\s*(?:UK|US|EU|CM))?$/i.test(s)) return true;
+      return false;
+    };
+
+    const isValidSizeValue = (str: string): boolean => {
+      if (!str || typeof str !== 'string') return false;
+      const s = str.trim();
+      if (s.length === 0 || s.length > 50) return false;
+      if (/^(?:Add to cart|Buy now|Reviews|Description|Share|View details|Features|Specifications|Quantity|Price|RS|PKR|Sale|Sold Out)$/i.test(s)) return false;
+      if (isRecognizedColor(s)) return true;
+      if (/^\d+\s*cm(?:-[A-Za-z0-9\s()_-]+)?$/i.test(s)) return true;
+      if (/^\d+\s*inch(?:es)?(?:-[A-Za-z0-9\s()_-]+)?$/i.test(s)) return true;
+      if (/^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)(?:\s*\([^)]+\))?$/i.test(s)) return true;
+      if (/^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|6XL|Small|Medium|Large|Extra Large|Free Size|Standard|Unstitched|Stitched)(?:\s*[-_/][A-Za-z0-9\s()_-]+|\s*\([^)]+\))?$/i.test(s)) return true;
+      if (/^(?:3[4-9]|4[0-8]|5|6|7|8|9|10|11|12)(?:\s*(?:UK|US|EU|CM))?$/i.test(s)) return true;
+      if (/^(?:1 Piece|2 Piece|3 Piece|2 PC|3 PC|Single|Pair|Set of \d+|Pack of \d+)$/i.test(s)) return true;
+      if (/^\d+(?:\.\d+)?\s*(?:ml|gm|g|kg|meter|yards?)$/i.test(s)) return true;
+      return false;
+    };
+
+    const decomposeVariantToken = (
+      rawToken: string,
+      outSizes: Set<string>,
+      outColors: Set<string>,
+      outDesigns: Set<string>
+    ) => {
+      if (!rawToken || typeof rawToken !== 'string') return;
+      const token = rawToken.trim();
+      if (!token || token.length > 80) return;
+
+      if (/^(?:Add to cart|Buy now|Reviews|Description|Share|View details|Features|Specifications|Quantity|Price|RS|PKR|Sale|Sold Out)$/i.test(token)) return;
+
+      // Direct color
+      if (isRecognizedColor(token)) {
+        outColors.add(normalizeColor(token));
+        return;
+      }
+
+      // Direct standard size
+      if (isStandardSize(token)) {
+        outSizes.add(token.toUpperCase());
+        return;
+      }
+
+      // Protect range numbers like 2-3 Years or 80-90cm
+      const protectedStr = token.replace(/(\d+)\s*-\s*(\d+)/g, '$1~TO~$2');
+      // Split on punctuation: #, /, |, _, :, +, ,, or -
+      const parts = protectedStr
+        .split(/\s*[\/#|:+,_]\s*|\s+-\s*|\s*-(?=[A-Za-z0-9])/)
+        .map(p => p.replace(/~TO~/g, '-').trim())
+        .filter(Boolean);
+
+      if (parts.length >= 2) {
+        for (const part of parts) {
+          if (isRecognizedColor(part)) {
+            outColors.add(normalizeColor(part));
+          } else if (isStandardSize(part)) {
+            outSizes.add(part.toUpperCase());
+          } else if (/^\d+\s*cm$/i.test(part) || /^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)$/i.test(part)) {
+            outSizes.add(part);
+          } else if (part.length >= 2 && part.length <= 40 && !/^(?:RS|PKR|\d+)$/i.test(part)) {
+            outDesigns.add(normalizeColor(part));
+          }
+        }
+        return;
+      }
+
+      if (isValidSizeValue(token)) {
+        outSizes.add(token);
+      }
+    };
+
+    // Recursive JSON product scanner for Next.js / Markaz / React Query
+    const findProductInObject = (obj: any, depth = 0): any | null => {
+      if (!obj || typeof obj !== 'object' || depth > 6) return null;
+      if ((obj.title || obj.name || obj.product_name) && (obj.id || obj.product_id || obj.wholesale_price || obj.sale_price || obj.price || obj.images || obj.product_images)) {
+        return obj;
+      }
+      for (const k of Object.keys(obj)) {
+        if (k === 'config' || k === 'headers') continue;
+        const found = findProductInObject(obj[k], depth + 1);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    // 1b. Extract Product ID / SKU from URL path (e.g. Markaz /product/slug/761725 or Daraz /products/i12345.html)
+    const markazPathIdMatch = url.match(/\/product\/[^\/]+\/([A-Za-z0-9_\-]+)/i) || url.match(/\/i?(\d{4,12})(?:\.html|\?|#|$)/i);
+    if (markazPathIdMatch && markazPathIdMatch[1]) {
+      sku = markazPathIdMatch[1];
+    }
+
+    // Fallback title from URL slug (highly reliable for Markaz/Daraz)
+    if (!title) {
+      const slugMatch = url.match(/\/product\/([^\/?#]+)/i) || url.match(/\/p\/([^\/?#]+)/i);
+      if (slugMatch && slugMatch[1]) {
+        title = slugMatch[1].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        // Remove ID if it's at the end of slug
+        title = title.replace(/\s+\d+$/, '').trim();
+      }
+    }
+
+    // 1c. Next.js __NEXT_DATA__ script block parsing (Markaz, Daraz, Shopify, Next.js e-commerce)
+    const nextDataMatch = html.match(/<script\s+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i);
+    if (nextDataMatch && nextDataMatch[1]) {
+      try {
+        const nextJson = JSON.parse(nextDataMatch[1]);
+        const pObj = findProductInObject(nextJson);
+
+        if (pObj) {
+          if ((!title || title === "Imported Product") && (pObj.title || pObj.name || pObj.product_name || pObj.item_name)) {
+            title = pObj.title || pObj.name || pObj.product_name || pObj.item_name;
+          }
+          if (!description && (pObj.description || pObj.details || pObj.summary || pObj.product_details)) {
+            description = pObj.description || pObj.details || pObj.summary || pObj.product_details;
+          }
+          if (!sku && (pObj.id || pObj.product_id || pObj.sku || pObj.code || pObj.custom_id || pObj.product_code)) {
+            sku = String(pObj.id || pObj.product_id || pObj.sku || pObj.code || pObj.custom_id || pObj.product_code);
+          }
+          if (price === null) {
+            price = pObj.wholesale_price || pObj.sale_price || pObj.price || pObj.retail_price || pObj.min_price || pObj.max_price || pObj.wholesalePrice || pObj.salePrice || null;
+          }
+          if (!category && (pObj.category || pObj.category_name || pObj.cat_name)) {
+            category = typeof pObj.category === 'string' ? pObj.category : (pObj.category?.name || pObj.category_name || pObj.cat_name);
+          }
+
+          // Images array in Next.js pageProps
+          const rawImgs = pObj.images || pObj.product_images || pObj.media || pObj.photos || pObj.gallery || pObj.image_list || [];
+          if (Array.isArray(rawImgs)) {
+            rawImgs.forEach((imgItem: any) => {
+              const imgUrl = typeof imgItem === 'string' ? imgItem : (imgItem?.url || imgItem?.src || imgItem?.image_url || imgItem?.full_url || imgItem?.original);
+              if (imgUrl) addCleanImageUrl(imgUrl);
+            });
+          }
+
+          // Variants / Sizes / Colors
+          const rawVariants = pObj.variants || pObj.options || pObj.attributes || pObj.sizes || pObj.colors || pObj.product_variants || [];
+          if (Array.isArray(rawVariants)) {
+            rawVariants.forEach((v: any) => {
+              const vName = typeof v === 'string' ? v : (v.name || v.value || v.title || v.size || v.color || v.attribute_value || v.label);
+              if (vName && typeof vName === 'string') {
+                if (isRecognizedColor(vName)) extractedColors.add(vName.charAt(0).toUpperCase() + vName.slice(1));
+                else if (isValidSizeValue(vName)) extractedSizes.add(vName);
+              }
+            });
+          }
+        }
+      } catch (err) {}
+    }
+
+    // 1d. Aggressive Image Scanning
+    const allImgMatches = [...html.matchAll(/(?:src|data-src|data-lazy-src|data-original|data-zoom|image|url)["']\s*[:=]\s*["'](https?:\/\/[^\s"']+\.(?:jpg|jpeg|png|webp|gif))["']/gi)];
+    for (const im of allImgMatches) {
+      addCleanImageUrl(im[1]);
+    }
+    const directUrlMatches = [...html.matchAll(/https?:\/\/[^\s"']+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s"']*)?/gi)];
+    for (const dm of directUrlMatches) {
+      if (dm[0].includes('products') || dm[0].includes('item') || dm[0].includes('static')) {
+        addCleanImageUrl(dm[0]);
+      }
+    }
     const jsonLdMatches = html.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
     if (jsonLdMatches) {
       for (const block of jsonLdMatches) {
@@ -734,12 +958,12 @@ async function parseProductUrl(url: string): Promise<{
                 if (Array.isArray(item.image)) {
                   item.image.forEach((img: any) => {
                     const u = typeof img === "string" ? img : img?.url;
-                    if (u && typeof u === "string") addCleanImageUrl(u);
+                    if (u && typeof u === "string") addCleanImageUrl(u, true);
                   });
                 } else if (typeof item.image === "string") {
-                  addCleanImageUrl(item.image);
+                  addCleanImageUrl(item.image, true);
                 } else if (item.image?.url) {
-                  addCleanImageUrl(item.image.url);
+                  addCleanImageUrl(item.image.url, true);
                 }
               }
 
@@ -800,6 +1024,29 @@ async function parseProductUrl(url: string): Promise<{
     if (meta["og:image"]) addCleanImageUrl(meta["og:image"]);
     if (meta["twitter:image"]) addCleanImageUrl(meta["twitter:image"]);
 
+    // 3b. Extract Product ID / SKU from URL parameters or HTML meta
+    if (!sku) {
+      const urlSkuMatch = url.match(/[?&](?:productId|product_id|sku|item_id|itemId|code|id)=([A-Za-z0-9_\-]+)/i);
+      if (urlSkuMatch && urlSkuMatch[1]) {
+        sku = urlSkuMatch[1];
+      }
+    }
+    if (!sku) {
+      const htmlSkuMatch = html.match(/(?:Product\s*ID|Product\s*Code|SKU|Item\s*Code|Code|ID)\s*[:：\-#]?\s*([A-Za-z0-9_\-]+)/i)
+        || html.match(/"(?:sku|product_id|productId|productCode|customId)"\s*:\s*"([^"]+)"/i);
+      if (htmlSkuMatch && htmlSkuMatch[1]) {
+        sku = htmlSkuMatch[1].trim();
+      }
+    }
+
+    // 3c. Extract all <img> src, data-src, data-lazy-src, data-zoom-image
+    const imgMatches = [...html.matchAll(/<img[^>]+(?:src|data-src|data-lazy-src|data-original|data-zoom-image)=["']([^"']+)["']/gi)];
+    for (const im of imgMatches) {
+      if (im[1] && (im[1].startsWith('http://') || im[1].startsWith('https://'))) {
+        addCleanImageUrl(im[1]);
+      }
+    }
+
     // 3. Fallback Title extraction from <title> tag
     if (!title) {
       const titleTag = html.match(/<title[^>]*>([^<]+)<\/title>/i);
@@ -808,24 +1055,84 @@ async function parseProductUrl(url: string): Promise<{
       }
     }
 
-    // Clean brand suffixes like "– Markaz", "| Daraz.pk", etc.
+    // Final Title Cleanup
+    if (!title || title === "Imported Product") {
+      const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+      if (h1Match && h1Match[1]) {
+        const h1Title = h1Match[1].replace(/<[^>]+>/g, ' ').trim();
+        if (h1Title.length > 10) title = h1Title;
+      }
+    }
+
     if (title) {
       title = title
         .replace(/&amp;/g, "&")
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
-        .replace(/\s*–\s*Markaz.*$/i, "")
-        .replace(/\s*\|\s*Daraz.*$/i, "")
-        .replace(/\s*\|\s*Online.*$/i, "")
+        .replace(/\s*[–\-\|]\s*Markaz.*$/i, "")
+        .replace(/\s*[–\-\|]\s*Daraz.*$/i, "")
+        .replace(/\s*[–\-\|]\s*Online.*$/i, "")
         .trim();
     }
 
-    // 4. Fallback Price Extraction from HTML / text
+    // 4. Fallback Price Extraction from HTML / text / Markaz JSON keys
     if (price === null) {
-      const priceTagMatch = html.match(/(?:PKR|Rs\.?)\s*(?:<!-- -->\s*)*([0-9,]+(?:\.[0-9]{2})?)/i) 
-        || html.match(/(?:price|amount)["']?\s*:\s*["']?([0-9,]+(?:\.[0-9]{2})?)/i);
+      const priceTagMatch = html.match(/"(?:wholesale_price|wholesalePrice|sale_price|price|retail_price|amount|price_info)"\s*[:：]\s*"?([0-9,]+(?:\.[0-9]{2})?)"?/i)
+        || html.match(/(?:PKR|Rs\.?)\s*(?:<!-- -->\s*)*([0-9,]+(?:\.[0-9]{2})?)/i) 
+        || html.match(/(?:price|amount)["']?\s*[:：]\s*["']?([0-9,]+(?:\.[0-9]{2})?)/i);
       if (priceTagMatch && priceTagMatch[1]) {
         price = priceTagMatch[1].replace(/,/g, "");
+      }
+    }
+
+    // 4b. Direct Markaz & E-commerce Product Specs & Variant Parser (from li, dt/dd, specifications)
+    const specItems: { key: string; value: string }[] = [];
+    const markazLiMatches = [...html.matchAll(/<li>\s*([^:<]+?)\s*:\s*([^<]+?)\s*<\/li>/gi)];
+    for (const lm of markazLiMatches) {
+      const k = lm[1].replace(/&#x27;/g, "'").trim();
+      const v = lm[2].replace(/&#x27;/g, "'").trim();
+      specItems.push({ key: k, value: v });
+    }
+    const markazDtMatches = [...html.matchAll(/<dt[^>]*>\s*([^<]+?)\s*<\/dt>\s*<dd[^>]*>\s*([^<]+?)\s*<\/dd>/gi)];
+    for (const dm of markazDtMatches) {
+      const k = dm[1].replace(/&#x27;/g, "'").trim();
+      const v = dm[2].replace(/&#x27;/g, "'").trim();
+      specItems.push({ key: k, value: v });
+    }
+
+    for (const spec of specItems) {
+      const kLower = spec.key.toLowerCase();
+      if (kLower.includes('size')) {
+        const parsedSizes = spec.value.split(/[,|\/\+]/).map(s => s.trim()).filter(Boolean);
+        for (const s of parsedSizes) {
+          if (isRecognizedColor(s)) {
+            extractedColors.add(s.charAt(0).toUpperCase() + s.slice(1));
+          } else if (isValidSizeValue(s) || s.length < 30) {
+            extractedSizes.add(s);
+          }
+        }
+      } else if (kLower.includes('color') || kLower.includes('colour')) {
+        const parsedColors = spec.value.split(/[,|\/\+]/).map(s => s.trim()).filter(Boolean);
+        for (const c of parsedColors) {
+          if (isRecognizedColor(c) || c.length < 25) {
+            extractedColors.add(c.charAt(0).toUpperCase() + c.slice(1));
+          }
+        }
+      } else if (kLower.includes('code') || kLower.includes('sku') || kLower.includes('id')) {
+        if (!sku) sku = spec.value.trim();
+      }
+    }
+
+    // Append Markaz specifications to description if available
+    if (specItems.length > 0) {
+      const formattedSpecs = specItems
+        .filter(s => !s.key.toLowerCase().includes('note'))
+        .map(s => `• ${s.key}: ${s.value}`)
+        .join('\n');
+      if (!description) {
+        description = formattedSpecs;
+      } else if (!description.includes(specItems[0].key)) {
+        description = `${description}\n\nProduct Details:\n${formattedSpecs}`;
       }
     }
 
@@ -838,41 +1145,22 @@ async function parseProductUrl(url: string): Promise<{
 
     let detectedCategoryName: string | null = null;
 
-    // Helper validator to test if a string represents a valid product size / variant option
-    const isValidSizeValue = (str: string): boolean => {
-      if (!str || typeof str !== 'string') return false;
-      const s = str.trim();
-      if (s.length === 0 || s.length > 50) return false;
-      if (/^(?:Add to cart|Buy now|Reviews|Description|Share|View details|Features|Specifications|Quantity|Price|RS|PKR|Sale|Sold Out)$/i.test(s)) return false;
-
-      // Height / Dimensions / Combined sizes (e.g. "80cm-Pink", "90cm-Pink (daddy)", "70cm", "100cm-Blue", "12-18M")
-      if (/^\d+\s*cm(?:-[A-Za-z0-9\s()_-]+)?$/i.test(s)) return true;
-      if (/^\d+\s*inch(?:es)?(?:-[A-Za-z0-9\s()_-]+)?$/i.test(s)) return true;
-      if (/^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)(?:\s*\([^)]+\))?$/i.test(s)) return true;
-      if (/^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Small|Medium|Large|Extra Large|Free Size|Standard|Unstitched|Stitched)(?:\s*\([^)]+\))?$/i.test(s)) return true;
-      if (/^(?:3[4-9]|4[0-8]|5|6|7|8|9|10|11|12)(?:\s*(?:UK|US|EU|CM))?$/i.test(s)) return true;
-      if (/^(?:1 Piece|2 Piece|3 Piece|2 PC|3 PC|Single|Pair|Set of \d+|Pack of \d+)$/i.test(s)) return true;
-      if (/^\d+(?:\.\d+)?\s*(?:ml|gm|g|kg|meter|yards?)$/i.test(s)) return true;
-      
-      return false;
-    };
-
-    // Look for explicit Size / Height / Color section headings: e.g. "Suitable for height-Color :", "Sizes:", "Age:"
-    const sizeHeadingMatches = [...rawText.matchAll(/(?:Suitable\s+for\s+(?:height|size)[-\s]*(?:Color|Colour)?|Available\s+Sizes?|Sizes?\s+Available|Sizes?|Age\s+Sizes?|Size\s+Range|Age|Shoe\s+Sizes?|Color\s*[-\s]*Size)\s*[:：\-]\s*([A-Za-z0-9\s,\-\/\.()]{2,150})/gi)];
-    for (const sm of sizeHeadingMatches) {
-      if (sm[0].toLowerCase().includes('height')) {
-        detectedCategoryName = "Suitable for height-Color";
-      } else if (sm[0].toLowerCase().includes('shoe')) {
+    // Advanced Regex for all variant headings (Size-Color, Color-Size, Sizes, Colors, etc.)
+    const variantHeadingMatches = [...rawText.matchAll(/(?:Size[-\s]*Color|Color[-\s]*Size|Suitable\s+for\s+(?:height|size)[-\s]*(?:Color|Colour)?|Available\s+Colors?|Colors?\s+Available|Colours?|Colors?|Available\s+Sizes?|Sizes?\s+Available|Sizes?|Age\s+Sizes?|Size\s+Range|Age|Shoe\s+Sizes?|Shoe\s+Size|Type|Rung)\s*[:：\-]\s*([A-Za-z0-9\s,\-\/\.()_#]{2,400})/gi)];
+    for (const vm of variantHeadingMatches) {
+      const headingLower = vm[0].toLowerCase();
+      if (headingLower.includes('height')) {
+        detectedCategoryName = "Suitable for height";
+      } else if (headingLower.includes('shoe')) {
         detectedCategoryName = "Shoe Size";
-      } else if (sm[0].toLowerCase().includes('age')) {
+      } else if (headingLower.includes('age')) {
         detectedCategoryName = "Age / Size";
       }
-      const chunk = sm[1];
-      const items = chunk.split(/[,|\/\n]/).map(s => s.trim()).filter(Boolean);
+
+      const chunk = vm[1];
+      const items = chunk.split(/[,|\/\n&]/).map(s => s.trim()).filter(Boolean);
       for (const it of items) {
-        if (isValidSizeValue(it)) {
-          extractedSizes.add(it);
-        }
+        decomposeVariantToken(it, extractedSizes, extractedColors, extractedDesigns);
       }
     }
 
@@ -884,127 +1172,94 @@ async function parseProductUrl(url: string): Promise<{
       for (const svm of sizeValMatches) {
         const vals = svm[1].replace(/"/g, '').split(',').map(s => s.trim()).filter(Boolean);
         vals.forEach(v => {
-          if (isValidSizeValue(v) || (v.length < 30 && !v.includes('{') && !v.includes('http'))) {
-            extractedSizes.add(v);
-          }
+          decomposeVariantToken(v, extractedSizes, extractedColors, extractedDesigns);
         });
       }
     }
 
-    // Direct JSON variation property matches: "size": "80cm-Pink", "variation": "90cm-Pink (daddy)"
-    const inlineSizeMatches = [...html.matchAll(/"(?:size|variation|variant_title|sku_property_name|option1|option2|prop_name)"\s*:\s*"([^"]+)"/gi)];
+    // Direct JSON variation property matches: "size": "80cm-Pink", "variation": "90cm-Pink (daddy)", "color": "Navy Blue"
+    const inlineSizeMatches = [...html.matchAll(/"(?:size|variation|variant_title|sku_property_name|option1|option2|prop_name|color|colour)"\s*:\s*"([^"]+)"/gi)];
     for (const sm of inlineSizeMatches) {
-      const val = sm[1].trim();
-      if (isValidSizeValue(val)) {
-        extractedSizes.add(val);
-      }
+      decomposeVariantToken(sm[1], extractedSizes, extractedColors, extractedDesigns);
     }
 
-    // Extract Product Sizes from interactive Buttons, Options, Pills, Spans, Labels on page
-    const interactiveMatches = [...html.matchAll(/<(?:button|span|div|a|li|option|label)[^>]+(?:class|id|data-testid|aria-label)*=["'][^"']*(?:size|variant|sku|option|pill|badge|radio|selector)[^"']*["'][^>]*>([\s\S]*?)<\/(?:button|span|div|a|li|option|label)>/gi)];
+    // Extract Product Sizes & Colors from interactive Buttons, Options, Pills, Spans, Labels on page
+    const interactiveMatches = [...html.matchAll(/<(?:button|span|div|a|li|option|label)[^>]+(?:class|id|data-testid|aria-label)*=["'][^"']*(?:size|variant|sku|option|pill|badge|radio|selector|color|colour)[^"']*["'][^>]*>([\s\S]*?)<\/(?:button|span|div|a|li|option|label)>/gi)];
     for (const bm of interactiveMatches) {
       const cleanTxt = bm[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      if (isValidSizeValue(cleanTxt)) {
-        extractedSizes.add(cleanTxt);
-      }
+      decomposeVariantToken(cleanTxt, extractedSizes, extractedColors, extractedDesigns);
     }
 
     // All standard buttons and labels
     const allButtons = [...html.matchAll(/<(?:button|label)[^>]*>([\s\S]*?)<\/(?:button|label)>/gi)];
     for (const bm of allButtons) {
       const cleanTxt = bm[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      if (isValidSizeValue(cleanTxt)) {
-        extractedSizes.add(cleanTxt);
-      }
+      decomposeVariantToken(cleanTxt, extractedSizes, extractedColors, extractedDesigns);
     }
 
     // Select option tags
     const optionMatches = [...html.matchAll(/<option[^>]*>([\s\S]*?)<\/option>/gi)];
     for (const om of optionMatches) {
       const cleanTxt = om[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      if (isValidSizeValue(cleanTxt)) {
-        extractedSizes.add(cleanTxt);
-      }
+      decomposeVariantToken(cleanTxt, extractedSizes, extractedColors, extractedDesigns);
     }
 
-    // 6. Slug & Product ID extraction for targeted product validation
-    const slugMatch = url.match(/\/product\/([a-zA-Z0-9_-]+)(?:\/(\d+))?/i);
-    const productId = slugMatch?.[2] || null;
-    if (slugMatch) {
-      if (!title && slugMatch[1]) {
-        title = slugMatch[1]
-          .split("-")
-          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" ");
-      }
-      if (!sku && slugMatch[2]) {
-        sku = `MKZ-${slugMatch[2]}`;
-      }
-    }
+    const SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', 'XXXL', '3XL', '4XL', '5XL', '6XL', 'FREE SIZE', 'STANDARD', 'UNSTITCHED'];
 
-    // 7. Fallback Image Scraping ONLY if no primary product images were found in JSON-LD or Meta tags
-    // Strict Filtering: Only include images that match this specific product ID/slug, ignoring recommendations/related products
-    if (imageUrls.size === 0) {
-      const imgMatches = [...html.matchAll(/<img[^>]+(?:src|data-src)=["']([^"']+)["']/gi)];
-      for (const match of imgMatches) {
-        const src = match[1];
-        if (src && typeof src === "string") {
-          // If product ID exists, ensure the image belongs strictly to this product
-          const matchesThisProduct = productId ? src.includes(productId) : true;
-          if (
-            matchesThisProduct &&
-            (src.includes("static.markaz.app/pakistan/products/") ||
-             src.includes("static.markaz.app/pakistan/thumbnails/products/") ||
-             src.includes("alicdn.com") ||
-             src.includes("daraz.pk") ||
-             src.includes("/products/") ||
-             src.includes("shopify.com")) &&
-            !src.includes("logo") &&
-            !src.includes("icon") &&
-            !src.includes("avatar")
-          ) {
-            addCleanImageUrl(src);
-          }
-        }
-      }
-    }
+    const sortSizes = (sizes: string[]): string[] => {
+      return [...sizes].sort((a, b) => {
+        const aIdx = SIZE_ORDER.indexOf(a.toUpperCase());
+        const bIdx = SIZE_ORDER.indexOf(b.toUpperCase());
+        if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+        if (aIdx !== -1) return -1;
+        if (bIdx !== -1) return 1;
+        const aNum = parseFloat(a);
+        const bNum = parseFloat(b);
+        if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+        return a.localeCompare(b);
+      });
+    };
 
-    // If product ID is known, ensure we clean out any stray logos or mismatched items
-    const filteredImages = Array.from(imageUrls).filter(img => {
-      if (img.includes("logo") || img.includes("icon") || img.includes("avatar") || img.includes("banner")) {
-        return false;
-      }
-      // If we have images matching the specific product ID, keep ONLY the product-specific ones
-      if (productId && Array.from(imageUrls).some(u => u.includes(productId))) {
-        return img.includes(productId);
-      }
-      return true;
-    });
-
-    // Group Extracted Sizes into Size Categories
-    let sizeList = Array.from(extractedSizes);
     let sizeCategories: { categoryName: string; sizes: string[] }[] = [];
 
-    if (sizeList.length > 0) {
+    // 1. Add Color Category if colors are found
+    if (extractedColors.size > 0) {
+      sizeCategories.push({
+        categoryName: "Color",
+        sizes: Array.from(extractedColors)
+      });
+    }
+
+    // 2. Add Size Category if sizes are found
+    if (extractedSizes.size > 0) {
+      const pureSizes = sortSizes(Array.from(extractedSizes));
       const finalCategoryName = detectedCategoryName || (
-        sizeList.some(s => /height|cm/i.test(s)) ? "Suitable for height-Color" :
-        sizeList.some(s => /Year|Yr|Month/i.test(s)) ? "Age / Size" :
-        sizeList.some(s => /^(?:3[4-9]|4[0-8])$/.test(s)) ? "Shoe Size" : "Size"
+        pureSizes.some(s => /height|cm/i.test(s)) ? "Suitable for height" :
+        pureSizes.some(s => /Year|Yr|Month/i.test(s)) ? "Age / Size" :
+        pureSizes.some(s => /^(?:3[4-9]|4[0-8])$/.test(s)) ? "Shoe Size" : "Size"
       );
 
-      sizeCategories = [
-        {
-          categoryName: finalCategoryName,
-          sizes: sizeList
-        }
-      ];
-    } else {
+      sizeCategories.push({
+        categoryName: finalCategoryName,
+        sizes: pureSizes
+      });
+    }
+
+    // 3. Add Design / Style Category if distinct styles are found
+    if (extractedDesigns.size > 0) {
+      sizeCategories.push({
+        categoryName: "Design / Style",
+        sizes: Array.from(extractedDesigns)
+      });
+    }
+
+    if (sizeCategories.length === 0) {
       // Check if product explicit type is mentioned in text
       const combinedText = `${title || ''} ${description || ''} ${category || ''} ${url}`.toLowerCase();
       if (/unstitched|un-stitched|3\s*pc|2\s*pc\s*suit|lawn\s*suit/.test(combinedText)) {
-        sizeCategories = [{ categoryName: "Type", sizes: ["Unstitched"] }];
+        sizeCategories.push({ categoryName: "Type", sizes: ["Unstitched"] });
       } else if (/free\s*size|standard\s*size/.test(combinedText)) {
-        sizeCategories = [{ categoryName: "Size", sizes: ["Free Size"] }];
+        sizeCategories.push({ categoryName: "Size", sizes: ["Free Size"] });
       }
     }
 
@@ -1017,13 +1272,17 @@ async function parseProductUrl(url: string): Promise<{
       .trim()
       .slice(0, 3000);
 
+    const finalImageUrls = primaryImages.size > 0 
+      ? Array.from(primaryImages) 
+      : Array.from(imageUrls);
+
     return {
       title,
       price,
       old_price: oldPrice,
       category,
       description,
-      image_urls: filteredImages.slice(0, 8),
+      image_urls: finalImageUrls.slice(0, 10),
       size_categories: sizeCategories,
       sku,
       delivery_time: deliveryTime,
@@ -1085,31 +1344,34 @@ app.post("/api/gemini/assistant", async (req, res) => {
 Analyze this product information extracted from a web link or store page.
 
 Product Title: "${productResult.title}"
-Current Sizes Found on Page: ${JSON.stringify(productResult.size_categories)}
+Current Variants/Sizes/Colors Found on Page: ${JSON.stringify(productResult.size_categories)}
 Raw Description / Page Content: "${productResult.description || parsedLinkData.raw_context || ''}"
 Category hint: "${productResult.category}"
+URL context: "${urlMatch[0]}"
 
 TASK:
-1. Clean and refine the product title.
+1. Clean and refine the product title. IF THE TITLE IS "Imported Product", YOU MUST GENERATE A NEW RELEVANT TITLE BASED ON THE DESCRIPTION OR URL SLUG.
 2. Clean and format the description into neat points.
 3. Detect the accurate category (e.g. Kids Clothing, Menswear, Womenswear, Shoes, Watches, Jewelry, Electronics).
-4. SIZES FIDELITY (MOST IMPORTANT):
-   - You MUST prioritize the exact sizes found on the original page or text.
-   - If the original product lists specific sizes (e.g., "1-2 Years", "2-3 Years", "3-4 Years", or "S", "M", "L", or shoe sizes "39", "40", "41", or "Unstitched", "Free Size"), extract EXACTLY those sizes and DO NOT invent or replace them with different sizes.
-   - If and only if the original page has NO size information at all and it's not a clothing/shoe item, leave size_categories as [].
+4. STRICT COLOR & SIZE CATEGORY SEPARATION:
+   - Extract only existing colors and sizes.
+   - Separate "Color" and "Size" into distinct objects in the size_categories array.
+   - For Markaz products, extract any color variants mentioned in the title or text.
 
 Return ONLY valid JSON matching this schema:
 {
   "title": "Clean concise product title",
   "price": ${productResult.price || "null"},
+  "sku": "${productResult.sku || "Product ID / Code if found"}",
   "category": "Clean category name",
   "description": "Clean bullet-pointed product description",
   "size_categories": [
     {
-      "categoryName": "Size or Age / Size or Shoe Size",
-      "sizes": ["1-2 Years", "2-3 Years"]
+      "categoryName": "Color or Size or Age / Size or Shoe Size",
+      "sizes": ["Option 1", "Option 2"]
     }
-  ]
+  ],
+  "image_urls": ${JSON.stringify(productResult.image_urls)}
 }`;
             const response = await callGeminiWithFallback(ai, {
               contents: prompt,
@@ -1122,6 +1384,18 @@ Return ONLY valid JSON matching this schema:
                 if (cleaned.title) productResult.title = cleaned.title;
                 if (cleaned.description) productResult.description = cleaned.description;
                 if (cleaned.category) productResult.category = cleaned.category;
+                if (cleaned.sku || cleaned.customId || cleaned.product_id) {
+                  productResult.sku = cleaned.sku || cleaned.customId || cleaned.product_id;
+                }
+                if (cleaned.price && !isNaN(parseFloat(String(cleaned.price)))) {
+                  productResult.price = parseFloat(String(cleaned.price).replace(/[^0-9.]/g, ""));
+                }
+                if (Array.isArray(cleaned.image_urls) && cleaned.image_urls.length > 0) {
+                  const validImgs = cleaned.image_urls.filter((u: any) => typeof u === "string" && u.startsWith("http"));
+                  if (validImgs.length > 0) {
+                    productResult.image_urls = [...new Set([...productResult.image_urls, ...validImgs])];
+                  }
+                }
                 if (Array.isArray(cleaned.size_categories) && cleaned.size_categories.length > 0) {
                   productResult.size_categories = cleaned.size_categories;
                 }
@@ -1150,6 +1424,29 @@ Your task is to handle TWO types of user inputs cleanly and accurately:
 TYPE 1: PRODUCT LINK / PRODUCT RAW TEXT INPUT (For Add-Product or Auto-Fill Feature)
 - If the user provides a product link, Markaz product link/text, or raw product text:
 - Extract all available details: product title, description, category, price, size_categories, and image URLs.
+- In size_categories, ALWAYS decompose combined variant codes into clean separate categories:
+  1. "Color": All unique extracted colors (e.g. ['Green', 'Pink', 'Black', 'Light Gray', 'White', 'Red', 'Blue'])
+  2. "Size" or "Age / Size" or "Suitable for height": All unique sizes (e.g. ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'])
+  3. "Design / Style": If the token contains design/style names (e.g. 'Rose Letters', 'Three Girls', 'Two Cats', 'Floral', 'Striped'), extract them under "Design / Style"
+- CRITICAL EXAMPLES OF VARIANT DECOMPOSITION:
+  Example A: "Size-Color: XL-ROSE LETTERS# GREEN, XXL-Three Girls# Green, XL-Three Girls# Green, L-Rose Letter# Pink, M-Two cats# Green, XXL-Two cats# Pink"
+  Must be decomposed into:
+  - "Color": ["Green", "Pink"]
+  - "Size": ["M", "L", "XL", "XXL"]
+  - "Design / Style": ["Rose Letters", "Three Girls", "Two Cats"]
+  
+  Example B: "Size-Color: XXL-Light gray, M-Red, S-Red, XXXL-Black, XXL-Black, XL-Black, L-Black, M-Black, S-Black, XXXL-Light gray, S-White, XL-Light gray, L-Light gray, M-Light gray, S-Light gray, XXXL-White, XXL-White, XL-White, L-White, M-White"
+  Must be decomposed into:
+  - "Color": ["Black", "Light Gray", "Red", "White"]
+  - "Size": ["S", "M", "L", "XL", "XXL", "XXXL"]
+
+  Example C: "Sizes: S, M, L, XL"
+  - "Size": ["S", "M", "L", "XL"]
+
+  Example D: "Available Colors: Red, Green, Blue"
+  - "Color": ["Blue", "Green", "Red"]
+
+- STRICT FIDELITY: Extract all real sizes, colors, and designs present on the source. Do not omit them or leave them unparsed.
 - Return ONLY a valid JSON object matching this structure (no extra markdown explanation):
 {
   "type": "product_extraction",
@@ -1160,8 +1457,16 @@ TYPE 1: PRODUCT LINK / PRODUCT RAW TEXT INPUT (For Add-Product or Auto-Fill Feat
     "description": "Short clean summary of the product",
     "size_categories": [
       {
+        "categoryName": "Color",
+        "sizes": ["Green", "Pink"]
+      },
+      {
         "categoryName": "Size",
-        "sizes": ["S", "M", "L", "XL"]
+        "sizes": ["M", "L", "XL", "XXL"]
+      },
+      {
+        "categoryName": "Design / Style",
+        "sizes": ["Rose Letters", "Three Girls", "Two Cats"]
       }
     ],
     "image_urls": ["URL 1", "URL 2"]
@@ -1206,7 +1511,63 @@ STRICT RULES:
       }
     }
 
-    // Heuristic Fallback
+    // Smart Heuristic Fallback (Extracts Title, Price, SKU/Product ID, Image URLs, Colors, and Sizes directly from raw text)
+    if (preferredType === "product_extraction" || urlMatch) {
+      const text = trimmedInput;
+      let cleanTitle = text.split('\n')[0].replace(/^https?:\/\/[^\s]+/i, '').trim() || "Imported Product";
+
+      // If title is weak and we have a URL, extract title from slug
+      if ((cleanTitle === "Imported Product" || cleanTitle.length < 5) && urlMatch) {
+        const slugMatch = urlMatch[0].match(/\/product\/([^\/?#]+)/i) || urlMatch[0].match(/\/p\/([^\/?#]+)/i);
+        if (slugMatch && slugMatch[1]) {
+          cleanTitle = slugMatch[1].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          cleanTitle = cleanTitle.replace(/\s+\d+$/, '').trim();
+        }
+      }
+
+      // Extract SKU / Product ID
+      const skuMatch = text.match(/(?:Product\s*ID|Product\s*Code|SKU|Item\s*Code|Code|ID)\s*[:：\-#]?\s*([A-Za-z0-9_\-]+)/i)
+        || text.match(/[?&](?:productId|product_id|sku|item_id|itemId|code|id)=([A-Za-z0-9_\-]+)/i);
+      const extractedSku = skuMatch ? skuMatch[1].trim() : null;
+
+      // Extract Price
+      const priceMatch = text.match(/(?:PKR|Rs\.?|Price)\s*[:：\-]?\s*([0-9,]+(?:\.[0-9]{2})?)/i);
+      const extractedPrice = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : null;
+
+      // Extract Image URLs
+      const extractedImages = [...new Set(text.match(/https?:\/\/[^\s"']+\.(?:jpg|jpeg|png|webp|gif|svg)(?:\?[^\s"']*)?/gi) || [])];
+
+      // Extract Colors
+      const KNOWN_COLORS = ["Black", "White", "Red", "Blue", "Navy Blue", "Pink", "Green", "Yellow", "Purple", "Maroon", "Brown", "Grey", "Gold", "Silver", "Orange", "Peach"];
+      const foundColors = KNOWN_COLORS.filter(c => new RegExp(`\\b${c}\\b`, 'i').test(text));
+
+      // Extract Sizes
+      const KNOWN_SIZES = ["XS", "Small", "Medium", "Large", "Extra Large", "S", "M", "L", "XL", "XXL", "Free Size", "Unstitched"];
+      const foundSizes = KNOWN_SIZES.filter(s => new RegExp(`\\b${s}\\b`, 'i').test(text));
+
+      const sizeCats: { categoryName: string; sizes: string[] }[] = [];
+      if (foundColors.length > 0) sizeCats.push({ categoryName: "Color", sizes: foundColors });
+      if (foundSizes.length > 0) sizeCats.push({ categoryName: "Size", sizes: foundSizes });
+
+      return res.json({
+        success: true,
+        data: {
+          type: "product_extraction",
+          product: {
+            title: cleanTitle,
+            price: extractedPrice,
+            sku: extractedSku,
+            category: "General",
+            description: text,
+            image_urls: extractedImages,
+            size_categories: sizeCats,
+            delivery_time: "Delivery in 3-5 Days",
+            shipping_fee: 0
+          }
+        }
+      });
+    }
+
     res.json({
       success: true,
       data: {
@@ -1227,7 +1588,9 @@ STRICT RULES:
 
 // Dynamic Sitemap Route
 app.get("/sitemap.xml", (req, res) => {
-  const baseUrl = process.env.SITE_URL || "https://zivio.pages.dev"; 
+  const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "https";
+  const host = req.get("host") || "localhost:3000";
+  const baseUrl = process.env.SITE_URL || `${proto}://${host}`; 
   const pages = ["", "/blog", "/categories", "/more", "/community"];
   
   let xml = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
@@ -1623,6 +1986,21 @@ app.get("/robots.txt", (req, res) => {
     return res.sendFile(robotsPath);
   }
   res.status(404).send("Robots.txt not found");
+});
+
+// Global Express Error Handler Middleware (gracefully handles PayloadTooLargeError & JSON syntax errors)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+    return res.status(413).json({
+      success: false,
+      error: "Payload too large. Please upload smaller images or reduce content size."
+    });
+  }
+  if (err && err instanceof SyntaxError && 'body' in err) {
+    return res.status(400).json({ success: false, error: "Invalid JSON format in request body." });
+  }
+  console.error("Unhandled Express Error:", err);
+  res.status(500).json({ success: false, error: err?.message || "Internal server error" });
 });
 
 async function startServer() {

@@ -21,6 +21,37 @@ export const safeLower = (value: string | undefined | null): string => {
   return "";
 };
 
+export const normalizeCategoryName = (val: string | undefined | null): string => {
+  if (!val || typeof val !== 'string') return '';
+  return val
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035']/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036"]/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+export const matchCategory = (
+  productCategory: string | undefined | null,
+  targetCategory: { id: string; name: string } | string | undefined | null
+): boolean => {
+  if (!productCategory || !targetCategory) return false;
+  const pNorm = normalizeCategoryName(productCategory);
+  if (typeof targetCategory === 'string') {
+    const tNorm = normalizeCategoryName(targetCategory);
+    return productCategory === targetCategory || pNorm === tNorm;
+  }
+  const idNorm = normalizeCategoryName(targetCategory.id);
+  const nameNorm = normalizeCategoryName(targetCategory.name);
+  return (
+    productCategory === targetCategory.id ||
+    productCategory === targetCategory.name ||
+    pNorm === idNorm ||
+    pNorm === nameNorm
+  );
+};
+
+
 export const normalizePhone = (phone: string): string => {
   if (typeof phone !== 'string') return '';
   // Remove all non-digit characters
@@ -32,28 +63,51 @@ export const normalizePhone = (phone: string): string => {
   return digits;
 };
 
-export const safeJsonStringify = (obj: any): string => {
+export const safeJsonStringify = (obj: any, indent?: number): string => {
+  if (obj === undefined) return '';
   try {
     const seen = new WeakSet();
     return JSON.stringify(obj, (key, value) => {
       if (typeof value === 'function' || typeof value === 'symbol') {
         return undefined;
       }
-      if (typeof window !== 'undefined' && (value instanceof Element || value instanceof Node || value instanceof Window)) {
-        return undefined;
+      if (typeof window !== 'undefined') {
+        if (value instanceof Element || value instanceof Node || value instanceof Window || value instanceof Event) {
+          return undefined;
+        }
+        if (typeof Image !== 'undefined' && value instanceof Image) {
+          return undefined;
+        }
       }
       if (typeof value === 'object' && value !== null) {
         if (seen.has(value)) {
-          return undefined; // Circular reference found, discard key
+          return undefined; // Break circular reference cleanly
         }
         seen.add(value);
       }
       return value;
-    });
+    }, indent);
   } catch (error) {
-    console.error("Error stringifying object:", error);
+    console.warn("safeJsonStringify encountered error, falling back to safe serialization:", error);
     try {
-      return String(obj);
+      // Fallback sanitizer
+      const seen = new WeakSet();
+      const clean = (val: any): any => {
+        if (val === null || val === undefined) return val;
+        if (typeof val !== 'object') return val;
+        if (seen.has(val)) return undefined;
+        seen.add(val);
+        if (Array.isArray(val)) return val.map(clean).filter(v => v !== undefined);
+        const res: Record<string, any> = {};
+        for (const k of Object.keys(val)) {
+          try {
+            const v = clean(val[k]);
+            if (v !== undefined) res[k] = v;
+          } catch (e) {}
+        }
+        return res;
+      };
+      return JSON.stringify(clean(obj), null, indent);
     } catch (e) {
       return "{}";
     }
@@ -120,8 +174,15 @@ export const getSelectedSizesEntries = (selectedSizes: any): [string, any][] => 
 };
 
 export const getBaseAppUrl = (settings?: any) => {
+  // Always use the active browser origin if available so receipt links (View Product, Track Order) always point to current app URL!
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    const origin = window.location.origin.replace(/\/+$/, '');
+    if (origin && !origin.includes('localhost:5173') && !origin.includes('zivio.pages.dev')) {
+      return origin;
+    }
+  }
   let rawDomain = settings?.storeDomain?.trim();
-  if (rawDomain) {
+  if (rawDomain && !rawDomain.toLowerCase().includes('zivio.pages.dev')) {
     rawDomain = rawDomain.replace(/\/+$/, '');
     if (!rawDomain.startsWith('http://') && !rawDomain.startsWith('https://')) {
       rawDomain = `https://${rawDomain}`;

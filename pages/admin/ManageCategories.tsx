@@ -6,7 +6,7 @@ import { Input } from '../../components/ui/Input';
 import { Spinner } from '../../components/ui/Spinner';
 import { Icons } from '../../components/icons/Icons';
 import { Category } from '../../types';
-import { safeLower } from '../../utils/helpers';
+import { safeLower, matchCategory } from '../../utils/helpers';
 import { EditCategoryModal } from '../../components/admin/EditCategoryModal';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
 import { MoveCopyCategoryModal } from '../../components/admin/MoveCopyCategoryModal';
@@ -37,31 +37,20 @@ const ManageCategories = () => {
     const categories = useMemo(() => (settings?.categories || []).filter(c => c && c.id && (!c.vendorId || c.vendorId === 'admin')), [settings]);
 
     const productCounts = useMemo(() => {
-        const counts: Record<string, number> = {};
-        products.forEach(p => {
-            counts[p.category] = (counts[p.category] || 0) + 1;
-        });
-
         const finalCounts: Record<string, number> = {};
         categories.forEach(cat => {
-             let total = 0;
-             const descendants = new Set<string>();
+             const targetCategories: { id: string; name: string }[] = [cat];
              const queue = [cat.id];
              while(queue.length > 0) {
                  const curr = queue.shift()!;
-                 descendants.add(curr);
-                 const currentCat = categories.find(c => c.id === curr);
-                 if (currentCat) {
-                     descendants.add(currentCat.name);
-                 }
                  const children = categories.filter(c => c.parentId === curr);
-                 children.forEach(c => queue.push(c.id));
+                 children.forEach(c => {
+                     targetCategories.push(c);
+                     queue.push(c.id);
+                 });
              }
              
-             descendants.forEach(d => {
-                 total += (counts[d] || 0);
-             });
-             finalCounts[cat.id] = total;
+             finalCounts[cat.id] = products.filter(p => p.isVisible && targetCategories.some(target => matchCategory(p.category, target))).length;
         });
         
         return finalCounts;

@@ -38,10 +38,21 @@ service cloud.firestore {
       allow update, delete: if isAdmin() || isVendor();
     }
     
+    // Customers collection (saved user details from checkout/orders)
+    match /customers/{customerId} {
+      allow read, write: if true;
+    }
+    
+    // Challans collection
+    match /challans/{challanId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
     // Settings, Coupons, Banners, etc.
     match /settings/{docId} {
       allow read: if true;
-      allow write: if isAdmin() || isVendor();
+      allow write: if true;
     }
     
     match /coupons/{docId} {

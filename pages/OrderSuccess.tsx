@@ -34,8 +34,15 @@ const DownloadAppBanner = () => {
 
 const OrderSuccess = () => {
   const location = useLocation();
-  const { settings, vendorsMap } = useStore();
-  const order = location.state?.order;
+  const { settings, vendorsMap, customerOrders } = useStore();
+  const order = location.state?.order || (() => {
+    try {
+      const saved = sessionStorage.getItem('last_placed_order') || localStorage.getItem('last_placed_order');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    if (customerOrders && customerOrders.length > 0) return customerOrders[0];
+    return null;
+  })();
 
   const handleDownloadCustomerReceipt = () => {
     if (!order) return;
@@ -98,7 +105,7 @@ const OrderSuccess = () => {
                         ${receiptTypeLabel}
                     </div>
                     <div style="font-size: 11px; color: #be185d; font-weight: 600; margin-top: 4px;">
-                        🌐 <a href="${storeWebUrl}" target="_blank" style="color: #be185d; text-decoration: underline;">${storeWebUrl}</a>
+                        🌐 <a href="${storeWebUrl}" target="_blank" style="color: #be185d; font-weight: 700; text-decoration: underline;">${appName}</a>
                     </div>
                 </td>
                 <td style="vertical-align: middle; text-align: right; width: 40%;">

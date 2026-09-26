@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "Settings": {
+      "title": "Settings",
+      "description": "Store configuration, shipping fees, branding, and contact details",
+      "type": "object",
+      "properties": {
+        "appName": { "type": "string", "description": "Store display name" },
+        "logoUrl": { "type": "string", "description": "Store logo image URL or data URI" },
+        "storeBannerUrl": { "type": "string", "description": "Store official banner URL" },
+        "shippingFee": { "type": "number", "description": "Standard flat order shipping fee in PKR" },
+        "whatsappNumber": { "type": "string", "description": "Support WhatsApp number" },
+        "adminEmail": { "type": "string", "description": "Admin notification email" },
+        "globalReturnPolicy": { "type": "string", "description": "Standard return and refund policy" },
+        "storeDomain": { "type": "string", "description": "Public domain URL" },
+        "isFirebaseLiveMode": { "type": "boolean", "description": "Whether cloud sync is actively enabled" }
+      }
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Store catalog item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "images": { "type": "array" },
+        "description": { "type": "string" },
+        "isVisible": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      }
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer purchase order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "customerAddress": { "type": "string" },
+        "city": { "type": "string" },
+        "province": { "type": "string" },
+        "total": { "type": "number" },
+        "shippingFee": { "type": "number" },
+        "status": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "createdAt": { "type": "number" }
+      }
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Discount vouchers and promotions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "discountType": { "type": "string" },
+        "discountValue": { "type": "number" }
+      }
+    },
+    "Banner": {
+      "title": "Banner",
+      "description": "Promotional carousel banners",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      }
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": "Settings",
+      "description": "Store settings and catalog bundle document"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Products in store"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Orders placed by customers"
+    },
+    "/coupons/{couponId}": {
+      "schema": "Coupon",
+      "description": "Promotional coupons"
+    },
+    "/banners/{bannerId}": {
+      "schema": "Banner",
+      "description": "Promotional banners"
+    }
+  }
+}

@@ -6,6 +6,7 @@ import { Icons } from '../components/icons/Icons';
 import { Spinner } from '../components/ui/Spinner';
 import { SEO } from '../components/SEO';
 import { shareContent } from '../utils/shareHelper';
+import { matchCategory } from '../utils/helpers';
 
 interface CategoriesPageProps {
     isStandalone?: boolean;
@@ -43,20 +44,19 @@ const CategoriesPage: React.FC<CategoriesPageProps> = ({ isStandalone: isStandal
 
     const getCategoryProductCount = (category: any) => {
         const allCats = settings?.categories || [];
-        const descendantIds = new Set<string>([category.id, category.name]);
+        const targetCategories: { id: string; name: string }[] = [category];
         const queue = [category.id];
         while (queue.length > 0) {
             const cur = queue.shift()!;
             allCats.filter(c => c.parentId === cur).forEach(c => {
-                descendantIds.add(c.id);
-                descendantIds.add(c.name);
+                targetCategories.push(c);
                 queue.push(c.id);
             });
         }
         const sourceProducts = category.vendorId 
             ? (allProducts || []).filter(p => p.vendorId === category.vendorId)
             : products;
-        return sourceProducts?.filter(p => p.isVisible && descendantIds.has(p.category)).length || 0;
+        return sourceProducts?.filter(p => p.isVisible && targetCategories.some(target => matchCategory(p.category, target))).length || 0;
     };
 
     const handleShareCategory = async (e: React.MouseEvent, category: any) => {

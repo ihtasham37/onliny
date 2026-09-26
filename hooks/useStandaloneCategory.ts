@@ -2,6 +2,7 @@ import { useMemo, useEffect, useState, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useStore } from './useStore';
 import { Category, Product, AppUser } from '../types';
+import { safeJsonStringify } from '../utils/helpers';
 
 export type StandaloneType = 'vendor' | 'category' | null;
 
@@ -190,7 +191,7 @@ export const useStandaloneCategory = () => {
   useEffect(() => {
     if (standaloneCategory) {
       try {
-        localStorage.setItem(`standalone_brand_${standaloneCategory.id}`, JSON.stringify({
+        localStorage.setItem(`standalone_brand_${standaloneCategory.id}`, safeJsonStringify({
           storeName: standaloneCategory.storeName || standaloneCategory.name,
           storeLogoUrl: standaloneCategory.storeLogoUrl || standaloneCategory.imageUrl || '',
         }));
@@ -198,7 +199,7 @@ export const useStandaloneCategory = () => {
     }
     if (vendorData && standaloneState.id) {
       try {
-        localStorage.setItem(`standalone_vendor_${standaloneState.id}`, JSON.stringify(vendorData));
+        localStorage.setItem(`standalone_vendor_${standaloneState.id}`, safeJsonStringify(vendorData));
       } catch {}
     }
   }, [standaloneCategory, vendorData, standaloneState.id]);

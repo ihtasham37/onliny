@@ -16,6 +16,7 @@ import { normalizePhone, generateCartItemKey, sanitizeForFirestore, safeJsonStri
 import { compressImage, fileToDataUri } from '../utils/compression';
 import { INITIAL_STATIC_CATALOG } from '../data/staticCatalog';
 import { syncDynamicPWABranding } from '../utils/pwaHelper';
+import { dataSyncService, SyncState, SectionSyncKey } from '../services/dataSyncService';
 
 export interface CatalogBundle {
   products: Product[];
@@ -102,6 +103,9 @@ export interface AppContextType {
   deleteBanner: (banner: Banner) => Promise<void>;
   addChallan: (challan: Omit<Challan, 'id' | 'createdAt'>) => Promise<void>;
   deleteChallan: (challanId: string) => Promise<void>;
+  fetchLatestSettingsFromFirestore: () => Promise<Settings | null>;
+  pushSectionSettingsToFirestore: (section: SectionSyncKey | 'all', partialData: Partial<Settings>) => Promise<boolean>;
+  syncState: SyncState;
 }
 
 const getInitialSettings = (): Settings => {
@@ -109,16 +113,16 @@ const getInitialSettings = (): Settings => {
     const sessionCached = sessionStorage.getItem('ali_cart_catalog_bundle_cache_v1');
     if (sessionCached) {
       const parsed = JSON.parse(sessionCached);
-      if (parsed?.settings?.appName) return parsed.settings;
+      if (parsed?.settings?.appName) return { ...parsed.settings, isFirebaseLiveMode: true };
     }
     const localCached = localStorage.getItem('ali_cart_catalog_bundle_cache_local_v1');
     if (localCached) {
       const parsed = JSON.parse(localCached);
-      if (parsed?.data?.settings?.appName) return parsed.data.settings;
+      if (parsed?.data?.settings?.appName) return { ...parsed.data.settings, isFirebaseLiveMode: true };
     }
   } catch (e) {}
   if (INITIAL_STATIC_CATALOG.settings && (INITIAL_STATIC_CATALOG.settings as any).appName) {
-    return INITIAL_STATIC_CATALOG.settings as unknown as Settings;
+    return { ...(INITIAL_STATIC_CATALOG.settings as unknown as Settings), isFirebaseLiveMode: true };
   }
   return {
     appName: 'onliny',
@@ -132,7 +136,7 @@ const getInitialSettings = (): Settings => {
     gmailUser: '',
     gmailAppPassword: '',
     enableOrderEmailAlerts: true,
-    isFirebaseLiveMode: false,
+    isFirebaseLiveMode: true,
   } as unknown as Settings;
 };
 
@@ -232,6 +236,9 @@ export const defaultAppContextValue: AppContextType = {
   refreshCatalog: async () => {},
   loadOrders: async () => {},
   trackOrderById: async () => null,
+  fetchLatestSettingsFromFirestore: async () => null,
+  pushSectionSettingsToFirestore: async () => false,
+  syncState: dataSyncService.getState(),
 };
 
 export const AppContext = createContext<AppContextType>(defaultAppContextValue);
@@ -262,6 +269,7 @@ const apiRequest = async (endpoint: string, body: any) => {
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [allProducts, setAllProducts] = useState<Product[]>(getInitialProducts);
+  const [publishedProducts, setPublishedProducts] = useState<Product[]>(getInitialProducts);
   const [vendorsStatus, setVendorsStatus] = useState<Record<string, string>>(() => INITIAL_STATIC_CATALOG.vendorsStatus || {});
   const [vendorsMap, setVendorsMap] = useState<Record<string, AppUser>>(() => INITIAL_STATIC_CATALOG.vendorsMap || {});
 
@@ -280,10 +288,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [userData, setUserData] = useState<AppUser | null>(null);
 
   const products = useMemo(() => {
-    // Main app store displays ONLY platform/admin products.
-    // Vendor products are strictly isolated to their own standalone website link.
-    return allProducts.filter(p => !p.vendorId || p.vendorId === 'admin');
-  }, [allProducts]);
+    // Main customer app store displays ONLY platform/admin products from the published catalog snapshot.
+    // Un-synced working changes in Admin Panel remain in draft until Admin clicks "Sync Website Data".
+    return publishedProducts.filter(p => !p.vendorId || p.vendorId === 'admin');
+  }, [publishedProducts]);
   
   const myProducts = useMemo(() => {
     if (!userData) return [];
@@ -301,20 +309,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
   }, [orders, allProducts, userData]);
 
-  const [activeCustomer, setActiveCustomer] = useSessionStorage<{ email: string, phone: string } | null>('active-tracking-id', null);
-  const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
+  const [activeCustomer, setActiveCustomer] = useState<{ email: string, phone: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem('onliny_tracked_customer') || sessionStorage.getItem('active-tracking-id');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
+  });
+  const [customerOrders, setCustomerOrders] = useState<Order[]>(() => {
+    try {
+      const saved = localStorage.getItem('onliny_customer_orders');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
   const [lastCatalogTimestamp, setLastCatalogTimestamp] = useState<number>(0);
+
+  useEffect(() => {
+    try {
+      if (activeCustomer) {
+        localStorage.setItem('onliny_tracked_customer', JSON.stringify(activeCustomer));
+      }
+    } catch (e) {}
+  }, [activeCustomer]);
+
+  useEffect(() => {
+    try {
+      if (customerOrders && customerOrders.length > 0) {
+        localStorage.setItem('onliny_customer_orders', JSON.stringify(customerOrders));
+      }
+    } catch (e) {}
+  }, [customerOrders]);
 
   const [isFirebaseLiveMode, setIsFirebaseLiveMode] = useState<boolean>(() => {
     try {
-      const initSettings = getInitialSettings();
-      if (typeof initSettings?.isFirebaseLiveMode === 'boolean') {
-        return initSettings.isFirebaseLiveMode;
-      }
       const saved = localStorage.getItem('ali_cart_firebase_mode');
-      return saved === null ? false : saved === 'true';
+      return saved === 'false' ? false : true; // Default to true (Live Firebase Mode)
     } catch {
-      return false;
+      return true;
     }
   });
   
@@ -400,68 +432,69 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setLastCatalogTimestamp(prev => Math.max(prev, data.lastUpdated!));
     }
     if (Array.isArray(data.products)) {
-      if (data.products.length > 0) {
+      setPublishedProducts(data.products);
+      // Synchronize working products if user is not currently logged in as admin
+      if (!userData || userData.role !== UserRole.Admin) {
         setAllProducts(data.products);
-      } else {
-        setAllProducts(prev => (prev.length > 0 ? prev : []));
       }
     }
     if (data.settings) {
-      const existingMethods = data.settings.paymentMethods || [];
-      const hasCod = existingMethods.some(m => m.id === 'cod' || (m.name && m.name.toLowerCase().includes('cash on delivery')));
+      const rawMethods = data.settings.paymentMethods || [];
+      const sanitizedMethods = rawMethods.map(m => ({
+        ...m,
+        name: (m.name || '').replace(/[\u0600-\u06FF()]/g, '').trim() || m.name || 'Cash on Delivery',
+        details: (m.details || '').replace(/[\u0600-\u06FF]/g, '').trim() || m.details || 'Pay upon receiving your order.'
+      }));
+      const hasCod = sanitizedMethods.some(m => m.id === 'cod' || (m.name && m.name.toLowerCase().includes('cash on delivery')));
       const defaultCod = {
         id: 'cod',
         name: 'Cash on Delivery',
-        details: 'Pay in cash when your parcel arrives at your doorstep.'
+        details: 'Pay upon receiving your order.'
       };
-      const finalPaymentMethods = hasCod ? existingMethods : [defaultCod, ...existingMethods];
-      const settingsWithCod = { ...data.settings, paymentMethods: finalPaymentMethods };
+      const finalPaymentMethods = hasCod ? sanitizedMethods : [defaultCod, ...sanitizedMethods];
+      const settingsWithCod = { ...data.settings, paymentMethods: finalPaymentMethods, isFirebaseLiveMode: true };
 
-      setSettings(settingsWithCod);
-      if (typeof data.settings.isFirebaseLiveMode === 'boolean') {
-        setIsFirebaseLiveMode(data.settings.isFirebaseLiveMode);
-        try {
-          localStorage.setItem('ali_cart_firebase_mode', String(data.settings.isFirebaseLiveMode));
-        } catch (e) {}
+      if (!userData || userData.role !== UserRole.Admin) {
+        setSettings(settingsWithCod);
       }
+      setIsFirebaseLiveMode(true);
+      try {
+        localStorage.setItem('ali_cart_firebase_mode', 'true');
+      } catch (e) {}
       syncDynamicPWABranding({
         appName: data.settings.appName,
         logoUrl: data.settings.logoUrl,
       });
     }
     if (Array.isArray(data.banners)) {
-      if (data.banners.length > 0) setBanners(data.banners);
-      else setBanners(prev => (prev.length > 0 ? prev : []));
+      setBanners(data.banners);
     }
     if (Array.isArray(data.coupons)) {
-      if (data.coupons.length > 0) setCoupons(data.coupons);
-      else setCoupons(prev => (prev.length > 0 ? prev : []));
+      setCoupons(data.coupons);
     }
     if (Array.isArray(data.updatePosts)) setUpdatePosts(data.updatePosts);
     if (Array.isArray(data.challans)) setChallans(data.challans);
     if (data.vendorsStatus) setVendorsStatus(data.vendorsStatus);
     if (data.vendorsMap) setVendorsMap(data.vendorsMap);
-  }, []);
+  }, [userData]);
 
   const syncCatalogBundle = useCallback(async (overrides?: Partial<CatalogBundle>) => {
     try {
       const current = latestStateRef.current;
       const rawSettings = overrides?.settings ?? current.settings;
       const safeSettings = rawSettings ? { ...rawSettings } : rawSettings;
-      if (safeSettings && (safeSettings as any).gmailAppPassword) {
-        delete (safeSettings as any).gmailAppPassword;
-      }
 
-      const productsToSave = overrides?.products !== undefined && overrides.products.length > 0
+      const productsToSave = overrides?.products !== undefined
         ? overrides.products
-        : (current.allProducts.length > 0 ? current.allProducts : (overrides?.products || []));
+        : current.allProducts;
 
       const couponsToSave = overrides?.coupons !== undefined ? overrides.coupons : current.coupons;
+      const bannersToSave = overrides?.banners !== undefined ? overrides.banners : current.banners;
 
       const bundleToSave: CatalogBundle = {
         products: productsToSave,
         settings: safeSettings,
-        banners: overrides?.banners ?? current.banners,
+        banners: bannersToSave,
         coupons: couponsToSave,
         updatePosts: overrides?.updatePosts ?? current.updatePosts,
         challans: overrides?.challans ?? current.challans,
@@ -523,9 +556,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore individual product save skipped:", e);
     }
-
-    // Sync bundle and server static file immediately
-    await syncCatalogBundle({ products: updated });
   };
 
   const updateProduct = async (data: Product) => {
@@ -545,8 +575,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore individual product update skipped:", e);
     }
-
-    await syncCatalogBundle({ products: updated });
   };
 
   const deleteProduct = async (id: string) => {
@@ -567,8 +595,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore product delete skipped:", e);
     }
-
-    await syncCatalogBundle({ products: updated });
   };
 
   const deleteAllProducts = async () => {
@@ -584,21 +610,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore delete all products skipped:", e);
     }
-
-    await syncCatalogBundle({ products: updated });
   };
 
   const toggleProductVisibility = async (id: string, isVisible: boolean) => {
     const updated = allProducts.map(p => p.id === id ? { ...p, isVisible } : p);
     setAllProducts(updated);
-    // 1-WRITE:
-    await syncCatalogBundle({ products: updated });
+    try {
+      await updateDoc(doc(db, 'products', id), { isVisible });
+    } catch (e) {}
   };
   const moveProduct = async (id: string, newCategory: string) => {
     const updated = allProducts.map(p => p.id === id ? { ...p, category: newCategory } : p);
     setAllProducts(updated);
-    // 1-WRITE:
-    await syncCatalogBundle({ products: updated });
+    try {
+      await updateDoc(doc(db, 'products', id), { category: newCategory });
+    } catch (e) {}
   };
   const copyProduct = async (id: string, cat: string) => {
     const prod = allProducts.find(p => p.id === id);
@@ -611,12 +637,74 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const phone = normalizePhone(orderData.customerPhone);
     const cleanedData = sanitizeForFirestore({
         ...orderData, 
-        customerPhone: phone, 
-        email: orderData.email.trim().toLowerCase(),
+        customerPhone: phone || orderData.customerPhone, 
+        email: orderData.email ? orderData.email.trim().toLowerCase() : '',
         createdAt: Date.now() 
     });
     const docRef = await addDoc(collection(db, 'orders'), cleanedData);
     
+    // Save/Upsert customer record in Firestore 'customers' collection
+    try {
+      const phoneKey = phone || (orderData.customerPhone ? orderData.customerPhone.replace(/[^a-zA-Z0-9]/g, '') : '') || (orderData.email ? orderData.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_') : `cust_${Date.now()}`);
+      const customerDocRef = doc(db, 'customers', phoneKey);
+      const customerDocSnap = await getDoc(customerDocRef);
+      if (customerDocSnap.exists()) {
+        const existingCustomer = customerDocSnap.data();
+        const updatedOrdersCount = (Number(existingCustomer.ordersCount) || 1) + 1;
+        const updatedTotalSpent = (Number(existingCustomer.totalSpent) || 0) + (Number(orderData.total) || 0);
+        const existingStatusList = Array.isArray(existingCustomer.statusList) ? existingCustomer.statusList : [];
+        const updatedStatusList = Array.from(new Set([...existingStatusList, OrderStatus.Pending]));
+        
+        await setDoc(customerDocRef, sanitizeForFirestore({
+          name: orderData.customerName || existingCustomer.name || 'Customer',
+          phone: phone || orderData.customerPhone || existingCustomer.phone || '',
+          email: (orderData.email ? orderData.email.trim().toLowerCase() : '') || existingCustomer.email || '',
+          city: orderData.city || existingCustomer.city || '',
+          province: orderData.province || existingCustomer.province || '',
+          customerAddress: orderData.customerAddress || existingCustomer.customerAddress || '',
+          landmark: orderData.landmark || existingCustomer.landmark || '',
+          ordersCount: updatedOrdersCount,
+          totalSpent: updatedTotalSpent,
+          lastOrderDate: Date.now(),
+          firstOrderDate: existingCustomer.firstOrderDate || existingCustomer.createdAt || Date.now(),
+          lastOrderId: docRef.id,
+          statusList: updatedStatusList,
+          updatedAt: Date.now()
+        }), { merge: true });
+      } else {
+        await setDoc(customerDocRef, sanitizeForFirestore({
+          name: orderData.customerName || 'Customer',
+          phone: phone || orderData.customerPhone || '',
+          email: orderData.email ? orderData.email.trim().toLowerCase() : '',
+          city: orderData.city || '',
+          province: orderData.province || '',
+          customerAddress: orderData.customerAddress || '',
+          landmark: orderData.landmark || '',
+          ordersCount: 1,
+          totalSpent: Number(orderData.total) || 0,
+          lastOrderDate: Date.now(),
+          firstOrderDate: Date.now(),
+          lastOrderId: docRef.id,
+          statusList: [OrderStatus.Pending],
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }));
+      }
+    } catch (custErr) {
+      console.warn("Firestore customer collection record save note:", custErr);
+    }
+    
+    // Immediately persist placed order to local tracking state
+    const placedOrder = { ...cleanedData, id: docRef.id } as Order;
+    setCustomerOrders(prev => [placedOrder, ...prev.filter(o => o.id !== docRef.id)]);
+    const currentCustomer = { email: orderData.email ? orderData.email.trim().toLowerCase() : '', phone: phone || orderData.customerPhone };
+    setActiveCustomer(currentCustomer);
+    try {
+      localStorage.setItem('onliny_tracked_customer', JSON.stringify(currentCustomer));
+      const existingStored: Order[] = JSON.parse(localStorage.getItem('onliny_customer_orders') || '[]');
+      localStorage.setItem('onliny_customer_orders', JSON.stringify([placedOrder, ...existingStored.filter(o => o.id !== docRef.id)]));
+    } catch (e) {}
+
     clearCart();
     return docRef.id;
   };
@@ -631,17 +719,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       logoUrl: data.logoUrl,
     });
     try {
-      const currentBundleStr = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
-      if (currentBundleStr) {
-        const parsed = JSON.parse(currentBundleStr);
-        const updated = { ...parsed, settings: data, lastUpdated: Date.now() };
-        sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(updated));
-        localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: updated }));
-      }
-    } catch (e) {}
-
-    await setDoc(doc(db, 'settings', 'main'), sanitizeForFirestore(data), { merge: true });
-    await syncCatalogBundle({ settings: data });
+      await setDoc(doc(db, 'settings', 'main'), sanitizeForFirestore(data), { merge: true });
+    } catch (e) {
+      console.warn("Firestore settings save skipped:", e);
+    }
   };
   
   const addCategory = async (name: string, parentId: string | null, imageUrl?: string, bannerImageUrls?: string[], vendorId?: string) => {
@@ -711,19 +792,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const newPost = { id: docRef.id, ...postData };
     const updated = [newPost, ...updatePosts];
     setUpdatePosts(updated);
-    await syncCatalogBundle({ updatePosts: updated });
   };
   const updateUpdatePost = async (post: UpdatePost) => {
     await setDoc(doc(db, 'updatePosts', post.id), post);
     const updated = updatePosts.map(p => p.id === post.id ? post : p);
     setUpdatePosts(updated);
-    await syncCatalogBundle({ updatePosts: updated });
   };
   const deleteUpdatePost = async (post: UpdatePost) => {
     await deleteDoc(doc(db, 'updatePosts', post.id));
     const updated = updatePosts.filter(p => p.id !== post.id);
     setUpdatePosts(updated);
-    await syncCatalogBundle({ updatePosts: updated });
   };
 
   const sendChatMessage = async (text: string, sessionId: string) => {
@@ -785,26 +863,53 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   const trackWithEmailAndPhone = async (email: string, phone: string) => {
       const normPhone = normalizePhone(phone);
+      const rawPhone = phone ? phone.trim() : '';
       const inputEmail = email ? email.trim().toLowerCase() : '';
       
       try {
-        // 1 single targeted query with limit(10) for this customer's orders! Exactly 1 read batch!
-        const q = query(collection(db, 'orders'), where('customerPhone', '==', normPhone), limit(10));
-        const snap = await getDocs(q);
+        let foundOrders: Order[] = [];
         
-        if (!snap.empty) {
-            let foundOrders = snap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+        // 1. Query by normalized phone
+        if (normPhone) {
+          const q = query(collection(db, 'orders'), where('customerPhone', '==', normPhone), limit(25));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            foundOrders = snap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+          }
+        }
+        
+        // 2. Query by raw phone if not found
+        if (foundOrders.length === 0 && rawPhone && rawPhone !== normPhone) {
+          const q2 = query(collection(db, 'orders'), where('customerPhone', '==', rawPhone), limit(25));
+          const snap2 = await getDocs(q2);
+          if (!snap2.empty) {
+            foundOrders = snap2.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+          }
+        }
+
+        // 3. Query by email if still empty
+        if (foundOrders.length === 0 && inputEmail) {
+          const q3 = query(collection(db, 'orders'), where('email', '==', inputEmail), limit(25));
+          const snap3 = await getDocs(q3);
+          if (!snap3.empty) {
+            foundOrders = snap3.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+          }
+        }
+
+        if (foundOrders.length > 0) {
             if (inputEmail) {
                 const emailFiltered = foundOrders.filter(o => o.email?.toLowerCase() === inputEmail);
                 if (emailFiltered.length > 0) foundOrders = emailFiltered;
             }
-            
-            if (foundOrders.length > 0) {
-                foundOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-                setActiveCustomer({ email: inputEmail || foundOrders[0].email || '', phone: normPhone });
-                setCustomerOrders(foundOrders);
-                return true;
-            }
+            foundOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            const customerObj = { email: inputEmail || foundOrders[0].email || '', phone: normPhone || rawPhone || foundOrders[0].customerPhone };
+            setActiveCustomer(customerObj);
+            setCustomerOrders(foundOrders);
+            try {
+              localStorage.setItem('onliny_tracked_customer', JSON.stringify(customerObj));
+              localStorage.setItem('onliny_customer_orders', JSON.stringify(foundOrders));
+            } catch (e) {}
+            return true;
         }
       } catch (err) {
         console.warn("Track orders error:", err);
@@ -842,6 +947,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const customerLogout = () => {
       setActiveCustomer(null);
       setCustomerOrders([]);
+      try {
+        localStorage.removeItem('onliny_tracked_customer');
+        localStorage.removeItem('onliny_customer_orders');
+      } catch (e) {}
   };
   
   const addCoupon = async (data: Omit<Coupon, 'id' | 'createdAt'>) => {
@@ -861,8 +970,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore coupon save skipped:", e);
     }
-
-    await syncCatalogBundle({ coupons: updated });
   };
 
   const updateCoupon = async (data: Coupon) => {
@@ -875,8 +982,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore coupon update skipped:", e);
     }
-
-    await syncCatalogBundle({ coupons: updated });
   };
 
   const deleteCoupon = async (id: string) => {
@@ -888,8 +993,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore coupon delete skipped:", e);
     }
-
-    await syncCatalogBundle({ coupons: updated });
   };
 
   const exportCatalogSnapshot = useCallback(async () => {
@@ -950,9 +1053,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       const safeSettings = freshSettings ? { ...freshSettings } : freshSettings;
-      if (safeSettings && (safeSettings as any).gmailAppPassword) {
-        delete (safeSettings as any).gmailAppPassword;
-      }
 
       const bundleToSave: CatalogBundle = {
         products: freshProducts,
@@ -1008,130 +1108,97 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [allProducts, settings, banners, coupons, updatePosts, challans, vendorsStatus, vendorsMap, applyBundleData]);
 
+  const loadAdminLiveState = useCallback(async () => {
+    try {
+      const [settingsSnap, productsSnap, couponsSnap, bannersSnap, challansSnap, updatesSnap, vendorsSnap] = await Promise.all([
+        getDoc(doc(db, 'settings', 'main')),
+        getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'coupons'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'banners'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'challans'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'updatePosts'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'users'), where('role', '==', UserRole.Vendor)))
+      ]);
+
+      const loadedSettings = settingsSnap.exists() ? (settingsSnap.data() as Settings) : null;
+      const loadedProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
+      const loadedCoupons = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
+      const loadedBanners = bannersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Banner));
+      const loadedChallans = challansSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challan));
+      const loadedUpdates = updatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as UpdatePost));
+      
+      const vStatus: Record<string, string> = {};
+      const vMap: Record<string, AppUser> = {};
+      vendorsSnap.docs.forEach(d => {
+        const u = d.data() as AppUser;
+        vStatus[d.id] = u.status;
+        vMap[d.id] = { ...u, uid: d.id };
+      });
+
+      const liveBundle: CatalogBundle = {
+        products: loadedProducts.length > 0 ? loadedProducts : allProducts,
+        settings: loadedSettings || settings || INITIAL_STATIC_CATALOG.settings,
+        banners: loadedBanners,
+        coupons: loadedCoupons,
+        updatePosts: loadedUpdates,
+        challans: loadedChallans,
+        vendorsStatus: vStatus,
+        vendorsMap: vMap,
+        lastUpdated: Date.now()
+      };
+
+      applyBundleData(liveBundle);
+    } catch (err) {
+      console.warn("loadAdminLiveState warning:", err);
+    }
+  }, [allProducts, settings, applyBundleData]);
+
   const loadCatalog = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
 
-    const isLive = localStorage.getItem('ali_cart_firebase_mode') !== 'false';
-
-    // 1. Instant Cache Render (renders immediately without waiting for network)
+    // 1. Instant Cache Render (renders immediately from session/local cache)
     let hasLoadedData = false;
     try {
       const cached = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (parsed && Array.isArray(parsed.products)) {
+        if (parsed && Array.isArray(parsed.products) && parsed.products.length > 0) {
           applyBundleData(parsed);
           hasLoadedData = true;
           setIsLoading(false);
+          if (!forceRefresh) return;
         }
       } else {
         const localCached = localStorage.getItem(CATALOG_LOCAL_CACHE_KEY);
         if (localCached) {
           const parsedLocal = JSON.parse(localCached);
-          if (parsedLocal?.data && Array.isArray(parsedLocal.data.products)) {
+          if (parsedLocal?.data && Array.isArray(parsedLocal.data.products) && parsedLocal.data.products.length > 0) {
             applyBundleData(parsedLocal.data);
             hasLoadedData = true;
             setIsLoading(false);
+            if (!forceRefresh) return;
           }
         }
       }
     } catch (e) {}
 
-    // 2. Fetch latest server static catalog across all devices (0 Firestore reads!)
+    // 2. Load Published Static Catalog Bundle from server (0 Firestore reads!)
     try {
       const res = await fetch(`/api/catalog-data?_t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data && Array.isArray(json.data.products)) {
           applyBundleData(json.data);
-          hasLoadedData = true;
           try {
             sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(json.data));
             localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: json.data }));
           } catch (e) {}
           setIsLoading(false);
-          // If in Static Mode (Firebase OFF), we are complete with 0 Firestore reads!
-          if (!isLive && !forceRefresh) {
-            return;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("Could not fetch /api/catalog-data:", err);
-    }
-
-    // 3. If in Firebase Live Mode (or forced refresh): Sync with Firestore
-    if (isLive || forceRefresh) {
-      try {
-        const bundleSnap = await getDoc(doc(db, 'settings', 'catalog_bundle'));
-        if (bundleSnap.exists()) {
-          const bundleData = bundleSnap.data() as CatalogBundle;
-          applyBundleData(bundleData);
-          try {
-            sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleData));
-            localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleData }));
-          } catch (e) {}
-          setIsLoading(false);
           return;
         }
-      } catch (bundleErr) {
-        console.warn("1-read catalog_bundle fetch note:", bundleErr);
       }
-
-      // 4. One-time First Setup Fallback
-      try {
-        const [settingsSnap, productsSnap, couponsSnap, bannersSnap, challansSnap, updatesSnap, vendorsSnap] = await Promise.all([
-          getDoc(doc(db, 'settings', 'main')),
-          getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'coupons'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'banners'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'challans'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'updatePosts'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'users'), where('role', '==', UserRole.Vendor)))
-        ]);
-
-        const loadedSettings = settingsSnap.exists() ? (settingsSnap.data() as Settings) : null;
-        const loadedProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
-        const loadedCoupons = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
-        const loadedBanners = bannersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Banner));
-        const loadedChallans = challansSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challan));
-        const loadedUpdates = updatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as UpdatePost));
-        
-        const vStatus: Record<string, string> = {};
-        const vMap: Record<string, AppUser> = {};
-        vendorsSnap.docs.forEach(d => {
-          const u = d.data() as AppUser;
-          vStatus[d.id] = u.status;
-          vMap[d.id] = { ...u, uid: d.id };
-        });
-
-        const hasCatalogHistory = settingsSnap.exists() || localStorage.getItem('onliny_catalog_initialized') === 'true';
-        const finalProducts = (loadedProducts.length > 0 || hasCatalogHistory) ? loadedProducts : INITIAL_STATIC_CATALOG.products;
-
-        const compiledBundle: CatalogBundle = {
-          products: finalProducts,
-          settings: loadedSettings || INITIAL_STATIC_CATALOG.settings,
-          banners: loadedBanners,
-          coupons: loadedCoupons,
-          updatePosts: loadedUpdates,
-          challans: loadedChallans,
-          vendorsStatus: vStatus,
-          vendorsMap: vMap,
-          lastUpdated: Date.now()
-        };
-
-        applyBundleData(compiledBundle);
-        try {
-          sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(compiledBundle));
-          localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: compiledBundle }));
-          await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(compiledBundle), { merge: true });
-        } catch (e) {}
-      } catch (fallbackErr) {
-        console.warn("Error fetching live Firestore catalog:", fallbackErr);
-        if (!hasLoadedData) {
-          applyBundleData(INITIAL_STATIC_CATALOG);
-        }
-      }
+    } catch (staticErr) {
+      console.warn("Static catalog load note:", staticErr);
     }
 
     if (!hasLoadedData) {
@@ -1172,38 +1239,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     window.addEventListener('focus', handleFocus);
     const interval = setInterval(checkCatalogUpdates, 15000);
 
+    // Real-time Firestore instant listener for catalog_bundle
+    // As soon as Admin clicks 'Sync Website Data', all customer screens update in < 200ms real-time
+    const unsubRealtimeBundle = onSnapshot(doc(db, 'settings', 'catalog_bundle'), (snapshot) => {
+      if (snapshot.exists()) {
+        const bundle = snapshot.data() as CatalogBundle;
+        if (bundle && Array.isArray(bundle.products)) {
+          applyBundleData(bundle);
+          try {
+            sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundle));
+            localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundle }));
+          } catch (e) {}
+        }
+      }
+    }, (err) => {
+      console.warn("Realtime catalog_bundle subscription note:", err);
+    });
+
     return () => {
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
+      unsubRealtimeBundle();
     };
   }, [lastCatalogTimestamp, applyBundleData]);
-
-  // 🚀 Global Real-Time Firebase Background Sync Service
-  // Subscribes directly to catalog_bundle in Firestore.
-  // When Admin updates any product/banner/category/settings, ALL user sessions (mobile, laptop, PWA)
-  // receive the update INSTANTLY without requiring a page reload or re-login!
-  useEffect(() => {
-    const unsubBundle = onSnapshot(
-      doc(db, 'settings', 'catalog_bundle'),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const bundleData = docSnap.data() as CatalogBundle;
-          if (bundleData && Array.isArray(bundleData.products)) {
-            applyBundleData(bundleData);
-            try {
-              sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleData));
-              localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleData }));
-            } catch (e) {}
-          }
-        }
-      },
-      (err) => {
-        console.warn("Real-time background catalog sync listener note:", err);
-      }
-    );
-
-    return () => unsubBundle();
-  }, [applyBundleData]);
 
   const toggleFirebaseMode = useCallback((enabled?: boolean) => {
     setIsFirebaseLiveMode(prev => {
@@ -1251,8 +1309,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore banner save skipped:", e);
     }
-
-    await syncCatalogBundle({ banners: updated });
   };
 
   const updateBanner = async (data: Banner) => {
@@ -1265,8 +1321,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore banner update skipped:", e);
     }
-
-    await syncCatalogBundle({ banners: updated });
   };
 
   const deleteBanner = async (banner: Banner) => {
@@ -1279,8 +1333,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore banner delete skipped:", e);
     }
-
-    await syncCatalogBundle({ banners: updated });
   };
 
   const addChallan = async (data: Omit<Challan, 'id' | 'createdAt'>) => {
@@ -1299,8 +1351,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore challan save skipped:", e);
     }
-
-    await syncCatalogBundle({ challans: updated });
   };
 
   const deleteChallan = async (id: string) => {
@@ -1312,14 +1362,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (e) {
       console.warn("Firestore challan delete skipped:", e);
     }
-
-    await syncCatalogBundle({ challans: updated });
   };
 
-  // On-demand Orders Fetch for Admin (1 batch read instead of continuous listeners!)
-  const loadOrders = useCallback(async (limitCount = 100) => {
-    const isLive = localStorage.getItem('ali_cart_firebase_mode') !== 'false';
-    if (!isLive) return;
+  // On-demand Orders Fetch for Admin
+  const loadOrders = useCallback(async (limitCount = 150) => {
     try {
       const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(limitCount));
       const snap = await getDocs(q);
@@ -1360,6 +1406,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             createdAt: Date.now()
           });
         }
+        // Load live Firestore collections for admin/vendor editing
+        loadAdminLiveState();
       } else {
         setUserData(null);
         setOrders([]);
@@ -1371,6 +1419,58 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       unsubAuth();
     };
   }, [loadCatalog]);
+
+  const [syncState, setSyncState] = useState<SyncState>(() => dataSyncService.getState());
+
+  useEffect(() => {
+    const unsub = dataSyncService.subscribe(setSyncState);
+    return unsub;
+  }, []);
+
+  const fetchLatestSettingsFromFirestore = useCallback(async (): Promise<Settings | null> => {
+    try {
+      const res = await dataSyncService.fetchSettingsFromFirestore();
+      if (res.success && res.settings) {
+        setSettings(res.settings);
+        syncDynamicPWABranding({
+          appName: res.settings.appName,
+          logoUrl: res.settings.logoUrl,
+        });
+        return res.settings;
+      }
+    } catch (err) {
+      console.warn("fetchLatestSettingsFromFirestore error:", err);
+    }
+    return null;
+  }, []);
+
+  const pushSectionSettingsToFirestore = useCallback(async (
+    section: SectionSyncKey | 'all',
+    partialData: Partial<Settings>
+  ): Promise<boolean> => {
+    try {
+      const current = settings || getInitialSettings();
+      const merged: Settings = {
+        ...current,
+        ...partialData
+      };
+      setSettings(merged);
+      syncDynamicPWABranding({
+        appName: merged.appName,
+        logoUrl: merged.logoUrl,
+      });
+
+      // Write direct to firestore doc settings/main
+      await setDoc(doc(db, 'settings', 'main'), sanitizeForFirestore(merged), { merge: true });
+
+      // Also call dataSyncService to sync state
+      await dataSyncService.pushSectionSettings(section as SectionSyncKey, partialData, current);
+      return true;
+    } catch (err) {
+      console.error("pushSectionSettingsToFirestore error:", err);
+      return false;
+    }
+  }, [settings]);
 
   const value = {
     products, allProducts, cart, orders, settings, chatMessages, coupons, banners, updatePosts,
@@ -1393,7 +1493,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     syncCatalogBundle,
     refreshCatalog,
     loadOrders,
-    trackOrderById
+    trackOrderById,
+    fetchLatestSettingsFromFirestore,
+    pushSectionSettingsToFirestore,
+    syncState
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

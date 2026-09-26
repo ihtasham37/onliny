@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getAuth, setPersistence, browserSessionPersistence } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -16,7 +16,16 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 // Initialize and export Firebase services
-const db = getFirestore(app);
+let db: any;
+try {
+  db = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+    ignoreUndefinedProperties: true
+  });
+} catch (e) {
+  db = getFirestore(app);
+}
+
 const auth = getAuth(app);
 
 // Set session persistence for authentication
@@ -28,3 +37,4 @@ if (typeof window !== 'undefined') {
 }
 
 export { db, auth };
+

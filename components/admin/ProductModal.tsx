@@ -37,8 +37,144 @@ const getCategoryOptions = (categories: Category[]): { id: string, name: string 
     return options;
 };
 
+const KNOWN_COLORS_LIST = [
+  "black", "white", "red", "blue", "navy blue", "navy", "royal blue", "sky blue", "baby blue", "ice blue",
+  "pink", "baby pink", "rose", "hot pink", "dusty pink", "blush pink",
+  "green", "dark green", "olive green", "olive", "mint green", "mint", "bottle green", "sea green",
+  "yellow", "mustard", "lemon yellow", "orange", "peach", "rust",
+  "purple", "lavender", "lilac", "violet", "plum", "magenta",
+  "maroon", "burgundy", "wine",
+  "brown", "chocolate", "coffee", "beige", "cream", "off white", "skin", "khaki", "camel",
+  "grey", "gray", "light gray", "light grey", "dark gray", "charcoal", "ash gray",
+  "silver", "gold", "golden", "copper", "bronze", "teal", "turquoise", "cyan", "coral", "emerald",
+  "multicolour", "multi-color", "multi color", "multi", "printed", "floral"
+];
+const SIZE_ORDER_LIST = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', 'XXXL', '3XL', '4XL', '5XL', '6XL', 'FREE SIZE', 'STANDARD', 'UNSTITCHED'];
+
+const normalizeAndDecomposeSizeCategories = (rawCats: any[]): SizeCategory[] => {
+  if (!Array.isArray(rawCats) || rawCats.length === 0) return [];
+
+  const finalColorSet = new Set<string>();
+  const finalSizeSet = new Set<string>();
+  const finalDesignSet = new Set<string>();
+  const otherCategories: SizeCategory[] = [];
+  let detectedSizeName = 'Size';
+
+  const processToken = (token: string) => {
+    if (!token || typeof token !== 'string') return;
+    const clean = token.trim();
+    if (!clean) return;
+
+    if (/^(?:Add to cart|Buy now|Reviews|Description|Share|View details|Features|Specifications|Quantity|Price|RS|PKR|Sale|Sold Out)$/i.test(clean)) return;
+
+    const cleanLower = clean.toLowerCase();
+    if (KNOWN_COLORS_LIST.includes(cleanLower) || /^(?:dark|light|deep|bright|pale|neon|pastel|soft)\s+[a-z]+$/i.test(cleanLower)) {
+      finalColorSet.add(clean.replace(/\b\w/g, l => l.toUpperCase()));
+      return;
+    }
+
+    if (/^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|6XL|Small|Medium|Large|Extra Large|Free Size|Standard|Unstitched|Stitched)$/i.test(clean)) {
+      finalSizeSet.add(clean.toUpperCase());
+      return;
+    }
+
+    // Protect range numbers like 2-3 Years or 80-90cm
+    const protectedStr = clean.replace(/(\d+)\s*-\s*(\d+)/g, '$1~TO~$2');
+    // Split on punctuation: #, /, |, _, :, +, ,, or -
+    const parts = protectedStr
+      .split(/\s*[\/#|:+,_]\s*|\s+-\s*|\s*-(?=[A-Za-z0-9])/)
+      .map(p => p.replace(/~TO~/g, '-').trim())
+      .filter(Boolean);
+
+    if (parts.length >= 2) {
+      for (const part of parts) {
+        const pLower = part.toLowerCase();
+        if (KNOWN_COLORS_LIST.includes(pLower) || /^(?:dark|light|deep|bright|pale|neon|pastel|soft)\s+[a-z]+$/i.test(pLower)) {
+          finalColorSet.add(part.replace(/\b\w/g, l => l.toUpperCase()));
+        } else if (/^(?:XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|6XL|Small|Medium|Large|Extra Large|Free Size|Standard|Unstitched|Stitched)$/i.test(part)) {
+          finalSizeSet.add(part.toUpperCase());
+        } else if (/^\d+\s*cm$/i.test(part) || /^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)$/i.test(part)) {
+          finalSizeSet.add(part);
+        } else if (part.length >= 2 && part.length <= 40 && !/^(?:RS|PKR|\d+)$/i.test(part)) {
+          finalDesignSet.add(part.replace(/\b\w/g, l => l.toUpperCase()));
+        }
+      }
+      return;
+    }
+
+    if (/^\d+\s*cm$/i.test(clean) || /^\d+(?:-\d+)?\s*(?:Years?|Yrs?|Months?|M|Y)$/i.test(clean) || /^(?:3[4-9]|4[0-8])$/.test(clean)) {
+      finalSizeSet.add(clean);
+    } else if (clean.length <= 30) {
+      finalSizeSet.add(clean);
+    }
+  };
+
+  rawCats.forEach(rc => {
+    const name = String(rc.categoryName || 'Size').trim();
+    const rawSizes: string[] = Array.isArray(rc.sizes) ? rc.sizes.map((s: any) => String(s).trim()).filter(Boolean) : [];
+
+    const isColorCat = /^(?:Color|Colour|Rung)$/i.test(name);
+    const isHeightCat = /height/i.test(name);
+    const isShoeCat = /shoe/i.test(name);
+    const isAgeCat = /age/i.test(name);
+
+    if (isHeightCat) detectedSizeName = 'Suitable for height';
+    else if (isShoeCat) detectedSizeName = 'Shoe Size';
+    else if (isAgeCat) detectedSizeName = 'Age / Size';
+
+    if (isColorCat) {
+      rawSizes.forEach(c => finalColorSet.add(c.replace(/\b\w/g, l => l.toUpperCase())));
+    } else {
+      rawSizes.forEach(item => processToken(item));
+    }
+  });
+
+  const result: SizeCategory[] = [];
+
+  if (finalColorSet.size > 0) {
+    result.push({
+      categoryName: 'Color',
+      sizes: Array.from(finalColorSet)
+    });
+  }
+
+  if (finalSizeSet.size > 0) {
+    const sortedSizes = Array.from(finalSizeSet).sort((a, b) => {
+      const aIdx = SIZE_ORDER_LIST.indexOf(a.toUpperCase());
+      const bIdx = SIZE_ORDER_LIST.indexOf(b.toUpperCase());
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      const aNum = parseFloat(a);
+      const bNum = parseFloat(b);
+      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+      return a.localeCompare(b);
+    });
+
+    result.push({
+      categoryName: detectedSizeName,
+      sizes: sortedSizes
+    });
+  }
+
+  if (finalDesignSet.size > 0) {
+    result.push({
+      categoryName: 'Design / Style',
+      sizes: Array.from(finalDesignSet)
+    });
+  }
+
+  otherCategories.forEach(oc => {
+    if (!result.some(r => r.categoryName.toLowerCase() === oc.categoryName.toLowerCase())) {
+      result.push(oc);
+    }
+  });
+
+  return result;
+};
+
 export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, product, categoryLock }) => {
-  const { addProduct, updateProduct, uploadFile, settings } = useStore();
+  const { products, addProduct, updateProduct, uploadFile, settings } = useStore();
   const { userData } = useAuth();
   const [formData, setFormData] = useState<Omit<Product, 'id' | 'createdAt'>>({ name: '', customId: '', description: '', price: 0, oldPrice: 0, category: '', images: [], isVisible: true, sizeCategories: [], deliveryTime: 'Delivery in 3 Days', easyReturn: false, returnPolicy: '', shippingFee: 0, freeDelivery: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,6 +194,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
 
   const isVendor = userData?.role === UserRole.Vendor;
   const vendorId = userData?.uid;
+
+  // Check if current customId matches any existing product in store
+  const currentCustomId = (formData.customId || '').trim();
+  const duplicateProduct = useMemo(() => {
+    if (!currentCustomId) return null;
+    const clean = currentCustomId.toLowerCase();
+    return (products || []).find(p => p.customId && p.customId.trim().toLowerCase() === clean && p.id !== product?.id) || null;
+  }, [currentCustomId, products, product?.id]);
+
+  const isDuplicateId = !!duplicateProduct;
 
   const categoryOptions = useMemo(() => {
     const allCats = (settings?.categories || []).filter(c => c && typeof c.name === 'string');
@@ -131,11 +277,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
         if (extracted) {
           // Parse price
           let parsedPrice = formData.price;
-          if (extracted.price !== null && extracted.price !== undefined) {
-            const numStr = String(extracted.price).replace(/[^0-9.]/g, '');
+          const extPrice = extracted.price ?? extracted.wholesale_price ?? extracted.sale_price ?? extracted.retail_price;
+          if (extPrice !== null && extPrice !== undefined) {
+            const numStr = String(extPrice).replace(/[^0-9.]/g, '');
             if (numStr) {
               const pVal = parseFloat(numStr);
-              if (!isNaN(pVal)) parsedPrice = pVal;
+              if (!isNaN(pVal) && pVal > 0) parsedPrice = pVal;
             }
           }
 
@@ -158,18 +305,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             : [];
 
           // Size categories extraction - strictly match what was on the source link
-          let incomingSizeCategories: SizeCategory[] = [];
+          let rawSizeCategories: SizeCategory[] = [];
           if (Array.isArray(extracted.size_categories) && extracted.size_categories.length > 0) {
-            incomingSizeCategories = extracted.size_categories.map((sc: any) => ({
+            rawSizeCategories = extracted.size_categories.map((sc: any) => ({
               categoryName: sc.categoryName || 'Size',
               sizes: Array.isArray(sc.sizes) ? sc.sizes.map((s: any) => String(s).trim()).filter(Boolean) : []
             })).filter((sc: any) => sc.sizes.length > 0);
           } else if (Array.isArray(extracted.sizes) && extracted.sizes.length > 0) {
-            incomingSizeCategories = [{
+            rawSizeCategories = [{
               categoryName: 'Size',
               sizes: extracted.sizes.map((s: any) => String(s).trim()).filter(Boolean)
             }];
           }
+
+          const incomingSizeCategories = normalizeAndDecomposeSizeCategories(rawSizeCategories);
 
           if (incomingImages.length > 0) {
             setImageInputMode('url');
@@ -177,22 +326,30 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
 
           setFormData(prev => ({
             ...prev,
-            name: extracted.title && !extracted.title.startsWith('http') ? extracted.title : prev.name,
+            name: extracted.title && !extracted.title.startsWith('http') && extracted.title !== 'Imported Product' ? extracted.title : prev.name,
             description: extracted.description && !extracted.description.startsWith('http') ? extracted.description : prev.description,
-            price: parsedPrice,
-            customId: extracted.sku || prev.customId || '',
+            price: (parsedPrice && parsedPrice > 0) ? parsedPrice : prev.price,
+            customId: (extracted.sku || extracted.customId || extracted.product_id || extracted.productCode || extracted.code || extracted.id) || prev.customId || '',
             category: matchedCat || prev.category,
             sizeCategories: incomingSizeCategories.length > 0 ? incomingSizeCategories : prev.sizeCategories,
-            shippingFee: extracted.shipping_fee !== undefined && extracted.shipping_fee !== null ? extracted.shipping_fee : prev.shippingFee,
+            shippingFee: (extracted.shipping_fee !== undefined && extracted.shipping_fee !== null) ? extracted.shipping_fee : prev.shippingFee,
             deliveryTime: extracted.delivery_time || prev.deliveryTime || 'Delivery in 3-5 Days',
             images: incomingImages.length > 0 
               ? [...new Set([...prev.images, ...incomingImages])] 
               : prev.images
           }));
 
+          const extractedExtId = extracted.sku || extracted.customId || extracted.product_id || extracted.productCode || extracted.code || extracted.id || '';
+          const isAlreadyAdded = extractedExtId ? (products || []).some(p => p.customId && p.customId.trim().toLowerCase() === String(extractedExtId).trim().toLowerCase() && p.id !== product?.id) : false;
+
           const totalSizes = incomingSizeCategories.reduce((acc, c) => acc + c.sizes.length, 0);
-          setAiStatus('success');
-          setAiMessage(`✨ Extracted "${extracted.title || 'Product'}" (${parsedPrice ? `PKR ${parsedPrice}` : ''}) successfully! ${totalSizes > 0 ? `${totalSizes} size(s) created.` : ''} ${incomingImages.length > 0 ? `${incomingImages.length} image(s) loaded.` : ''}`);
+          if (isAlreadyAdded) {
+            setAiStatus('error');
+            setAiMessage(`⚠️ This product is already added! (Yeh product Product ID "${extractedExtId}" ke sath pehle se store mein added hai!)`);
+          } else {
+            setAiStatus('success');
+            setAiMessage(`✨ Extracted "${extracted.title || 'Product'}" (${parsedPrice ? `PKR ${parsedPrice}` : ''}) successfully! ${totalSizes > 0 ? `${totalSizes} size(s) created.` : ''} ${incomingImages.length > 0 ? `${incomingImages.length} image(s) loaded.` : ''}`);
+          }
         } else {
           setAiStatus('error');
           setAiMessage('Could not extract complete details from this input. Please check the text or link.');
@@ -202,9 +359,21 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
         setAiMessage(res?.error || 'AI Assistant could not process this link. You can fill details manually.');
       }
     } catch (err: any) {
-      console.error('AI Auto-Fill error:', err);
-      setAiStatus('error');
-      setAiMessage('Failed to connect to AI Assistant. Please check connection.');
+      console.warn('AI Auto-Fill network notice:', err);
+      const rawText = aiInput.trim();
+      const extractedTitle = rawText.replace(/^https?:\/\/[^\s]+/i, '').trim();
+      if (extractedTitle) {
+        setFormData(prev => ({
+          ...prev,
+          name: prev.name || extractedTitle.slice(0, 80),
+          description: prev.description || rawText
+        }));
+        setAiStatus('success');
+        setAiMessage('✨ Product text added to form! You can verify and save details.');
+      } else {
+        setAiStatus('error');
+        setAiMessage('Could not connect to AI Assistant. Please verify network or enter product details manually.');
+      }
     } finally {
       setIsAiExtracting(false);
     }
@@ -269,6 +438,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.category) { alert('Please select a category.'); return; }
+    if (isDuplicateId) {
+      alert(`⚠️ This product is already added! (Yeh product Product ID "${formData.customId}" ke sath pehle se store mein added hai: "${duplicateProduct?.name}")`);
+      return;
+    }
     setIsSubmitting(true);
     try {
       if (product) await updateProduct({ ...formData, id: product.id, createdAt: product.createdAt });
@@ -357,7 +530,19 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input label="Name" name="name" value={formData.name} onChange={handleChange} required />
-          <Input label="Custom Product ID (for Admin)" name="customId" value={formData.customId || ''} onChange={handleChange} placeholder="e.g., SKU-12345" />
+          <div>
+            <Input label="Custom Product ID (for Admin)" name="customId" value={formData.customId || ''} onChange={handleChange} placeholder="e.g., SKU-12345" />
+            {isDuplicateId && (
+              <div className="mt-1.5 p-2.5 bg-amber-50 border border-amber-300 rounded-lg flex items-center justify-between gap-2 text-xs text-amber-900 font-medium animate-pulse">
+                <div className="flex items-center gap-2">
+                  <span className="text-amber-600 text-base">⚠️</span>
+                  <span>
+                    <strong>This product is already added!</strong> (Yeh product Product ID <strong>"{formData.customId}"</strong> ke sath pehle se store mein added hai: <em>{duplicateProduct?.name}</em>)
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
           <Textarea label="Description" name="description" value={formData.description} onChange={handleChange} rows={3} required />
           <div className="grid grid-cols-2 gap-4"><Input label="Price" name="price" type="number" step="0.01" value={formData.price} onChange={handleChange} required /><Input label="Old Price (Optional)" name="oldPrice" type="number" step="0.01" value={formData.oldPrice} onChange={handleChange} /></div>
           <div className="grid grid-cols-2 gap-4">
@@ -379,74 +564,141 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
           </div>
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1.5">
-              <label className="block text-sm font-semibold text-gray-700">Size Categories (سائز کیٹیگریز)</label>
-              <span className="text-[11px] text-gray-500">Auto-filled by AI or click a quick preset below</span>
+              <label className="block text-sm font-semibold text-gray-700">Size &amp; Color Categories (سائز اور کلر کیٹیگریز)</label>
+              <span className="text-[11px] text-gray-500">Auto-filled by AI Assistant or select quick presets below</span>
             </div>
 
-            {/* Quick 1-Click Size Presets */}
-            <div className="mb-2.5 p-2 bg-indigo-50/70 border border-indigo-100 rounded-lg">
-              <div className="text-[11px] font-bold text-indigo-900 mb-1.5 flex items-center gap-1">
-                <span>⚡ Quick Size Presets (1-کلک میں سائز شامل کریں):</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Size", sizes: ["S", "M", "L", "XL"] }] }))}
-                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
-                >
-                  + S, M, L, XL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Size", sizes: ["S", "M", "L", "XL", "XXL"] }] }))}
-                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
-                >
-                  + S, M, L, XL, XXL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Age / Size", sizes: ["1-2 Years", "2-3 Years", "3-4 Years", "4-5 Years", "5-6 Years"] }] }))}
-                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
-                >
-                  + Kids (1-2Y to 5-6Y)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Shoe Size", sizes: ["39", "40", "41", "42", "43", "44"] }] }))}
-                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
-                >
-                  + Shoes (39-44)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Type", sizes: ["Unstitched"] }] }))}
-                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
-                >
-                  + Unstitched
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData(p => ({ ...p, sizeCategories: [{ categoryName: "Size", sizes: ["Free Size"] }] }))}
-                  className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
-                >
-                  + Free Size
-                </button>
-                {(formData.sizeCategories || []).length > 0 && (
+            {/* Quick 1-Click Size & Color Presets */}
+            <div className="mb-2.5 p-2 bg-indigo-50/70 border border-indigo-100 rounded-lg space-y-2">
+              <div>
+                <div className="text-[11px] font-bold text-indigo-900 mb-1 flex items-center gap-1">
+                  <span>🎨 Color Presets (کلرز):</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setFormData(p => ({ ...p, sizeCategories: [] }))}
-                    className="text-xs px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded font-medium transition-colors"
+                    onClick={() => setFormData(p => {
+                      const exist = p.sizeCategories || [];
+                      const nonColor = exist.filter(c => c.categoryName.toLowerCase() !== 'color');
+                      return { ...p, sizeCategories: [{ categoryName: "Color", sizes: ["Black", "White", "Red", "Blue", "Pink", "Green"] }, ...nonColor] };
+                    })}
+                    className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
                   >
-                    Clear All
+                    + Basic Colors (Black, White, Red, Blue, Pink, Green)
                   </button>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => {
+                      const exist = p.sizeCategories || [];
+                      const nonColor = exist.filter(c => c.categoryName.toLowerCase() !== 'color');
+                      return { ...p, sizeCategories: [{ categoryName: "Color", sizes: ["Black", "White", "Navy Blue", "Grey", "Charcoal"] }, ...nonColor] };
+                    })}
+                    className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                  >
+                    + Formal Colors (Black, White, Navy, Grey)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => {
+                      const exist = p.sizeCategories || [];
+                      const nonColor = exist.filter(c => c.categoryName.toLowerCase() !== 'color');
+                      return { ...p, sizeCategories: [{ categoryName: "Color", sizes: ["Maroon", "Mustard", "Olive Green", "Beige", "Rust"] }, ...nonColor] };
+                    })}
+                    className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                  >
+                    + Trendy Colors (Maroon, Mustard, Olive, Beige)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[11px] font-bold text-indigo-900 mb-1 flex items-center gap-1">
+                  <span>⚡ Size Presets (سائز):</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => {
+                      const exist = p.sizeCategories || [];
+                      const colorOnly = exist.filter(c => c.categoryName.toLowerCase() === 'color');
+                      return { ...p, sizeCategories: [...colorOnly, { categoryName: "Size", sizes: ["S", "M", "L", "XL"] }] };
+                    })}
+                    className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                  >
+                    + S, M, L, XL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => {
+                      const exist = p.sizeCategories || [];
+                      const colorOnly = exist.filter(c => c.categoryName.toLowerCase() === 'color');
+                      return { ...p, sizeCategories: [...colorOnly, { categoryName: "Size", sizes: ["S", "M", "L", "XL", "XXL"] }] };
+                    })}
+                    className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                  >
+                    + S, M, L, XL, XXL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => {
+                      const exist = p.sizeCategories || [];
+                      const colorOnly = exist.filter(c => c.categoryName.toLowerCase() === 'color');
+                      return { ...p, sizeCategories: [...colorOnly, { categoryName: "Age / Size", sizes: ["1-2 Years", "2-3 Years", "3-4 Years", "4-5 Years", "5-6 Years"] }] };
+                    })}
+                    className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                  >
+                    + Kids (1-2Y to 5-6Y)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => {
+                      const exist = p.sizeCategories || [];
+                      const colorOnly = exist.filter(c => c.categoryName.toLowerCase() === 'color');
+                      return { ...p, sizeCategories: [...colorOnly, { categoryName: "Shoe Size", sizes: ["39", "40", "41", "42", "43", "44"] }] };
+                    })}
+                    className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                  >
+                    + Shoes (39-44)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => {
+                      const exist = p.sizeCategories || [];
+                      const colorOnly = exist.filter(c => c.categoryName.toLowerCase() === 'color');
+                      return { ...p, sizeCategories: [...colorOnly, { categoryName: "Type", sizes: ["Unstitched"] }] };
+                    })}
+                    className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                  >
+                    + Unstitched
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => {
+                      const exist = p.sizeCategories || [];
+                      const colorOnly = exist.filter(c => c.categoryName.toLowerCase() === 'color');
+                      return { ...p, sizeCategories: [...colorOnly, { categoryName: "Size", sizes: ["Free Size"] }] };
+                    })}
+                    className="text-xs px-2.5 py-1 bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium shadow-xs transition-colors"
+                  >
+                    + Free Size
+                  </button>
+                  {(formData.sizeCategories || []).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData(p => ({ ...p, sizeCategories: [] }))}
+                      className="text-xs px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded font-medium transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="p-3 border rounded-md space-y-3 bg-white">
               {(formData.sizeCategories || []).length === 0 ? (
                 <p className="text-xs text-gray-400 italic text-center py-2">
-                  No sizes attached. Products without sizes will not ask customer for size selection.
+                  No sizes or colors attached. Products without options will not ask customer for selection.
                 </p>
               ) : (
                 (formData.sizeCategories || []).map((cat, i) => (
@@ -459,8 +711,18 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
               )}
             </div>
             <div className="mt-3 bg-gray-50 p-2.5 rounded-md border">
-                <h4 className="text-xs font-bold text-gray-700 mb-1.5">Add Custom Size Category Name</h4>
-                <div className="flex gap-2 items-center"><Input placeholder="e.g., Shirt Size, Age Range" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} /><Button type="button" size="sm" onClick={handleCreateAndAddCategory}>Create</Button></div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <h4 className="text-xs font-bold text-gray-700">Add Custom Category Name (سائز یا کلر کیٹیگری بنائیں)</h4>
+                  <div className="flex gap-1">
+                    <button type="button" onClick={() => { setNewCategoryName("Color"); }} className="text-[10px] px-2 py-0.5 bg-white hover:bg-gray-100 border rounded font-semibold text-indigo-700">+ Color</button>
+                    <button type="button" onClick={() => { setNewCategoryName("Size"); }} className="text-[10px] px-2 py-0.5 bg-white hover:bg-gray-100 border rounded font-semibold text-indigo-700">+ Size</button>
+                    <button type="button" onClick={() => { setNewCategoryName("Age / Size"); }} className="text-[10px] px-2 py-0.5 bg-white hover:bg-gray-100 border rounded font-semibold text-indigo-700">+ Age / Size</button>
+                  </div>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <Input placeholder="e.g., Color, Shirt Size, Age Range, Shoe Size" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} />
+                  <Button type="button" size="sm" onClick={handleCreateAndAddCategory}>Create</Button>
+                </div>
             </div>
           </div>
           <div>
