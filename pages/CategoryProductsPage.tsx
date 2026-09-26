@@ -73,6 +73,11 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
     
     const isParentCategory = useMemo(() => currentCategory ? !currentCategory.parentId : false, [currentCategory]);
 
+    // Force instant scroll to top whenever a user opens or switches categories
+    useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }, [categoryId, location.pathname]);
+
     // Check if user is on the main standalone home page or a subcategory inside standalone mode
     const isStandaloneRoot = Boolean(
         isStandaloneMode && 

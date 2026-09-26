@@ -189,7 +189,7 @@ const CategoriesPage: React.FC<CategoriesPageProps> = ({ isStandalone: isStandal
                                 <div className="absolute inset-0 flex flex-col justify-between p-4 sm:p-5 md:p-6 text-white">
                                     {/* Top badge and share button */}
                                     <div className="flex justify-between items-center z-10">
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/20 backdrop-blur-md border border-white/30 text-white shadow-xs">
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-900/85 border border-white/30 text-white shadow-md">
                                             <span>Collection</span>
                                             {productCount > 0 && <span>• {productCount} items</span>}
                                         </span>
@@ -197,12 +197,12 @@ const CategoriesPage: React.FC<CategoriesPageProps> = ({ isStandalone: isStandal
                                             <button
                                                 onClick={(e) => handleShareCategory(e, category)}
                                                 aria-label={`Share ${category.name}`}
-                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-black/40 hover:bg-rose-600 text-white backdrop-blur-md border border-white/20 hover:border-rose-400/50 shadow-xs transition-all cursor-pointer active:scale-95"
+                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-900/85 hover:bg-rose-600 text-white border border-white/30 hover:border-rose-400/50 shadow-md transition-all cursor-pointer active:scale-95"
                                             >
                                                 <Icons.share2 className="w-3.5 h-3.5" />
                                                 <span className="hidden sm:inline">Share</span>
                                             </button>
-                                            <div className="w-8 h-8 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-white group-hover:bg-rose-600 group-hover:translate-x-1 transition-all duration-300">
+                                            <div className="w-8 h-8 rounded-full bg-slate-900/85 border border-white/30 flex items-center justify-center text-white group-hover:bg-rose-600 group-hover:border-rose-500 group-hover:translate-x-1 transition-all duration-300 shadow-md">
                                                 <Icons.chevronRight className="w-4 h-4" />
                                             </div>
                                         </div>

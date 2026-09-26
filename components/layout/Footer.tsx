@@ -78,7 +78,7 @@ export const Footer = () => {
       : '/categories';
 
     return (
-      <footer className="fixed bottom-0 left-0 right-0 z-30 h-14 bg-white/95 backdrop-blur-md border-t border-pink-100 shadow-[0_-2px_15px_rgba(244,63,94,0.08)] overflow-visible">
+      <footer className="fixed bottom-0 left-0 right-0 z-30 h-14 bg-white border-t border-slate-200/90 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] overflow-visible">
         <nav className="container mx-auto h-full flex justify-around items-center px-2 max-w-md overflow-visible">
           <NavItem 
             to={homeUrl} 
@@ -106,7 +106,7 @@ export const Footer = () => {
   }
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 z-30 h-14 bg-white/95 backdrop-blur-md border-t border-pink-100 shadow-[0_-2px_15px_rgba(244,63,94,0.08)] overflow-visible">
+    <footer className="fixed bottom-0 left-0 right-0 z-30 h-14 bg-white border-t border-slate-200/90 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] overflow-visible">
       <nav className="container mx-auto h-full flex justify-around items-center px-1 overflow-visible">
         <NavItem to="/" icon={Icons.home} label="Home" />
         <NavItem to="/categories" icon={Icons.category} label="Collections" />

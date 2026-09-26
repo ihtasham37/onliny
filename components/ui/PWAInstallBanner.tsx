@@ -90,7 +90,7 @@ export const PWAInstallBanner = () => {
             aria-label="Install App Banner"
             className="fixed bottom-16 sm:bottom-5 inset-x-2.5 sm:inset-x-auto sm:right-5 sm:max-w-sm z-[60] animate-in fade-in slide-in-from-bottom-3 duration-300 pointer-events-auto"
         >
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-xl border border-rose-200/80 text-slate-800 flex items-center justify-between gap-2.5">
+            <div className="bg-white rounded-2xl p-2.5 sm:p-3 shadow-2xl border border-slate-200/90 text-slate-800 flex items-center justify-between gap-2.5 overflow-hidden">
                 {/* App Logo & Info */}
                 <div className="flex items-center gap-2.5 min-w-0">
                     <div className="relative w-10 h-10 min-w-[40px] rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center">

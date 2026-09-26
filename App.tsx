@@ -1,8 +1,19 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { AppProvider } from './context/AppContext';
+
+// Automatically resets window scroll to top whenever navigation/route changes
+const ScrollToTop = () => {
+    const { pathname, search } = useLocation();
+
+    useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }, [pathname, search]);
+
+    return null;
+};
 // Fix: Corrected import source for useStore to pull from hooks/useStore instead of context/AppContext.
 import { useStore } from './hooks/useStore';
 import { useStandaloneCategory } from './hooks/useStandaloneCategory';
@@ -105,6 +116,7 @@ const AppContent = () => {
 
     return (
         <Suspense fallback={<FullPageSpinner />}>
+            <ScrollToTop />
             <Routes>
                 {/* Universal Login & Portal Routes */}
                 <Route path="/login" element={<VendorAuth />} />
