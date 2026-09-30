@@ -15,7 +15,7 @@ import { MoveCopyCategoryModal } from '../../components/admin/MoveCopyCategoryMo
 
 const CategoryProducts = () => {
   const { categoryName: categoryId } = useParams<{ categoryName: string }>(); 
-  const { products, allProducts, deleteProduct, toggleProductVisibility, isLoading, settings, addCategory, updateCategory, deleteCategory, uploadFile } = useStore();
+  const { products, allProducts, deleteProduct, toggleProductVisibility, isLoading, settings, addCategory, updateCategory, updateSettings, deleteCategory, uploadFile } = useStore();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -101,6 +101,28 @@ const CategoryProducts = () => {
       );
     });
   }, [products, allProducts, currentCategory, subCategories, rawId]);
+
+  const handleMoveSubCatOrder = async (subCatId: string, direction: 'up' | 'down') => {
+    if (!settings?.categories) return;
+    const allCats = [...settings.categories];
+    const index = subCategories.findIndex(c => c.id === subCatId);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= subCategories.length) return;
+
+    const itemA = subCategories[index];
+    const itemB = subCategories[targetIndex];
+
+    const realIndexA = allCats.findIndex(c => c.id === itemA.id);
+    const realIndexB = allCats.findIndex(c => c.id === itemB.id);
+
+    if (realIndexA !== -1 && realIndexB !== -1) {
+      allCats[realIndexA] = itemB;
+      allCats[realIndexB] = itemA;
+      await updateSettings({ ...settings, categories: allCats });
+    }
+  };
 
   const handleAddBannerUrl = () => {
     if (newBannerUrlInput.trim()) {
@@ -215,13 +237,38 @@ const CategoryProducts = () => {
             </form>
             {subCategories.length > 0 ? (
                 <div className="space-y-2">
-                    {subCategories.map(subCat => (
-                        <div key={subCat.id} className="flex flex-col sm:flex-row justify-between items-center bg-gray-50 p-3 rounded-md gap-3">
-                            <div className="flex items-center gap-4 flex-grow">
-                                <ImageWithFallback src={subCat.imageUrl} alt={subCat.name} className="w-12 h-12 rounded-md object-cover"/>
-                                <span className="font-medium text-gray-700">{subCat.name}</span>
+                    {subCategories.map((subCat, idx) => (
+                        <div key={subCat.id} className="flex flex-col sm:flex-row justify-between items-center bg-gray-50 hover:bg-slate-100/80 transition-colors p-3 rounded-md gap-3 border border-slate-200/70">
+                            <div className="flex items-center gap-3 sm:gap-4 flex-grow w-full sm:w-auto">
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <span className="w-6 h-6 rounded-full bg-slate-800 text-white text-[11px] font-bold flex items-center justify-center shadow-xs">
+                                        {idx + 1}
+                                    </span>
+                                    <div className="flex flex-col gap-0.5">
+                                        <button
+                                            type="button"
+                                            disabled={idx === 0}
+                                            onClick={() => handleMoveSubCatOrder(subCat.id, 'up')}
+                                            className="p-1 rounded bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 disabled:opacity-30 border border-slate-200 cursor-pointer text-xs"
+                                            title="Move Up"
+                                        >
+                                            <Icons.chevronUp className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={idx === subCategories.length - 1}
+                                            onClick={() => handleMoveSubCatOrder(subCat.id, 'down')}
+                                            className="p-1 rounded bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 disabled:opacity-30 border border-slate-200 cursor-pointer text-xs"
+                                            title="Move Down"
+                                        >
+                                            <Icons.chevronDown className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <ImageWithFallback src={subCat.imageUrl} alt={subCat.name} className="w-12 h-12 rounded-full object-cover border border-rose-200 shrink-0"/>
+                                <span className="font-bold text-gray-800 truncate">{subCat.name}</span>
                             </div>
-                            <div className="flex items-center gap-3 flex-shrink-0">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto justify-end">
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs text-gray-500">Visible</span>
                                     <button onClick={() => updateCategory(subCat.id, { isVisible: !subCat.isVisible })} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${subCat.isVisible ? 'bg-rose-500' : 'bg-gray-200'}`}>

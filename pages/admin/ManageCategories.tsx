@@ -13,7 +13,7 @@ import { MoveCopyCategoryModal } from '../../components/admin/MoveCopyCategoryMo
 import { StandaloneLinkModal } from '../../components/admin/StandaloneLinkModal';
 
 const ManageCategories = () => {
-    const { settings, addCategory, deleteCategory, updateCategory, isLoading, products, uploadFile } = useStore();
+    const { settings, addCategory, deleteCategory, updateCategory, updateSettings, isLoading, products, uploadFile } = useStore();
     const [newCategoryName, setNewCategoryName] = useState('');
     const [imageInputMode, setImageInputMode] = useState<'upload' | 'url'>('upload');
     const [newCategoryImageFile, setNewCategoryImageFile] = useState<File | null>(null);
@@ -32,6 +32,8 @@ const ManageCategories = () => {
     const [categoryToMoveCopy, setCategoryToMoveCopy] = useState<Category | null>(null);
     const [isStandaloneModalOpen, setIsStandaloneModalOpen] = useState(false);
     const [standaloneCategoryTarget, setStandaloneCategoryTarget] = useState<Category | null>(null);
+    const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
+    const [reorderList, setReorderList] = useState<Category[]>([]);
 
     // Only manage platform/admin categories in Admin panel (strictly exclude vendor-owned categories)
     const categories = useMemo(() => (settings?.categories || []).filter(c => c && c.id && (!c.vendorId || c.vendorId === 'admin')), [settings]);
@@ -102,9 +104,72 @@ const ManageCategories = () => {
         return categories.filter(c => !c.parentId && safeLower(c.name).includes(lowerSearch));
     }, [categories, searchTerm]);
 
+    // Handle Moving Category Position Up/Down
+    const handleMoveOrder = async (categoryId: string, direction: 'up' | 'down') => {
+        if (!settings?.categories) return;
+        const allCats = [...settings.categories];
+        const topCats = allCats.filter(c => !c.parentId && (!c.vendorId || c.vendorId === 'admin'));
+        const index = topCats.findIndex(c => c.id === categoryId);
+        if (index === -1) return;
+
+        const targetIndex = direction === 'up' ? index - 1 : index + 1;
+        if (targetIndex < 0 || targetIndex >= topCats.length) return;
+
+        const itemA = topCats[index];
+        const itemB = topCats[targetIndex];
+
+        const realIndexA = allCats.findIndex(c => c.id === itemA.id);
+        const realIndexB = allCats.findIndex(c => c.id === itemB.id);
+
+        if (realIndexA !== -1 && realIndexB !== -1) {
+            allCats[realIndexA] = itemB;
+            allCats[realIndexB] = itemA;
+            await updateSettings({ ...settings, categories: allCats });
+        }
+    };
+
+    const openReorderModal = () => {
+        const topCats = (settings?.categories || []).filter(c => !c.parentId && (!c.vendorId || c.vendorId === 'admin'));
+        setReorderList([...topCats]);
+        setIsReorderModalOpen(true);
+    };
+
+    const moveReorderItem = (index: number, direction: 'up' | 'down') => {
+        const targetIndex = direction === 'up' ? index - 1 : index + 1;
+        if (targetIndex < 0 || targetIndex >= reorderList.length) return;
+        const updated = [...reorderList];
+        const temp = updated[index];
+        updated[index] = updated[targetIndex];
+        updated[targetIndex] = temp;
+        setReorderList(updated);
+    };
+
+    const saveReorderedList = async () => {
+        if (!settings?.categories) return;
+        const allCats = [...settings.categories];
+        const subAndVendorCats = allCats.filter(c => c.parentId || (c.vendorId && c.vendorId !== 'admin'));
+        
+        // Combine reordered top categories with their subcategories
+        const finalCategories: Category[] = [...reorderList, ...subAndVendorCats];
+        await updateSettings({ ...settings, categories: finalCategories });
+        setIsReorderModalOpen(false);
+    };
+
     return (
         <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-4">Manage Categories</h1>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Manage Categories</h1>
+                <Button 
+                    type="button" 
+                    variant="primary" 
+                    onClick={openReorderModal}
+                    className="inline-flex items-center gap-2 shadow-xs cursor-pointer"
+                >
+                    <Icons.list className="w-4 h-4" />
+                    <span>Reorder Collections (ترتیب تبدیل کریں)</span>
+                </Button>
+            </div>
+
             <div className="bg-white p-4 rounded-lg shadow-sm mb-6 border-t-4 border-teal-500">
                 <h2 className="text-xl font-bold mb-3">Add New Parent Category</h2>
                 <form onSubmit={handleAddCategory} className="space-y-3">
@@ -125,21 +190,54 @@ const ManageCategories = () => {
                     <Button type="submit" disabled={isSubmitting}>{isSubmitting ? <Spinner size="sm" /> : 'Create Category'}</Button>
                 </form>
             </div>
+
             <div className="bg-white p-4 rounded-lg shadow-sm">
-                <h2 className="text-xl font-bold mb-3">Existing Parent Categories</h2>
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-3">
+                    <h2 className="text-xl font-bold">Existing Parent Categories</h2>
+                    <span className="text-xs text-slate-500">Use (↑ / ↓) to arrange order on Collection page</span>
+                </div>
+
                 <div className="mb-4"><Input placeholder="Search categories..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
+                
                 {isLoading && categories.length === 0 ? <div className="text-center py-8"><Spinner /></div> : topLevelCategories.length > 0 ? (
                     <div className="space-y-2">
-                        {topLevelCategories.map(category => (
-                            <div key={category.id} className="flex flex-col sm:flex-row justify-between items-center bg-gray-50 p-3 rounded-md gap-3">
-                                <div className="flex items-center gap-4 flex-grow">
-                                    <ImageWithFallback src={category.imageUrl} alt={category.name} className="w-12 h-12 rounded-md object-cover"/>
-                                    <div>
-                                        <span className="font-medium text-gray-800">{category.name}</span>
-                                        <span className="ml-3 text-sm text-gray-500 block">({productCounts[category.id] || 0} products)</span>
+                        {topLevelCategories.map((category, idx) => (
+                            <div key={category.id} className="flex flex-col sm:flex-row justify-between items-center bg-gray-50 hover:bg-slate-100/80 transition-colors p-3 rounded-md gap-3 border border-slate-200/70">
+                                <div className="flex items-center gap-3 sm:gap-4 flex-grow w-full sm:w-auto">
+                                    {/* Order Position Badge & Up/Down Arrows */}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <span className="w-6 h-6 rounded-full bg-slate-800 text-white text-[11px] font-bold flex items-center justify-center shadow-xs">
+                                            {idx + 1}
+                                        </span>
+                                        <div className="flex flex-col gap-0.5">
+                                            <button
+                                                type="button"
+                                                disabled={idx === 0}
+                                                onClick={() => handleMoveOrder(category.id, 'up')}
+                                                className="p-1 rounded bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-700 border border-slate-200 cursor-pointer text-xs"
+                                                title="Move Up on Collection Page"
+                                            >
+                                                <Icons.chevronUp className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={idx === topLevelCategories.length - 1}
+                                                onClick={() => handleMoveOrder(category.id, 'down')}
+                                                className="p-1 rounded bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-700 border border-slate-200 cursor-pointer text-xs"
+                                                title="Move Down on Collection Page"
+                                            >
+                                                <Icons.chevronDown className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <ImageWithFallback src={category.imageUrl} alt={category.name} className="w-12 h-12 rounded-full object-cover border border-rose-200 shrink-0"/>
+                                    <div className="min-w-0">
+                                        <span className="font-bold text-gray-800 block truncate">{category.name}</span>
+                                        <span className="text-xs text-gray-500 block">({productCounts[category.id] || 0} products)</span>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0 w-full sm:w-auto justify-end">
                                     {/* Standalone Website Link Generator */}
                                     <button
                                         type="button"
@@ -170,6 +268,73 @@ const ManageCategories = () => {
                     </div>
                 ) : <p className="text-center py-8 text-gray-500">No top-level categories found.</p>}
             </div>
+
+            {/* Reorder Categories Modal */}
+            {isReorderModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+                    <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+                        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900">Custom Category Order (ترتیب بدلیں)</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">Arrange the order how categories appear on Collections & Home page</p>
+                            </div>
+                            <button 
+                                onClick={() => setIsReorderModalOpen(false)}
+                                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/60"
+                            >
+                                <Icons.x className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-4 overflow-y-auto flex-1 space-y-2">
+                            {reorderList.map((cat, index) => (
+                                <div 
+                                    key={cat.id} 
+                                    className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <span className="w-6 h-6 rounded-full bg-rose-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                                            {index + 1}
+                                        </span>
+                                        <ImageWithFallback src={cat.imageUrl} alt={cat.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" />
+                                        <span className="font-bold text-sm text-slate-800 truncate">{cat.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            disabled={index === 0}
+                                            onClick={() => moveReorderItem(index, 'up')}
+                                            className="p-1.5 rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 disabled:opacity-30 border border-slate-200 cursor-pointer"
+                                            title="Move Up"
+                                        >
+                                            <Icons.chevronUp className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={index === reorderList.length - 1}
+                                            onClick={() => moveReorderItem(index, 'down')}
+                                            className="p-1.5 rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 disabled:opacity-30 border border-slate-200 cursor-pointer"
+                                            title="Move Down"
+                                        >
+                                            <Icons.chevronDown className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+                            <Button variant="secondary" onClick={() => setIsReorderModalOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button variant="primary" onClick={saveReorderedList}>
+                                Save Order (ترتیب محفوظ کریں)
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <EditCategoryModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} category={editingCategory} onSave={updateCategory} />
             <MoveCopyCategoryModal isOpen={isMoveCopyModalOpen} onClose={() => setIsMoveCopyModalOpen(false)} category={categoryToMoveCopy} />
             <StandaloneLinkModal 

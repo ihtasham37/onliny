@@ -578,47 +578,39 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
             {!isStandaloneMode && subCategories.length > 0 && (
                 <div className="space-y-2.5">
                     <div className="flex items-center justify-between px-1">
-                        <div className="flex items-center gap-2">
-                            <h2 className="text-sm sm:text-base font-extrabold text-slate-800 tracking-tight">
-                                Sub-categories
-                            </h2>
-                            <span className="text-[11px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
-                                {subCategories.length}
-                            </span>
-                        </div>
+                        <h2 className="text-sm sm:text-base font-extrabold text-slate-800 tracking-tight">
+                            Sub-categories
+                        </h2>
                         <span className="text-[11px] text-slate-400 font-medium">Swipe to explore →</span>
                     </div>
 
-                    <div className="flex items-center gap-2.5 sm:gap-3 overflow-x-auto pb-2 -mx-2 px-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden snap-x">
+                    <div className="flex items-center gap-3.5 sm:gap-4 md:gap-5 overflow-x-auto pb-2 pt-1 -mx-2 px-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden snap-x">
                         {subCategories.map(subCat => {
-                            const count = products.filter(p => p.isVisible && (p.category === subCat.id || p.category === subCat.name)).length;
                             return (
                                 <Link 
                                     key={subCat.id} 
                                     to={`/category/${subCat.id}`} 
-                                    className="group shrink-0 flex flex-col items-center gap-1.5 w-20 sm:w-24 md:w-28 lg:w-32 text-center snap-start transition-transform active:scale-95"
+                                    className="group shrink-0 flex flex-col items-center gap-2 w-20 sm:w-24 md:w-28 text-center snap-start transition-transform active:scale-95"
                                 >
-                                    <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 rounded-2xl overflow-hidden border-2 border-rose-100 bg-white p-0.5 shadow-2xs group-hover:shadow-md group-hover:border-rose-400 transition-all flex items-center justify-center">
-                                        {subCat.imageUrl ? (
-                                            <MediaPreview 
-                                                src={subCat.imageUrl} 
-                                                className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-300" 
-                                                controls={false} 
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-gradient-to-br from-rose-50 to-amber-50 rounded-xl flex items-center justify-center text-rose-500">
-                                                <Icons.sparkles className="w-6 h-6 lg:w-10 lg:h-10" />
-                                            </div>
-                                        )}
+                                    {/* Clean Circular Avatar Container matching Home page style */}
+                                    <div className="relative p-[2.5px] rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-rose-400 shadow-2xs border border-pink-100/80 group-hover:scale-105 transition-all duration-300">
+                                        <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full overflow-hidden bg-slate-100 border border-white flex items-center justify-center">
+                                            {subCat.imageUrl ? (
+                                                <MediaPreview 
+                                                    src={subCat.imageUrl} 
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                                                    controls={false} 
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full bg-gradient-to-br from-rose-50 to-pink-50 rounded-full flex items-center justify-center text-rose-500">
+                                                    <Icons.sparkles className="w-6 h-6 sm:w-8 sm:h-8" />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <span className="text-[11px] sm:text-xs lg:text-sm font-bold text-slate-800 group-hover:text-rose-600 line-clamp-1 max-w-full leading-tight">
+                                    <span className="text-[11px] sm:text-xs md:text-sm font-bold text-slate-800 group-hover:text-rose-600 line-clamp-1 max-w-full leading-tight">
                                         {subCat.name}
                                     </span>
-                                    {count > 0 && (
-                                        <span className="text-[9px] font-semibold text-rose-600 bg-rose-50 px-1.5 py-0.2 rounded-full border border-rose-100/60">
-                                            {count} items
-                                        </span>
-                                    )}
                                 </Link>
                             );
                         })}
@@ -634,7 +626,7 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
                             onClick={() => setSortBy('all')}
                             className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${sortBy === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'}`}
                         >
-                            All ({productsToShow.length})
+                            All
                         </button>
                         <button
                             onClick={() => setSortBy('price-low')}

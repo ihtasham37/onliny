@@ -63,54 +63,73 @@ export const normalizePhone = (phone: string): string => {
   return digits;
 };
 
+export const toPlainSerializableObject = (obj: any, seen = new WeakSet()): any => {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== 'object') {
+    if (typeof obj === 'function' || typeof obj === 'symbol') return undefined;
+    return obj;
+  }
+  if (seen.has(obj)) {
+    return undefined; // Break circular reference cleanly
+  }
+  seen.add(obj);
+
+  // Firestore Timestamp handling
+  if (typeof obj.toMillis === 'function') {
+    return obj.toMillis();
+  }
+  if (typeof obj.toDate === 'function') {
+    return obj.toDate().getTime();
+  }
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+
+  // Filter out DOM nodes, elements, events, window, images
+  if (typeof window !== 'undefined') {
+    if (obj instanceof Element || obj instanceof Node || obj instanceof Window || obj instanceof Event) {
+      return undefined;
+    }
+  }
+
+  if (Array.isArray(obj)) {
+    return obj
+      .map(item => toPlainSerializableObject(item, seen))
+      .filter(item => item !== undefined);
+  }
+
+  const result: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    // Avoid internal circular properties or private symbols
+    if (key.startsWith('__') || key === '_firestore' || key === 'firestore' || key === '_delegate' || key === 'src') {
+      // Check if property is a DOM element / circular
+      try {
+        const directVal = obj[key];
+        if (directVal && typeof directVal === 'object' && seen.has(directVal)) {
+          continue;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    try {
+      const val = toPlainSerializableObject(obj[key], seen);
+      if (val !== undefined) {
+        result[key] = val;
+      }
+    } catch (e) {}
+  }
+  return result;
+};
+
 export const safeJsonStringify = (obj: any, indent?: number): string => {
   if (obj === undefined) return '';
   try {
-    const seen = new WeakSet();
-    return JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'function' || typeof value === 'symbol') {
-        return undefined;
-      }
-      if (typeof window !== 'undefined') {
-        if (value instanceof Element || value instanceof Node || value instanceof Window || value instanceof Event) {
-          return undefined;
-        }
-        if (typeof Image !== 'undefined' && value instanceof Image) {
-          return undefined;
-        }
-      }
-      if (typeof value === 'object' && value !== null) {
-        if (seen.has(value)) {
-          return undefined; // Break circular reference cleanly
-        }
-        seen.add(value);
-      }
-      return value;
-    }, indent);
+    const plain = toPlainSerializableObject(obj);
+    return JSON.stringify(plain, null, indent);
   } catch (error) {
-    console.warn("safeJsonStringify encountered error, falling back to safe serialization:", error);
-    try {
-      // Fallback sanitizer
-      const seen = new WeakSet();
-      const clean = (val: any): any => {
-        if (val === null || val === undefined) return val;
-        if (typeof val !== 'object') return val;
-        if (seen.has(val)) return undefined;
-        seen.add(val);
-        if (Array.isArray(val)) return val.map(clean).filter(v => v !== undefined);
-        const res: Record<string, any> = {};
-        for (const k of Object.keys(val)) {
-          try {
-            const v = clean(val[k]);
-            if (v !== undefined) res[k] = v;
-          } catch (e) {}
-        }
-        return res;
-      };
-      return JSON.stringify(clean(obj), null, indent);
-    } catch (e) {
-      return "{}";
-    }
+    console.warn("safeJsonStringify error, returning empty JSON:", error);
+    return "{}";
   }
 };
 

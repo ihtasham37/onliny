@@ -330,7 +330,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     try {
       if (activeCustomer) {
-        localStorage.setItem('onliny_tracked_customer', JSON.stringify(activeCustomer));
+        localStorage.setItem('onliny_tracked_customer', safeJsonStringify(activeCustomer));
       }
     } catch (e) {}
   }, [activeCustomer]);
@@ -338,7 +338,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     try {
       if (customerOrders && customerOrders.length > 0) {
-        localStorage.setItem('onliny_customer_orders', JSON.stringify(customerOrders));
+        localStorage.setItem('onliny_customer_orders', safeJsonStringify(customerOrders));
       }
     } catch (e) {}
   }, [customerOrders]);
@@ -516,7 +516,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         localStorage.setItem('onliny_catalog_initialized', 'true');
         sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleToSave));
-        localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleToSave }));
+        localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, safeJsonStringify({ cachedAt: Date.now(), data: bundleToSave }));
       } catch (e) {}
 
       // 3. Keep static JSON catalog on server synced immediately across all devices
@@ -524,7 +524,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await fetch('/api/save-catalog', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ catalog: bundleToSave })
+          body: safeJsonStringify({ catalog: bundleToSave })
         });
       } catch (apiErr) {
         console.warn("Could not save to /api/save-catalog:", apiErr);
@@ -702,9 +702,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const currentCustomer = { email: orderData.email ? orderData.email.trim().toLowerCase() : '', phone: phone || orderData.customerPhone };
     setActiveCustomer(currentCustomer);
     try {
-      localStorage.setItem('onliny_tracked_customer', JSON.stringify(currentCustomer));
+      localStorage.setItem('onliny_tracked_customer', safeJsonStringify(currentCustomer));
       const existingStored: Order[] = JSON.parse(localStorage.getItem('onliny_customer_orders') || '[]');
-      localStorage.setItem('onliny_customer_orders', JSON.stringify([placedOrder, ...existingStored.filter(o => o.id !== docRef.id)]));
+      localStorage.setItem('onliny_customer_orders', safeJsonStringify([placedOrder, ...existingStored.filter(o => o.id !== docRef.id)]));
     } catch (e) {}
 
     clearCart();
@@ -780,7 +780,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const existingRaw = localStorage.getItem(`standalone_brand_${id}`);
         const existing = existingRaw ? JSON.parse(existingRaw) : {};
-        localStorage.setItem(`standalone_brand_${id}`, JSON.stringify({
+        localStorage.setItem(`standalone_brand_${id}`, safeJsonStringify({
           storeName: newData.storeName !== undefined ? (newData.storeName || '') : (existing.storeName || ''),
           storeLogoUrl: newData.storeLogoUrl !== undefined ? (newData.storeLogoUrl || '') : (existing.storeLogoUrl || '')
         }));
@@ -917,8 +917,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setActiveCustomer(customerObj);
             setCustomerOrders(foundOrders);
             try {
-              localStorage.setItem('onliny_tracked_customer', JSON.stringify(customerObj));
-              localStorage.setItem('onliny_customer_orders', JSON.stringify(foundOrders));
+              localStorage.setItem('onliny_tracked_customer', safeJsonStringify(customerObj));
+              localStorage.setItem('onliny_customer_orders', safeJsonStringify(foundOrders));
             } catch (e) {}
             return true;
         }
@@ -1084,7 +1084,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         localStorage.setItem('onliny_catalog_initialized', 'true');
         sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleToSave));
-        localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundleToSave }));
+        localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, safeJsonStringify({ cachedAt: Date.now(), data: bundleToSave }));
       } catch (e) {}
 
       // 4. Save on server-side static JSON file (/api/save-catalog) so all laptops, mobiles, and visitors get exact same data
@@ -1092,7 +1092,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await fetch('/api/save-catalog', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ catalog: bundleToSave })
+          body: safeJsonStringify({ catalog: bundleToSave })
         });
       } catch (err) {
         console.warn("Could not save to /api/save-catalog:", err);
@@ -1202,7 +1202,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           applyBundleData(json.data);
           try {
             sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(json.data));
-            localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: json.data }));
+            localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, safeJsonStringify({ cachedAt: Date.now(), data: json.data }));
           } catch (e) {}
           setIsLoading(false);
           return;
@@ -1235,7 +1235,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               applyBundleData(json.data);
               try {
                 sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(json.data));
-                localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: json.data }));
+                localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, safeJsonStringify({ cachedAt: Date.now(), data: json.data }));
               } catch (e) {}
             }
           }
@@ -1259,7 +1259,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           applyBundleData(bundle);
           try {
             sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundle));
-            localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), data: bundle }));
+            localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, safeJsonStringify({ cachedAt: Date.now(), data: bundle }));
           } catch (e) {}
         }
       }
