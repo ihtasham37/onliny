@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../hooks/useStore';
-import { Settings as SettingsType } from '../../types';
+import { Settings as SettingsType, PaymentMethod } from '../../types';
 import { SectionSyncKey } from '../../services/dataSyncService';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -60,7 +60,13 @@ const Settings = () => {
     };
 
     const [formData, setFormData] = useState<SettingsType>(defaultSettingsData);
-    const [paymentInput, setPaymentInput] = useState({ id: '', name: '', details: ''});
+    const [paymentInput, setPaymentInput] = useState<{ id: string; name: string; details: string; description: string; discountAmount: number | '' }>({ 
+        id: '', 
+        name: '', 
+        details: '', 
+        description: '', 
+        discountAmount: '' 
+    });
     const [isSaving, setIsSaving] = useState(false);
     const [isFetchingFirestore, setIsFetchingFirestore] = useState(false);
     const [activeSyncSection, setActiveSyncSection] = useState<string | null>(null);
@@ -479,14 +485,47 @@ const Settings = () => {
     if (!formData) return <div className="flex justify-center p-16"><Spinner size="lg"/></div>;
 
     const addPaymentMethod = () => {
-        if (formData && paymentInput.name && paymentInput.details) {
-            const newMethod = {...paymentInput, id: safeLower(paymentInput.name).replace(/\s+/g, '-') + Date.now()};
-            setFormData({...formData, paymentMethods: [...formData.paymentMethods, newMethod]});
-            setPaymentInput({id: '', name: '', details: ''});
+        if (formData && paymentInput.name.trim() && paymentInput.details.trim()) {
+            const numDiscount = paymentInput.discountAmount !== '' ? Number(paymentInput.discountAmount) : undefined;
+            const newMethod: PaymentMethod = {
+                id: paymentInput.id || (safeLower(paymentInput.name).replace(/\s+/g, '-') + Date.now()),
+                name: paymentInput.name.trim(),
+                details: paymentInput.details.trim(),
+                description: paymentInput.description.trim() || undefined,
+                discountAmount: (numDiscount && numDiscount > 0) ? numDiscount : undefined,
+            };
+
+            if (paymentInput.id) {
+                // Editing existing method
+                setFormData({
+                    ...formData,
+                    paymentMethods: formData.paymentMethods.map(p => p.id === paymentInput.id ? newMethod : p)
+                });
+            } else {
+                setFormData({
+                    ...formData,
+                    paymentMethods: [...formData.paymentMethods, newMethod]
+                });
+            }
+            setPaymentInput({ id: '', name: '', details: '', description: '', discountAmount: '' });
         }
     };
-     const removePaymentMethod = (id: string) => {
+
+    const startEditPaymentMethod = (method: PaymentMethod) => {
+        setPaymentInput({
+            id: method.id,
+            name: method.name,
+            details: method.details,
+            description: method.description || '',
+            discountAmount: method.discountAmount !== undefined ? method.discountAmount : '',
+        });
+    };
+
+    const removePaymentMethod = (id: string) => {
         if (formData) setFormData({...formData, paymentMethods: formData.paymentMethods.filter(p => p.id !== id)});
+        if (paymentInput.id === id) {
+            setPaymentInput({ id: '', name: '', details: '', description: '', discountAmount: '' });
+        }
     };
 
     if (!formData) {
@@ -1065,16 +1104,112 @@ const Settings = () => {
                             <span>Save Payments to Firestore</span>
                         </Button>
                     </div>
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 border p-4 rounded-md mb-4">
-                        <Input value={paymentInput.name} onChange={e => setPaymentInput({...paymentInput, name: e.target.value})} placeholder="Method Name"/>
-                        <Input value={paymentInput.details} onChange={e => setPaymentInput({...paymentInput, details: e.target.value})} placeholder="Details"/>
-                        <Button type="button" onClick={addPaymentMethod}>Add Method</Button>
+                    <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl mb-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase text-slate-600 tracking-wider">
+                                {paymentInput.id ? '✏️ Edit Payment Method' : '➕ Add Payment Method'}
+                            </span>
+                            {paymentInput.id && (
+                                <button 
+                                    type="button" 
+                                    onClick={() => setPaymentInput({ id: '', name: '', details: '', description: '', discountAmount: '' })}
+                                    className="text-xs text-slate-500 hover:text-slate-800 underline font-medium"
+                                >
+                                    Cancel Edit
+                                </button>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Method Name <span className="text-rose-500">*</span>
+                                </label>
+                                <Input 
+                                    value={paymentInput.name} 
+                                    onChange={e => setPaymentInput({ ...paymentInput, name: e.target.value })} 
+                                    placeholder="e.g. EasyPaisa, JazzCash, COD"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Account Details / Number <span className="text-rose-500">*</span>
+                                </label>
+                                <Input 
+                                    value={paymentInput.details} 
+                                    onChange={e => setPaymentInput({ ...paymentInput, details: e.target.value })} 
+                                    placeholder="e.g. 03296510906 (Title: M. Ali)"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="sm:col-span-2">
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Description / Note (Checkout پر شو ہونے والی تفصیل)
+                                </label>
+                                <Input 
+                                    value={paymentInput.description} 
+                                    onChange={e => setPaymentInput({ ...paymentInput, description: e.target.value })} 
+                                    placeholder="e.g. Pay via EasyPaisa to get extra Rs 99 discount!"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Discount on Bill (Rs) (ڈسکاؤنٹ رقم)
+                                </label>
+                                <Input 
+                                    type="number"
+                                    min="0"
+                                    value={paymentInput.discountAmount} 
+                                    onChange={e => setPaymentInput({ ...paymentInput, discountAmount: e.target.value === '' ? '' : Number(e.target.value) })} 
+                                    placeholder="e.g. 99"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-1 flex justify-end">
+                            <Button type="button" onClick={addPaymentMethod} className="font-bold text-xs">
+                                {paymentInput.id ? 'Save Changes' : '+ Add Method'}
+                            </Button>
+                        </div>
                     </div>
-                    <div className="mt-4 space-y-2">
+
+                    <div className="mt-4 space-y-2.5">
                         {formData.paymentMethods.map(method => (
-                            <div key={method.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                <div><p className="font-semibold">{method.name}</p><p className="text-sm text-gray-500">{method.details}</p></div>
-                                <button onClick={() => removePaymentMethod(method.id)} className="text-red-500"><Icons.trash className="w-4 h-4"/></button>
+                            <div key={method.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white border border-slate-200 p-3 rounded-xl gap-2 hover:border-slate-300 transition-all shadow-2xs">
+                                <div className="space-y-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="font-bold text-slate-900 text-sm">{method.name}</p>
+                                        {method.discountAmount && method.discountAmount > 0 ? (
+                                            <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300">
+                                                🏷️ Rs {method.discountAmount} Discount
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                    <p className="text-xs text-slate-600 font-mono">{method.details}</p>
+                                    {method.description && (
+                                        <p className="text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md inline-block border border-amber-200">
+                                            📝 {method.description}
+                                        </p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                                    <button 
+                                        type="button"
+                                        onClick={() => startEditPaymentMethod(method)} 
+                                        className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button 
+                                        type="button"
+                                        onClick={() => removePaymentMethod(method.id)} 
+                                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                        title="Delete Method"
+                                    >
+                                        <Icons.trash className="w-4 h-4"/>
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -1174,7 +1309,7 @@ const Settings = () => {
                             <div>
                                 <Input 
                                     label="Order Notification Receive Email (Optional - Dusri Email par lene ke liye)" 
-                                    placeholder={formData.gmailUser || "aliihtasham20@gmail.com"} 
+                                    placeholder={formData.gmailUser || "admin@yourstore.com"} 
                                     value={formData.adminNotificationEmail || ''} 
                                     onChange={e => setFormData({...formData, adminNotificationEmail: e.target.value})} 
                                 />

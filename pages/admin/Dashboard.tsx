@@ -27,7 +27,7 @@ const Dashboard = () => {
             .filter(o => o.status === OrderStatus.Delivered)
             .reduce((sum, o) => sum + o.total, 0);
         
-        const pendingOrders = orders.filter(o => o.status === OrderStatus.Pending).length;
+        const pendingOrders = orders.filter(o => o.status === OrderStatus.Pending || o.status === OrderStatus.PaymentVerification).length;
         const completedOrders = orders.filter(o => o.status === OrderStatus.Delivered).length;
 
         return {
@@ -93,6 +93,8 @@ const Dashboard = () => {
                                         <span className={`px-2 py-1 text-xs rounded-full ${
                                             order.status === OrderStatus.Delivered ? 'bg-green-100 text-green-800' :
                                             order.status === OrderStatus.Cancelled ? 'bg-red-100 text-red-800' :
+                                            order.status === OrderStatus.PaymentVerification ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300' :
+                                            order.status === OrderStatus.Packed ? 'bg-purple-100 text-purple-800 font-bold border border-purple-200' :
                                             'bg-yellow-100 text-yellow-800'
                                         }`}>{order.status}</span>
                                     </td>

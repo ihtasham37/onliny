@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useStore } from '../hooks/useStore';
 import { formatCurrency, safeJsonStringify } from '../utils/helpers';
+import { seededFisherYatesShuffle } from '../utils/shuffle';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { MediaPreview } from '../components/ui/MediaPreview';
@@ -162,15 +163,9 @@ const ProductDetail = () => {
       return validCatIdentifiers.has(pCat);
     });
 
-    // Shuffle for natural variation within the category
-    const shuffled = [...matching];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-
-    return shuffled;
-  }, [products, product, id, settings?.categories, productCategoryObj]);
+    // Stable Fisher-Yates shuffle seeded by product.id for natural variation without flickering
+    return seededFisherYatesShuffle(matching, product.id || id || 'prod');
+  }, [products, allProducts, product, id, settings?.categories, productCategoryObj]);
 
   const productRows = useMemo(() => {
     if (!product || relatedSameCategoryProducts.length === 0) return [];

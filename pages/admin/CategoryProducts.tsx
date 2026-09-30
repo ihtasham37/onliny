@@ -15,7 +15,7 @@ import { MoveCopyCategoryModal } from '../../components/admin/MoveCopyCategoryMo
 
 const CategoryProducts = () => {
   const { categoryName: categoryId } = useParams<{ categoryName: string }>(); 
-  const { products, deleteProduct, toggleProductVisibility, isLoading, settings, addCategory, updateCategory, deleteCategory, uploadFile } = useStore();
+  const { products, allProducts, deleteProduct, toggleProductVisibility, isLoading, settings, addCategory, updateCategory, deleteCategory, uploadFile } = useStore();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -39,37 +39,68 @@ const CategoryProducts = () => {
   const [isCatMoveCopyOpen, setIsCatMoveCopyOpen] = useState(false);
   const [categoryToMoveCopy, setCategoryToMoveCopy] = useState<Category | null>(null);
 
+  const rawId = useMemo(() => {
+    try {
+      return decodeURIComponent(categoryId || '').trim();
+    } catch (e) {
+      return (categoryId || '').trim();
+    }
+  }, [categoryId]);
+
   const currentCategory = useMemo(() => {
-    const rawId = decodeURIComponent(categoryId || '');
-    return (settings?.categories || []).find(c => 
+    if (!rawId) return null;
+    const allCats = settings?.categories || [];
+    return allCats.find(c => 
       c.id === rawId || 
       c.id === categoryId || 
-      matchCategory(c.name, rawId)
-    );
-  }, [settings?.categories, categoryId]);
+      c.name.toLowerCase().trim() === rawId.toLowerCase() ||
+      normalizeCategoryName(c.name) === normalizeCategoryName(rawId) ||
+      matchCategory(c.name, rawId) ||
+      matchCategory(c.id, rawId)
+    ) || null;
+  }, [settings?.categories, categoryId, rawId]);
 
   const isParentCategory = useMemo(() => currentCategory ? !currentCategory.parentId : false, [currentCategory]);
   
   const subCategories = useMemo(() => {
-      if (!currentCategory) return [];
+      if (!currentCategory && !rawId) return [];
+      const parentIdentifier = currentCategory?.id || rawId;
+      const parentName = currentCategory?.name || rawId;
       return (settings?.categories || []).filter(c => 
-        c.parentId === currentCategory.id || 
-        c.parentId === categoryId || 
-        c.parentId === currentCategory.name
+        c.parentId === parentIdentifier || 
+        c.parentId === parentName ||
+        (categoryId && c.parentId === categoryId)
       );
-  }, [settings?.categories, currentCategory, categoryId]);
+  }, [settings?.categories, currentCategory, categoryId, rawId]);
 
   const categoryProducts = useMemo(() => {
-    if (!currentCategory) return [];
+    const sourceProducts = (allProducts && allProducts.length > 0) ? allProducts : (products || []);
+    if (!currentCategory && !rawId) return [];
     
-    // Find all descendant categories if parent
-    const targetCategories: { id: string; name: string }[] = [currentCategory];
+    // Target categories to match against
+    const targetCategories: { id: string; name: string }[] = [];
+    if (currentCategory) {
+      targetCategories.push(currentCategory);
+    } else {
+      targetCategories.push({ id: rawId, name: rawId });
+    }
     subCategories.forEach(sub => targetCategories.push(sub));
 
-    return products.filter(p => {
-      return targetCategories.some(target => matchCategory(p.category, target));
+    return sourceProducts.filter(p => {
+      if (!p || !p.category) return false;
+      const pCat = String(p.category).trim();
+      const pCatLower = pCat.toLowerCase();
+      return targetCategories.some(target => 
+        matchCategory(pCat, target) ||
+        pCat === target.id ||
+        pCat === target.name ||
+        pCatLower === target.id.toLowerCase() ||
+        pCatLower === target.name.toLowerCase() ||
+        normalizeCategoryName(pCat) === normalizeCategoryName(target.name) ||
+        normalizeCategoryName(pCat) === normalizeCategoryName(target.id)
+      );
     });
-  }, [products, currentCategory, subCategories]);
+  }, [products, allProducts, currentCategory, subCategories, rawId]);
 
   const handleAddBannerUrl = () => {
     if (newBannerUrlInput.trim()) {

@@ -10,6 +10,7 @@ import { Product, BannerProductItem } from '../types';
 import { SEO } from '../components/SEO';
 import { shareContent } from '../utils/shareHelper';
 import { formatCurrency, matchCategory, normalizeCategoryName } from '../utils/helpers';
+import { fisherYatesShuffle } from '../utils/shuffle';
 import { BannerProductSlide } from '../components/ui/BannerProductSlide';
 import { VerticalScrollColumn, useBannerHeight } from '../components/ui/VerticalProductSlider';
 
@@ -22,7 +23,6 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
     const location = useLocation();
     const { products, allProducts, isLoading, settings } = useStore();
     const { isStandalone: isStandaloneHook, standaloneCategory, standaloneType, vendorId, storeName, storeLogoUrl, homeUrl } = useStandaloneCategory();
-    const [shuffledProducts, setShuffledProducts] = useState<Product[]>([]);
     const [sortBy, setSortBy] = useState<'all' | 'price-low' | 'price-high'>('all');
     const [viewMode, setViewMode] = useState<'rows' | 'grid'>('rows');
     const { bannerRef, bannerHeight } = useBannerHeight();
@@ -114,13 +114,9 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
 
     }, [products, allProducts, currentCategory, subCategories, isStandaloneMode, vendorId]);
 
-    useEffect(() => {
-        const shuffled = [...productsToShow];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-        setShuffledProducts(shuffled);
+    const shuffledProducts = useMemo(() => {
+        if (!productsToShow || productsToShow.length === 0) return [];
+        return fisherYatesShuffle(productsToShow);
     }, [productsToShow]);
 
     const sortedProducts = useMemo(() => {

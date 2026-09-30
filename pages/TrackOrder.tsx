@@ -51,6 +51,7 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
         const vendorData = order.vendorId ? vendorsMap?.[order.vendorId] : null;
         const appName = order.storeName || vendorData?.shopName || settings?.appName || 'onliny';
         const storeLogoUrl = order.storeLogoUrl || vendorData?.shopLogoUrl || settings?.logoUrl || '';
+        const storeWhatsapp = (order as any).storeWhatsapp || vendorData?.whatsappNumber || settings?.whatsappNumber || '';
         const storeWebUrl = order.storeLink || (order.vendorId ? `${origin}/#/store/v/${encodeURIComponent(order.vendorId)}` : `${origin}/#/`);
         const receiptTypeLabel = order.sourceStoreType === 'vendor' ? 'Official Vendor Store Receipt' : order.sourceStoreType === 'category' ? 'Official Category Store Receipt' : 'Official Customer Order Receipt';
         const paymentMethodDisplay = order.paymentMethod?.toLowerCase() === 'cod' ? 'Cash on Delivery (COD)' : (order.paymentMethod || 'Cash on Delivery');
@@ -171,6 +172,12 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
                         <td style="padding: 3px 0; font-size: 12px; font-weight: 700; color: #dc2626; text-align: right;">-${formatCurrency(order.discountAmount)}</td>
                     </tr>
                     ` : ''}
+                    ${order.paymentMethodDiscount ? `
+                    <tr>
+                        <td style="padding: 3px 0; font-size: 12px; color: #16a34a;">Payment Discount:</td>
+                        <td style="padding: 3px 0; font-size: 12px; font-weight: 700; color: #16a34a; text-align: right;">-${formatCurrency(order.paymentMethodDiscount)}</td>
+                    </tr>
+                    ` : ''}
                     <tr>
                         <td style="padding: 3px 0; font-size: 12px; color: #64748b;">Shipping Fee:</td>
                         <td style="padding: 3px 0; font-size: 12px; font-weight: 700; color: #0f172a; text-align: right;">${order.shippingFee > 0 ? formatCurrency(order.shippingFee) : 'FREE'}</td>
@@ -207,10 +214,43 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
     };
 
     const storeDisplayLink = order.storeLink || (order.vendorId ? `#/store/v/${encodeURIComponent(order.vendorId)}` : '#/');
+    const hasProof = Boolean(order.paymentProofUrl || order.status === OrderStatus.PaymentVerification);
+
+    const steps = hasProof ? [
+        { key: 'verify', label: 'Verification', urdu: 'پیمنٹ تصدیق' },
+        { key: 'pending', label: 'Confirmed', urdu: 'آرڈر منظور' },
+        { key: 'packed', label: 'Packed', urdu: 'پیک ہو گیا' },
+        { key: 'ontheway', label: 'On The Way', urdu: 'راستے میں' },
+        { key: 'delivered', label: 'Delivered', urdu: 'پہنچ گیا' },
+    ] : [
+        { key: 'pending', label: 'Confirmed', urdu: 'آرڈر منظور' },
+        { key: 'packed', label: 'Packed', urdu: 'پیک ہو گیا' },
+        { key: 'ontheway', label: 'On The Way', urdu: 'راستے میں' },
+        { key: 'delivered', label: 'Delivered', urdu: 'پہنچ گیا' },
+    ];
+
+    let currentStepIndex = 0;
+    const isCancelled = order.status === OrderStatus.Cancelled;
+
+    if (isCancelled) {
+        currentStepIndex = -1;
+    } else if (hasProof) {
+        if (order.status === OrderStatus.PaymentVerification) currentStepIndex = 0;
+        else if (order.status === OrderStatus.Pending) currentStepIndex = 1;
+        else if (order.status === OrderStatus.Packed) currentStepIndex = 2;
+        else if (order.status === OrderStatus.OnTheWay || (order.status as any) === 'Shipped') currentStepIndex = 3;
+        else if (order.status === OrderStatus.Delivered) currentStepIndex = 4;
+    } else {
+        if (order.status === OrderStatus.Pending) currentStepIndex = 0;
+        else if (order.status === OrderStatus.Packed) currentStepIndex = 1;
+        else if (order.status === OrderStatus.OnTheWay || (order.status as any) === 'Shipped') currentStepIndex = 2;
+        else if (order.status === OrderStatus.Delivered) currentStepIndex = 3;
+    }
 
     return (
-        <div className="bg-white p-4 rounded-xl shadow-xs border border-rose-100 hover:border-rose-200 transition-all">
-            <div className="flex justify-between items-start mb-2">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-rose-100 hover:border-rose-200 transition-all space-y-4">
+            {/* Header info */}
+            <div className="flex justify-between items-start">
                 <div>
                     <h3 className="font-bold text-base sm:text-lg text-slate-900">Your Order</h3>
                     {order.storeName && (
@@ -223,11 +263,120 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
                 <span className={`px-3 py-1 text-xs font-bold rounded-full ${
                     order.status === OrderStatus.Delivered ? 'bg-emerald-100 text-emerald-800' :
                     order.status === OrderStatus.Cancelled ? 'bg-rose-100 text-rose-800' :
-                    order.status === OrderStatus.Shipped ? 'bg-blue-100 text-blue-800' :
-                    'bg-amber-100 text-amber-800'
+                    order.status === OrderStatus.PaymentVerification ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                    order.status === OrderStatus.Packed ? 'bg-purple-100 text-purple-900 border border-purple-300 font-bold' :
+                    (order.status === OrderStatus.OnTheWay || (order.status as any) === 'Shipped') ? 'bg-blue-100 text-blue-800' :
+                    'bg-slate-100 text-slate-800'
                 }`}>{order.status}</span>
             </div>
-            <div className="border-t border-slate-100 pt-2.5 mt-2 space-y-1">
+
+            {/* Visual Multi-step Tracker */}
+            {isCancelled ? (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-center gap-2">
+                    <span className="font-bold text-sm">❌</span>
+                    <div>
+                        <strong>Order Cancelled (آرڈر کینسل ہو گیا ہے)</strong>
+                        <p className="text-[11px] text-red-600 mt-0.5">اگر پیمنٹ غلط یا غیر تصدیق شدہ تھی تو آرڈر منسوخ کر دیا جاتا ہے۔ کسٹمر سپورٹ سے رابطہ کریں۔</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="pt-2 pb-1">
+                    <div className="relative flex items-center justify-between">
+                        {/* Connecting Line */}
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-200 z-0 rounded-full" />
+                        <div 
+                            className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-rose-500 to-emerald-500 z-0 rounded-full transition-all duration-500"
+                            style={{ 
+                                width: steps.length > 1 
+                                    ? `${(Math.max(0, currentStepIndex) / (steps.length - 1)) * 100}%` 
+                                    : '100%' 
+                            }}
+                        />
+
+                        {/* Step Dots */}
+                        {steps.map((st, idx) => {
+                            const isCompleted = idx < currentStepIndex;
+                            const isCurrent = idx === currentStepIndex;
+                            return (
+                                <div key={st.key} className="relative z-10 flex flex-col items-center">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-all duration-300 ${
+                                        isCompleted
+                                            ? 'bg-emerald-600 text-white shadow-xs'
+                                            : isCurrent
+                                            ? 'bg-rose-600 text-white ring-4 ring-rose-100 animate-pulse shadow-xs'
+                                            : 'bg-white text-slate-400 border-2 border-slate-200'
+                                    }`}>
+                                        {isCompleted ? <Icons.check className="w-4 h-4 stroke-[3]" /> : idx + 1}
+                                    </div>
+                                    <span className={`text-[10px] sm:text-xs font-bold mt-1.5 text-center ${
+                                        isCurrent ? 'text-rose-600' : isCompleted ? 'text-emerald-700' : 'text-slate-400'
+                                    }`}>
+                                        {st.label}
+                                    </span>
+                                    <span className="text-[9px] text-slate-500 hidden sm:block">
+                                        {st.urdu}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Active Step Status Message */}
+                    {order.status === OrderStatus.PaymentVerification && (
+                        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+                            <span className="text-base mt-0.5">⏳</span>
+                            <div>
+                                <strong className="font-bold">پیمنٹ رسید تصدیق زیر التواء (Payment Under Verification)</strong>
+                                <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                                    ایڈمن آپ کے اپلوڈ کردہ اسکرین شاٹ کی تصدیق کر رہا ہے۔ جیسے ہی پیمنٹ کنفرم ہو گی، آرڈر اگلے مرحلے پر چلا جائے گا۔
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {order.status === OrderStatus.Packed && (
+                        <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 flex items-start gap-2">
+                            <span className="text-base mt-0.5">📦</span>
+                            <div>
+                                <strong className="font-bold">آرڈر پیک ہو گیا ہے (Order Packed)</strong>
+                                <p className="text-[11px] text-purple-800 mt-0.5 leading-relaxed">
+                                    آپ کا پارسل پیک کر کے تیار کر لیا گیا ہے۔ جلد کوریئر کے حوالے کر دیا جائے گا۔
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Payment Proof Card if attached */}
+            {order.paymentProofUrl && (
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <img 
+                            src={order.paymentProofUrl} 
+                            alt="Uploaded Screenshot" 
+                            className="w-10 h-10 object-cover rounded-lg border border-slate-300 shrink-0"
+                        />
+                        <div className="min-w-0">
+                            <span className="font-bold text-slate-800 block truncate">Attached Payment Screenshot</span>
+                            <span className="text-[10px] text-slate-500">
+                                {order.status === OrderStatus.PaymentVerification ? 'Verification pending' : 'Verified by admin ✓'}
+                            </span>
+                        </div>
+                    </div>
+                    <a 
+                        href={order.paymentProofUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="px-2.5 py-1 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg font-bold text-[11px] text-slate-700 shrink-0 shadow-2xs"
+                    >
+                        View Full
+                    </a>
+                </div>
+            )}
+
+            {/* Items Summary */}
+            <div className="border-t border-slate-100 pt-2.5 space-y-1">
                 {order.items.map(item => (
                     <div key={generateCartItemKey(item)} className="flex justify-between text-xs sm:text-sm py-1">
                         <span className="font-medium text-slate-800">{item.name} &times; {item.quantity}</span>
@@ -235,12 +384,21 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
                     </div>
                 ))}
             </div>
-            <div className="border-t border-slate-100 pt-3 mt-3 flex justify-between items-center">
+
+            {/* Receipt & Total */}
+            <div className="border-t border-slate-100 pt-3 flex justify-between items-center flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={handleDownloadCustomerReceipt} className="text-rose-600 border-rose-300 hover:bg-rose-50 font-semibold text-xs py-1.5 px-3">
                     <Icons.download className="w-3.5 h-3.5 mr-1.5" /> Download Receipt
                 </Button>
-                <div className="text-sm font-bold text-rose-600">
-                    Total: {formatCurrency(order.total)}
+                <div className="text-right">
+                    {order.paymentMethodDiscount && order.paymentMethodDiscount > 0 ? (
+                        <div className="text-[11px] font-bold text-emerald-700">
+                            Discount: -{formatCurrency(order.paymentMethodDiscount)}
+                        </div>
+                    ) : null}
+                    <div className="text-sm font-bold text-rose-600">
+                        Total: {formatCurrency(order.total)}
+                    </div>
                 </div>
             </div>
         </div>

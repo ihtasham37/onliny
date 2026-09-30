@@ -191,7 +191,6 @@ const CategoriesPage: React.FC<CategoriesPageProps> = ({ isStandalone: isStandal
                                     <div className="flex justify-between items-center z-10">
                                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-900/85 border border-white/30 text-white shadow-md">
                                             <span>Collection</span>
-                                            {productCount > 0 && <span>• {productCount} items</span>}
                                         </span>
                                         <div className="flex items-center gap-2">
                                             <button

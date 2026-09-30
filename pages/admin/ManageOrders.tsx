@@ -188,8 +188,53 @@ const CopyableText = ({ text }: { text: string }) => {
     );
 };
 
-const OrderDetailsModal = ({ order, onClose }: { order: Order | null; onClose: () => void }) => {
+const OrderDetailsModal = ({ 
+    order, 
+    onClose,
+    onUpdateStatus,
+    onDeleteScreenshot
+}: { 
+    order: Order | null; 
+    onClose: () => void;
+    onUpdateStatus?: (orderId: string, status: OrderStatus) => void;
+    onDeleteScreenshot?: (orderId: string, fileUrl: string) => Promise<void>;
+}) => {
+    const [isDeletingProof, setIsDeletingProof] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     if (!order) return null;
+
+    const handleDownloadScreenshot = async () => {
+        if (!order.paymentProofUrl) return;
+        setIsDownloading(true);
+        try {
+            const response = await fetch(order.paymentProofUrl);
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `payment-proof-order-${order.id}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(blobUrl);
+        } catch {
+            window.open(order.paymentProofUrl, '_blank');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!order.paymentProofUrl || !onDeleteScreenshot) return;
+        if (!window.confirm("Are you sure you want to permanently delete this payment screenshot from Cloudinary and remove it from the order?")) return;
+        setIsDeletingProof(true);
+        try {
+            await onDeleteScreenshot(order.id, order.paymentProofUrl);
+        } finally {
+            setIsDeletingProof(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
             <div className="bg-white rounded-lg p-4 w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -211,6 +256,100 @@ const OrderDetailsModal = ({ order, onClose }: { order: Order | null; onClose: (
                         <p><strong>Payment:</strong> {order.paymentMethod?.toLowerCase() === 'cod' ? 'Cash on Delivery' : (order.paymentMethod || 'Cash on Delivery')}</p>
                         <p><strong>Date:</strong> {new Date(order.createdAt).toLocaleString()}</p>
                     </div>
+
+                    {/* Payment Screenshot Section if customer uploaded proof */}
+                    {order.paymentProofUrl && (
+                        <div className="border-t pt-4">
+                            <h3 className="font-bold text-slate-900 mb-2 flex items-center justify-between text-sm">
+                                <span>📸 Payment Proof Screenshot (رسید کا اسکرین شاٹ)</span>
+                            </h3>
+                            <div className="bg-amber-50/70 border border-amber-300 rounded-xl p-3.5 space-y-3">
+                                <div className="flex flex-col sm:flex-row items-center gap-3">
+                                    <a 
+                                        href={order.paymentProofUrl} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="relative group block overflow-hidden rounded-xl border border-slate-300 shrink-0 shadow-xs"
+                                        title="Click to view full size"
+                                    >
+                                        <img 
+                                            src={order.paymentProofUrl} 
+                                            alt="Payment Proof" 
+                                            className="h-28 w-28 object-cover rounded-xl group-hover:scale-105 transition-transform" 
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-[11px] font-bold">
+                                            View Full
+                                        </div>
+                                    </a>
+                                    <div className="flex-1 space-y-1.5 text-xs">
+                                        <p><strong>Method:</strong> {order.paymentMethod}</p>
+                                        <p>
+                                            <strong>Status:</strong>{' '}
+                                            <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${
+                                                order.status === OrderStatus.PaymentVerification ? 'bg-amber-200 text-amber-900' :
+                                                order.status === OrderStatus.Cancelled ? 'bg-red-200 text-red-900' :
+                                                'bg-emerald-200 text-emerald-900'
+                                            }`}>
+                                                {order.status}
+                                            </span>
+                                        </p>
+                                        <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                            <button
+                                                type="button"
+                                                onClick={handleDownloadScreenshot}
+                                                disabled={isDownloading}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 shadow-2xs transition-colors"
+                                            >
+                                                <Icons.download className="w-3.5 h-3.5" />
+                                                <span>{isDownloading ? 'Downloading...' : 'Download Screenshot'}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleDelete}
+                                                disabled={isDeletingProof}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg text-xs font-bold text-red-700 shadow-2xs transition-colors"
+                                            >
+                                                <Icons.trash className="w-3.5 h-3.5" />
+                                                <span>{isDeletingProof ? 'Deleting from Cloudinary...' : 'Delete Screenshot'}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {onUpdateStatus && (
+                                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200">
+                                        {order.status === OrderStatus.PaymentVerification && (
+                                            <Button 
+                                                size="sm" 
+                                                onClick={() => {
+                                                    onUpdateStatus(order.id, OrderStatus.Pending);
+                                                    onClose();
+                                                }}
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5"
+                                            >
+                                                ✓ Approve Payment (آرڈر منظور کریں)
+                                            </Button>
+                                        )}
+                                        {order.status !== OrderStatus.Cancelled && (
+                                            <Button 
+                                                size="sm" 
+                                                variant="danger"
+                                                onClick={() => {
+                                                    if (window.confirm('Are you sure you want to cancel this order as fake/invalid payment?')) {
+                                                        onUpdateStatus(order.id, OrderStatus.Cancelled);
+                                                        onClose();
+                                                    }
+                                                }}
+                                                className="font-bold text-xs py-1.5"
+                                            >
+                                                ✕ Reject & Cancel (جعلی پیمنٹ - کینسل کریں)
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="border-t pt-4">
                         <h3 className="font-semibold mb-2">Items:</h3>
@@ -249,10 +388,25 @@ const OrderDetailsModal = ({ order, onClose }: { order: Order | null; onClose: (
                             </div>
                         ))}
                     </div>
-                     <div className="border-t pt-4 font-semibold text-base">
-                        <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(order.total - order.shippingFee)}</span></div>
-                        <div className="flex justify-between"><span>Shipping</span><span>{formatCurrency(order.shippingFee)}</span></div>
-                        <div className="flex justify-between text-lg"><span>Total</span><span>{formatCurrency(order.total)}</span></div>
+                      <div className="border-t pt-4 font-semibold text-base space-y-1">
+                        <div className="flex justify-between text-sm">
+                            <span>Subtotal</span>
+                            <span>{formatCurrency((order.total - order.shippingFee) + (order.paymentMethodDiscount || 0))}</span>
+                        </div>
+                        {order.paymentMethodDiscount && order.paymentMethodDiscount > 0 ? (
+                            <div className="flex justify-between text-sm text-emerald-700 font-bold">
+                                <span>Payment Method Discount ({order.paymentMethod})</span>
+                                <span>-{formatCurrency(order.paymentMethodDiscount)}</span>
+                            </div>
+                        ) : null}
+                        <div className="flex justify-between text-sm">
+                            <span>Shipping</span>
+                            <span>{formatCurrency(order.shippingFee)}</span>
+                        </div>
+                        <div className="flex justify-between text-lg pt-1 border-t">
+                            <span>Total</span>
+                            <span>{formatCurrency(order.total)}</span>
+                        </div>
                     </div>
                 </div>
                 <div className="text-right mt-6">
@@ -265,11 +419,27 @@ const OrderDetailsModal = ({ order, onClose }: { order: Order | null; onClose: (
 
 const ManageOrders = () => {
     const { userData } = useAuth();
-    const { myOrders: orders, updateOrderStatus, deleteOrder, isLoading, settings, vendorsMap, loadOrders } = useStore();
+    const { myOrders: orders, updateOrderStatus, updateOrder, deleteOrder, deleteFile, isLoading, settings, vendorsMap, loadOrders } = useStore();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleDeleteScreenshot = async (orderId: string, fileUrl: string) => {
+        try {
+            if (fileUrl && fileUrl.includes('cloudinary')) {
+                await deleteFile(fileUrl);
+            }
+            if (updateOrder) {
+                await updateOrder(orderId, { paymentProofUrl: '' });
+            }
+            setSelectedOrder(prev => prev && prev.id === orderId ? { ...prev, paymentProofUrl: '' } : prev);
+            alert("Payment screenshot deleted successfully from Cloudinary and order.");
+        } catch (err: any) {
+            console.error("Screenshot deletion error:", err);
+            alert("Failed to delete screenshot: " + (err.message || 'Error'));
+        }
+    };
 
     useEffect(() => {
         loadOrders?.();
@@ -355,7 +525,14 @@ const ManageOrders = () => {
                     <div key={order.id} className="bg-white rounded-lg shadow-sm p-3 space-y-2 text-sm">
                          <div className="flex justify-between items-start">
                             <div>
-                                <p className="font-bold text-gray-800">{order.customerName}</p>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="font-bold text-gray-800">{order.customerName}</p>
+                                    {order.paymentProofUrl && (
+                                        <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md border border-amber-300">
+                                            📸 Proof Attached
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-xs text-gray-500">{order.customerPhone}</p>
                                 <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</p>
                             </div>
@@ -368,6 +545,9 @@ const ManageOrders = () => {
                                 className={`text-xs rounded-full px-2 py-1 border-2 focus:outline-none ${
                                     order.status === OrderStatus.Delivered ? 'bg-green-100 text-green-800 border-green-200' :
                                     order.status === OrderStatus.Cancelled ? 'bg-red-100 text-red-800 border-red-200' :
+                                    order.status === OrderStatus.PaymentVerification ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold' :
+                                    order.status === OrderStatus.Packed ? 'bg-purple-100 text-purple-900 border-purple-300 font-bold' :
+                                    order.status === OrderStatus.OnTheWay ? 'bg-blue-100 text-blue-800 border-blue-200' :
                                     'bg-yellow-100 text-yellow-800 border-yellow-200'
                                 }`}
                             >
@@ -403,7 +583,16 @@ const ManageOrders = () => {
                              <tr><td colSpan={6} className="text-center p-8"><Spinner/></td></tr>
                         ) : filteredOrders.map(order => (
                             <tr key={order.id} className="hover:bg-gray-50 text-sm">
-                                <td className="p-3 font-medium">{order.customerName}</td>
+                                <td className="p-3 font-medium">
+                                    <div className="flex items-center gap-2">
+                                        <span>{order.customerName}</span>
+                                        {order.paymentProofUrl && (
+                                            <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full border border-amber-300">
+                                                📸 Proof Attached
+                                            </span>
+                                        )}
+                                    </div>
+                                </td>
                                 <td className="p-3 text-gray-600">{order.customerPhone}</td>
                                 <td className="p-3 font-semibold text-gray-800">{formatCurrency(order.total)}</td>
                                 <td className="p-3 text-gray-600">{new Date(order.createdAt).toLocaleDateString()}</td>
@@ -414,6 +603,8 @@ const ManageOrders = () => {
                                         className={`text-xs rounded-full px-2 py-1 border-2 focus:outline-none ${
                                             order.status === OrderStatus.Delivered ? 'bg-green-100 text-green-800 border-green-200' :
                                             order.status === OrderStatus.Cancelled ? 'bg-red-100 text-red-800 border-red-200' :
+                                            order.status === OrderStatus.PaymentVerification ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold' :
+                                            order.status === OrderStatus.Packed ? 'bg-purple-100 text-purple-900 border-purple-300 font-bold' :
                                             order.status === OrderStatus.OnTheWay ? 'bg-blue-100 text-blue-800 border-blue-200' :
                                             'bg-yellow-100 text-yellow-800 border-yellow-200'
                                         }`}
@@ -438,7 +629,12 @@ const ManageOrders = () => {
                     <p className="text-center p-8 text-gray-500">No orders found.</p>
                 )}
             </div>
-             <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+             <OrderDetailsModal 
+                order={selectedOrder} 
+                onClose={() => setSelectedOrder(null)} 
+                onUpdateStatus={updateOrderStatus} 
+                onDeleteScreenshot={handleDeleteScreenshot}
+            />
         </div>
     );
 };

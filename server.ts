@@ -142,14 +142,22 @@ app.post("/api/delete", async (req, res) => {
     const { fileUrl } = req.body;
     if (!fileUrl) return res.status(400).json({ success: false, error: "No fileUrl provided" });
 
-    const publicIdMatch = fileUrl.match(/\/atrya_shop\/(.+)\./);
-    const publicId = publicIdMatch ? `atrya_shop/${publicIdMatch[1]}` : null;
+    // Extract Cloudinary public_id reliably
+    let publicId = null;
+    const uploadIdx = fileUrl.indexOf("/upload/");
+    if (uploadIdx !== -1) {
+      const pathAfterUpload = fileUrl.substring(uploadIdx + 8).replace(/^v\d+\//, '');
+      publicId = pathAfterUpload.replace(/\.[^/.]+$/, '');
+    } else {
+      const match = fileUrl.match(/\/atrya_shop\/([^.]+)/);
+      if (match) publicId = `atrya_shop/${match[1]}`;
+    }
 
     if (publicId) {
       await cloudinary.uploader.destroy(publicId);
     }
 
-    res.json({ success: true });
+    res.json({ success: true, deletedPublicId: publicId });
   } catch (error: any) {
     console.error("Cloudinary Delete Error:", error);
     res.status(500).json({ success: false, error: error.message });

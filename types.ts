@@ -80,7 +80,9 @@ export interface CartItem {
 }
 
 export enum OrderStatus {
+  PaymentVerification = "Payment Verification",
   Pending = "Pending",
+  Packed = "Packed",
   OnTheWay = "On The Way",
   Delivered = "Delivered",
   Cancelled = "Cancelled",
@@ -135,8 +137,10 @@ export interface Order {
   shippingFee: number;
   appliedCoupon?: string;
   discountAmount?: number;
+  paymentMethodDiscount?: number; // Discount applied for selecting this payment method
   status: OrderStatus;
   paymentMethod: string;
+  paymentProofUrl?: string; // Uploaded payment screenshot (Easypaisa / Jazzcash / Bank transfer)
   createdAt: number;
   vendorIds?: string[]; // IDs of vendors involved in this order
   sourceStoreType?: 'vendor' | 'category' | 'main';
@@ -152,6 +156,8 @@ export interface PaymentMethod {
   id: string;
   name: string;
   details: string;
+  description?: string; // Custom description/note shown above or on payment method in checkout
+  discountAmount?: number; // Direct discount (e.g. 99) applied to order bill when chosen
 }
 
 export interface ChatMessage {
@@ -217,6 +223,7 @@ export interface BannerProductItem {
 export interface Settings {
     bannerUrls: string[];
     shippingFee: number; // No longer used in UI, kept for data structure
+    freeDeliveryThreshold?: number; // Minimum subtotal for free delivery
     whatsappNumber: string;
     paymentMethods: PaymentMethod[];
     categories?: Category[];

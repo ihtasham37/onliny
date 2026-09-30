@@ -23,6 +23,7 @@ export interface EmailOrderPayload {
   discountAmount?: number;
   appliedCoupon?: string;
   paymentMethod?: string;
+  paymentProofUrl?: string;
   createdAt?: number;
 }
 
@@ -67,7 +68,7 @@ export const sendOrderNotificationEmail = async (
       creds.gmailUser ||
       process.env.ADMIN_NOTIFICATION_EMAIL ||
       process.env.GMAIL_USER ||
-      'aliihtasham20@gmail.com'
+      ''
     ).trim();
 
     if (!transporter) {
@@ -76,6 +77,15 @@ export const sendOrderNotificationEmail = async (
         success: false,
         configured: false,
         message: 'Gmail SMTP credentials not configured. Please enter your Gmail Address and 16-character App Password in Admin Settings.',
+      };
+    }
+
+    if (!targetEmail) {
+      console.warn('[Email Notification] No receiving admin notification email address configured.');
+      return {
+        success: false,
+        configured: false,
+        message: 'No receiving email address configured in Admin Settings.',
       };
     }
 
@@ -204,6 +214,28 @@ export const sendOrderNotificationEmail = async (
             </div>
           </div>
 
+          ${order.paymentProofUrl ? `
+          <!-- Uploaded Payment Proof Screenshot -->
+          <div style="background: #fffbeb; border: 2px solid #f59e0b; border-radius: 12px; padding: 16px; margin-bottom: 24px; text-align: center;">
+            <div style="font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #b45309; margin-bottom: 8px;">
+              📸 Payment Screenshot Attached (رسید منسلک ہے)
+            </div>
+            <p style="font-size: 12px; color: #92400e; margin: 0 0 12px 0;">
+              Customer has attached a payment screenshot for verification. Please inspect below:
+            </p>
+            <div style="display: inline-block; background: #ffffff; padding: 8px; border-radius: 8px; border: 1px solid #fde68a;">
+              <a href="${order.paymentProofUrl}" target="_blank" rel="noopener noreferrer">
+                <img src="${order.paymentProofUrl}" alt="Payment Proof" style="max-height: 280px; max-width: 100%; border-radius: 6px; display: block;" />
+              </a>
+            </div>
+            <div style="margin-top: 10px;">
+              <a href="${order.paymentProofUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: #d97706; color: #ffffff; padding: 8px 16px; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: 700;">
+                🔍 View Full Screenshot
+              </a>
+            </div>
+          </div>
+          ` : ''}
+
           <!-- Order Items Table -->
           <div style="margin-bottom: 24px;">
             <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; margin-bottom: 12px;">
@@ -263,11 +295,7 @@ export const sendOrderNotificationEmail = async (
     `;
 
     const sender = (creds.gmailUser || process.env.GMAIL_USER || targetEmail).trim();
-    const recipientList = new Set<string>();
-    if (targetEmail) recipientList.add(targetEmail);
-    if (order.email && order.email.trim()) recipientList.add(order.email.trim());
-
-    const finalTo = Array.from(recipientList).join(', ');
+    const finalTo = targetEmail;
 
     const info = await transporter.sendMail({
       from: `"${appName}" <${sender}>`,

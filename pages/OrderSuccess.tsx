@@ -222,11 +222,14 @@ const OrderSuccess = () => {
 
       {/* Modern Order Receipt Preview */}
       {order && (
-        <div className="w-full max-w-md bg-white border rounded-xl shadow-sm text-left p-6 mt-4">
-          <div className="border-b pb-3 mb-4 flex justify-between items-center">
-            <span className="font-bold text-gray-800">Order Summary</span>
+        <div className="w-full max-w-md bg-white border border-rose-100 rounded-2xl shadow-sm text-left p-6 mt-4">
+          <div className="border-b border-slate-100 pb-3 mb-4 flex justify-between items-center">
+            <span className="font-bold text-slate-900 text-base">Order Summary</span>
+            <span className="text-xs font-semibold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
+              {order.status || 'Received'}
+            </span>
           </div>
-          <div className="space-y-2 text-sm text-gray-600">
+          <div className="space-y-2 text-sm text-slate-600">
             {order.storeName && (
               <p>
                 <strong>Store:</strong>{' '}
@@ -235,23 +238,23 @@ const OrderSuccess = () => {
                 </a>
               </p>
             )}
-            <p><strong>Name:</strong> {order.customerName}</p>
-            <p><strong>Phone:</strong> {order.customerPhone}</p>
-            {order.email && <p><strong>Email:</strong> {order.email}</p>}
-            <p><strong>Address:</strong> {order.customerAddress}, {order.city}</p>
-            <p><strong>Payment Method:</strong> {order.paymentMethod?.toLowerCase() === 'cod' ? 'Cash on Delivery' : (order.paymentMethod || 'Cash on Delivery')}</p>
-            <div className="border-t border-b py-2 my-3 space-y-2">
-              <span className="block font-semibold text-gray-800 mb-1">Items:</span>
+            <p><strong className="text-slate-800">Name:</strong> {order.customerName}</p>
+            <p><strong className="text-slate-800">Phone:</strong> {order.customerPhone}</p>
+            {order.email && <p><strong className="text-slate-800">Email:</strong> {order.email}</p>}
+            <p><strong className="text-slate-800">Address:</strong> {order.customerAddress}, {order.city}</p>
+            <p><strong className="text-slate-800">Payment Method:</strong> {order.paymentMethod?.toLowerCase() === 'cod' ? 'Cash on Delivery' : (order.paymentMethod || 'Cash on Delivery')}</p>
+            <div className="border-t border-b border-slate-100 py-3 my-3 space-y-2">
+              <span className="block font-bold text-slate-800 mb-1.5 text-xs uppercase tracking-wider">Purchased Items:</span>
               {order.items.map((item: any, i: number) => {
                 const sizeEntries = getSelectedSizesEntries(item.selectedSizes);
                 return (
-                  <div key={i} className="flex flex-col text-xs border-b border-gray-100 pb-2 last:border-0 last:pb-0">
+                  <div key={i} className="flex flex-col text-xs border-b border-slate-100 pb-2.5 last:border-0 last:pb-0">
                     <div className="flex justify-between">
-                      <span className="font-medium text-gray-800">{item.name} x{item.quantity}</span>
-                      <span className="font-semibold">{formatCurrency(item.price * item.quantity)}</span>
+                      <span className="font-semibold text-slate-800">{item.name} &times; {item.quantity}</span>
+                      <span className="font-bold text-slate-900">{formatCurrency(item.price * item.quantity)}</span>
                     </div>
                     {sizeEntries.length > 0 && (
-                      <div className="text-[11px] text-pink-600 font-medium mt-0.5">
+                      <div className="text-[11px] text-rose-600 font-medium mt-0.5">
                         Selected Sizes: {sizeEntries.map(([cat, size]) => `${cat}: ${size}`).join(', ')}
                       </div>
                     )}
@@ -259,15 +262,55 @@ const OrderSuccess = () => {
                 );
               })}
             </div>
-            <div className="flex justify-between font-bold text-base text-gray-800 pt-1">
+            {order.paymentMethodDiscount && order.paymentMethodDiscount > 0 ? (
+              <div className="flex justify-between text-xs text-emerald-700 font-bold pt-1 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                <span>Payment Method Discount:</span>
+                <span>-{formatCurrency(order.paymentMethodDiscount)}</span>
+              </div>
+            ) : null}
+            <div className="flex justify-between font-extrabold text-base sm:text-lg text-slate-900 pt-2">
               <span>Total Bill:</span>
-              <span className="text-rose-600">{formatCurrency(order.total)}</span>
+              <span className="text-rose-600 font-mono">{formatCurrency(order.total)}</span>
             </div>
+
+            {/* Payment Proof Preview if present */}
+            {order.paymentProofUrl && (
+              <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <img src={order.paymentProofUrl} alt="Uploaded Payment Proof" className="w-12 h-12 object-cover rounded-xl border border-slate-300 shrink-0" />
+                  <div className="min-w-0">
+                    <span className="font-bold text-slate-800 block truncate">Screenshot Attached</span>
+                    <span className="text-[11px] text-amber-700 font-bold">Status: Under Verification</span>
+                  </div>
+                </div>
+                <a href={order.paymentProofUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl font-bold text-[11px] text-slate-700 shrink-0 transition-colors">
+                  View
+                </a>
+              </div>
+            )}
+
+            {/* Reassurance & Caution Notice ONLY for Screenshot / Non-COD Uploaded Proof */}
+            {Boolean(
+              order.paymentProofUrl || 
+              (order.paymentMethod && 
+               order.paymentMethod.toLowerCase() !== 'cod' && 
+               !order.paymentMethod.toLowerCase().includes('cash on delivery'))
+            ) && (
+              <div className="mt-3.5 p-4 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-300 rounded-2xl text-left space-y-1.5 shadow-xs">
+                <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs">
+                  <Icons.info className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Important Payment Verification Notice:</span>
+                </div>
+                <p className="text-xs text-amber-950 font-medium leading-relaxed">
+                  Please ensure your uploaded payment screenshot is authentic. If a fake or incorrect receipt is submitted, your order will be cancelled immediately. Once genuine payment is verified by our team, your parcel will be dispatched without delay.
+                </p>
+              </div>
+            )}
           </div>
           <Button 
             onClick={handleDownloadCustomerReceipt} 
             variant="outline" 
-            className="w-full mt-4 flex items-center justify-center gap-2 border-rose-600 text-rose-600 hover:bg-rose-50"
+            className="w-full mt-4 flex items-center justify-center gap-2 border-rose-600 text-rose-600 hover:bg-rose-50 font-bold rounded-xl py-3"
           >
             <Icons.download className="w-4 h-4" />
             <span>Download Receipt</span>
@@ -277,16 +320,20 @@ const OrderSuccess = () => {
 
       <div>
         <Link to="/">
-          <Button size="lg" className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 border-none">Continue Shopping</Button>
+          <Button size="lg" className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold border-none rounded-xl shadow-md px-8 py-3">
+            Continue Shopping
+          </Button>
         </Link>
       </div>
       
-      <div className="w-full max-w-lg border-t pt-6">
-          <div className="bg-rose-50 border-2 border-rose-200 p-5 rounded-lg">
-              <h2 className="text-xl font-bold text-rose-900 font-serif">Track Your Order</h2>
-              <p className="mt-2 text-rose-700">You can check the status of your order anytime.</p>
+      <div className="w-full max-w-md border-t border-slate-100 pt-6">
+          <div className="bg-rose-50/70 border border-rose-200 p-5 rounded-2xl">
+              <h2 className="text-lg font-bold text-rose-900 font-serif">Track Your Order</h2>
+              <p className="mt-1 text-xs text-rose-700 font-medium">You can check the real-time status of your order anytime.</p>
               <Link to="/track-order" className="mt-3 inline-block">
-                  <Button className="bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-500">Track My Order</Button>
+                  <Button className="bg-rose-600 text-white hover:bg-rose-700 rounded-xl font-bold text-xs px-5 py-2.5">
+                    Track My Order
+                  </Button>
               </Link>
           </div>
       </div>

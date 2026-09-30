@@ -11,6 +11,7 @@ import { Coupon, Product, BannerProductItem } from '../types';
 import { PopupBanners } from '../components/ui/PopupBanners';
 import { SEO } from '../components/SEO';
 import { formatCurrency } from '../utils/helpers';
+import { fisherYatesShuffle } from '../utils/shuffle';
 import { BannerProductSlide } from '../components/ui/BannerProductSlide';
 import { VerticalScrollColumn, useBannerHeight } from '../components/ui/VerticalProductSlider';
 
@@ -216,26 +217,11 @@ const Home = () => {
     );
   }, [settings?.categories]);
 
-  // Stable, instant product ordering (prioritizes user interests, then new arrivals)
+  // Fisher-Yates shuffled product ordering for home page discovery (fair & random, stable during session)
   const displayProducts = useMemo(() => {
     const visible = (products || []).filter(p => p && p.isVisible !== false);
     if (visible.length === 0) return [];
-
-    let userInterests: Record<string, number> = {};
-    try {
-      const stored = localStorage.getItem('user_interests');
-      if (stored) userInterests = JSON.parse(stored);
-    } catch (e) {}
-
-    const interestedCategories = Object.keys(userInterests).filter(cat => userInterests[cat] > 0);
-    if (interestedCategories.length === 0) {
-      return [...visible].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    }
-
-    const interestMatches = visible.filter(p => interestedCategories.includes(p.category));
-    const generalProducts = visible.filter(p => !interestedCategories.includes(p.category));
-
-    return [...interestMatches, ...generalProducts];
+    return fisherYatesShuffle(visible);
   }, [products]);
 
   // Left & Right Side Columns (Desktop auto-sliding columns strictly constrained to banner height)

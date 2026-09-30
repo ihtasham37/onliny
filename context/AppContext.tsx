@@ -72,6 +72,7 @@ export interface AppContextType {
   copyProduct: (productId: string, destinationCategory: string) => Promise<void>;
   addOrder: (order: Omit<Order, 'id' | 'createdAt' | 'customerId'>) => Promise<string>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  updateOrder: (orderId: string, updates: Partial<Order>) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
   sendChatMessage: (message: string, sessionId: string) => Promise<void>;
   sendAdminReply: (sessionId: string, text: string) => Promise<void>;
@@ -201,6 +202,7 @@ export const defaultAppContextValue: AppContextType = {
   copyProduct: async () => {},
   addOrder: async () => '',
   updateOrderStatus: async () => {},
+  updateOrder: async () => {},
   deleteOrder: async () => {},
   sendChatMessage: async () => {},
   sendAdminReply: async () => {},
@@ -710,6 +712,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
   
   const updateOrderStatus = async (id: string, status: OrderStatus) => await updateDoc(doc(db, 'orders', id), { status });
+  const updateOrder = async (id: string, updates: Partial<Order>) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
+    setCustomerOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
+    try {
+      await updateDoc(doc(db, 'orders', id), sanitizeForFirestore(updates));
+    } catch (e) {
+      console.warn("Firestore order update error:", e);
+    }
+  };
   const deleteOrder = async (id: string) => await deleteDoc(doc(db, 'orders', id));
   
   const updateSettings = async (data: Settings) => {
@@ -1477,7 +1488,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     isLoading, error, user, userData, myProducts, myOrders, wishlist, activeCustomer, customerOrders,
     addToCart, removeFromCart, updateCartQuantity, clearCart,
     addProduct, updateProduct, deleteProduct, deleteAllProducts, toggleProductVisibility, moveProduct, copyProduct,
-    addOrder, updateOrderStatus, deleteOrder,
+    addOrder, updateOrderStatus, updateOrder, deleteOrder,
     sendChatMessage, sendAdminReply, deleteChatMessage,
     updateSettings, addCategory, deleteCategory, updateCategory, moveCategory, copyCategory,
     addUpdatePost, updateUpdatePost, deleteUpdatePost,
