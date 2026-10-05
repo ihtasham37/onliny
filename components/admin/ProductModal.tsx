@@ -191,6 +191,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiStatus, setAiStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [showAiBox, setShowAiBox] = useState(true);
+  const [isDownloadingR2, setIsDownloadingR2] = useState(false);
+  const [r2DownloadMessage, setR2DownloadMessage] = useState<string | null>(null);
 
   const isVendor = userData?.role === UserRole.Vendor;
   const vendorId = userData?.uid;
@@ -200,10 +202,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
   const duplicateProduct = useMemo(() => {
     if (!currentCustomId) return null;
     const clean = currentCustomId.toLowerCase();
-    return (products || []).find(p => p.customId && p.customId.trim().toLowerCase() === clean && p.id !== product?.id) || null;
+    return (products || []).find(p => p.customId && p.customId.trim().toLowerCase() === clean && String(p.id) !== String(product?.id || '')) || null;
   }, [currentCustomId, products, product?.id]);
 
-  const isDuplicateId = !!duplicateProduct;
+  // Informative flag only for new product creation, never blocks editing
+  const isDuplicateId = Boolean(!product && duplicateProduct);
 
   const categoryOptions = useMemo(() => {
     const allCats = (settings?.categories || []).filter(c => c && typeof c.name === 'string');
@@ -299,10 +302,28 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             }
           }
 
-          // Image URLs
-          const incomingImages: string[] = Array.isArray(extracted.image_urls)
-            ? extracted.image_urls.filter((u: any) => typeof u === 'string' && u.trim().startsWith('http'))
-            : [];
+          // Comprehensive Image URLs extraction supporting all AI response formats and field names
+          const rawIncoming = Array.isArray(extracted.image_urls)
+            ? extracted.image_urls
+            : Array.isArray(extracted.images)
+            ? extracted.images
+            : Array.isArray(extracted.imageUrls)
+            ? extracted.imageUrls
+            : [extracted.imageUrl, extracted.image_url, extracted.image, extracted.photo, extracted.media].filter(Boolean);
+
+          const incomingImages: string[] = rawIncoming
+            .map((u: any) => (typeof u === 'string' ? u.trim() : (u?.url || u?.src || u?.image_url || '')))
+            .filter((u: string) => u && (u.startsWith('http') || u.startsWith('/') || u.startsWith('data:image')));
+
+          // Also extract any direct image URLs found in the user's AI input text
+          const directImgRegex = /https?:\/\/[^\s"'<>]+\.(?:jpg|jpeg|png|webp|gif|avif)(?:\?[^\s"'<>]*)?/gi;
+          const directFound = (aiInput.match(directImgRegex) || []) as string[];
+          directFound.forEach((u: string) => {
+            const clean = u.trim();
+            if (clean && !incomingImages.includes(clean)) {
+              incomingImages.push(clean);
+            }
+          });
 
           // Size categories extraction - strictly match what was on the source link
           let rawSizeCategories: SizeCategory[] = [];
@@ -335,20 +356,19 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             shippingFee: (extracted.shipping_fee !== undefined && extracted.shipping_fee !== null) ? extracted.shipping_fee : prev.shippingFee,
             deliveryTime: extracted.delivery_time || prev.deliveryTime || 'Delivery in 3-5 Days',
             images: incomingImages.length > 0 
-              ? [...new Set([...prev.images, ...incomingImages])] 
+              ? (prev.images.length === 0 ? incomingImages : [...new Set([...prev.images, ...incomingImages])]) 
               : prev.images
           }));
 
           const extractedExtId = extracted.sku || extracted.customId || extracted.product_id || extracted.productCode || extracted.code || extracted.id || '';
-          const isAlreadyAdded = extractedExtId ? (products || []).some(p => p.customId && p.customId.trim().toLowerCase() === String(extractedExtId).trim().toLowerCase() && p.id !== product?.id) : false;
+          const isAlreadyAdded = extractedExtId ? (products || []).some(p => p.customId && p.customId.trim().toLowerCase() === String(extractedExtId).trim().toLowerCase() && String(p.id) !== String(product?.id || '')) : false;
 
           const totalSizes = incomingSizeCategories.reduce((acc, c) => acc + c.sizes.length, 0);
+          setAiStatus('success');
           if (isAlreadyAdded) {
-            setAiStatus('error');
-            setAiMessage(`⚠️ This product is already added! (Yeh product Product ID "${extractedExtId}" ke sath pehle se store mein added hai!)`);
+            setAiMessage(`✨ Extracted "${extracted.title || 'Product'}" (${parsedPrice ? `PKR ${parsedPrice}` : ''}) with ${incomingImages.length} image(s)! Note: Product ID matches an existing store item.`);
           } else {
-            setAiStatus('success');
-            setAiMessage(`✨ Extracted "${extracted.title || 'Product'}" (${parsedPrice ? `PKR ${parsedPrice}` : ''}) successfully! ${totalSizes > 0 ? `${totalSizes} size(s) created.` : ''} ${incomingImages.length > 0 ? `${incomingImages.length} image(s) loaded.` : ''}`);
+            setAiMessage(`✨ Extracted "${extracted.title || 'Product'}" (${parsedPrice ? `PKR ${parsedPrice}` : ''}) successfully! ${totalSizes > 0 ? `${totalSizes} size(s) created.` : ''} ${incomingImages.length > 0 ? `☁️ ${incomingImages.length} image(s) loaded & saved!` : ''}`);
           }
         } else {
           setAiStatus('error');
@@ -400,10 +420,74 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
       finally { setIsUploading(false); }
   };
 
-  const handleAddImageUrl = () => {
-    if (imageUrl.trim()) {
-        try { new URL(imageUrl.trim()); setFormData(prev => ({ ...prev, images: [...prev.images, imageUrl.trim()] })); setImageUrl(''); } 
-        catch (_) { alert('Invalid URL.'); }
+  const handleDownloadImagesToR2 = async (urlsToDownload?: string[]) => {
+    const targetUrls = urlsToDownload || formData.images.filter(img => 
+      img.startsWith('http://') || img.startsWith('https://')
+    );
+    if (targetUrls.length === 0) return;
+
+    setIsDownloadingR2(true);
+    setR2DownloadMessage(null);
+    try {
+      const res = await fetch('/api/r2/download-and-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: targetUrls })
+      });
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.urls)) {
+        setFormData(prev => {
+          const urlMap = new Map<string, string>();
+          targetUrls.forEach((orig, idx) => {
+            if (data.urls[idx]) urlMap.set(orig, data.urls[idx]);
+          });
+          const updatedImages = prev.images.map(img => urlMap.get(img) || img);
+          return { ...prev, images: updatedImages };
+        });
+        setR2DownloadMessage(`✅ ${data.urls.length} images downloaded & saved to Cloudflare R2!`);
+        setTimeout(() => setR2DownloadMessage(null), 4000);
+      } else {
+        setR2DownloadMessage('⚠️ Cloudflare R2 download completed.');
+      }
+    } catch (err: any) {
+      console.error('R2 download error:', err);
+      setR2DownloadMessage('⚠️ Could not connect to R2 upload endpoint.');
+    } finally {
+      setIsDownloadingR2(false);
+    }
+  };
+
+  const handleAddImageUrl = async (saveToR2 = false) => {
+    const cleanUrl = imageUrl.trim();
+    if (!cleanUrl) return;
+    try {
+      new URL(cleanUrl);
+      if (saveToR2) {
+        setIsDownloadingR2(true);
+        try {
+          const res = await fetch('/api/r2/download-and-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls: [cleanUrl] })
+          });
+          const data = await res.json();
+          const finalUrl = (data && data.success && data.urls?.[0]) ? data.urls[0] : cleanUrl;
+          setFormData(prev => ({ ...prev, images: [...prev.images, finalUrl] }));
+          setImageUrl('');
+          setR2DownloadMessage('✅ Image downloaded & saved to Cloudflare R2!');
+          setTimeout(() => setR2DownloadMessage(null), 3000);
+        } catch (e) {
+          setFormData(prev => ({ ...prev, images: [...prev.images, cleanUrl] }));
+          setImageUrl('');
+        } finally {
+          setIsDownloadingR2(false);
+        }
+      } else {
+        setFormData(prev => ({ ...prev, images: [...prev.images, cleanUrl] }));
+        setImageUrl('');
+      }
+    } catch (_) {
+      alert('Invalid URL.');
     }
   };
 
@@ -438,17 +522,26 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.category) { alert('Please select a category.'); return; }
-    if (isDuplicateId) {
-      alert(`⚠️ This product is already added! (Yeh product Product ID "${formData.customId}" ke sath pehle se store mein added hai: "${duplicateProduct?.name}")`);
-      return;
-    }
+
     setIsSubmitting(true);
     try {
-      if (product) await updateProduct({ ...formData, id: product.id, createdAt: product.createdAt });
-      else await addProduct(formData);
+      if (product) {
+        // Update currently edited product
+        await updateProduct({ ...formData, id: product.id, createdAt: product.createdAt });
+      } else {
+        // Add new product (or update existing product if SKU matched)
+        if (duplicateProduct) {
+          await updateProduct({ ...formData, id: duplicateProduct.id, createdAt: duplicateProduct.createdAt });
+        } else {
+          await addProduct(formData);
+        }
+      }
       onClose();
-    } catch (error) { console.error("Failed to save product", error); } 
-    finally { setIsSubmitting(false); }
+    } catch (error) { 
+      console.error("Failed to save product", error); 
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
   
   if (!isOpen) return null;
@@ -463,29 +556,29 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             onClick={() => setShowAiBox(!showAiBox)}
             className="text-xs font-semibold px-3 py-1.5 rounded-full bg-gradient-to-r from-teal-500 to-indigo-600 text-white shadow hover:opacity-90 transition-all flex items-center gap-1.5"
           >
-            <span>✨</span> {showAiBox ? 'Hide AI Assistant' : '✨ Markaz AI Auto-Fill'}
+            <span>✨</span> {showAiBox ? 'Hide AI Assistant' : (product ? '✨ AI Auto-Update from Link' : '✨ Markaz AI Auto-Fill')}
           </button>
         </div>
 
-        {/* Gemini E-Commerce AI Assistant (Type 1: Markaz Link & Product Extraction) */}
-        {showAiBox && !product && (
+        {/* Gemini E-Commerce AI Assistant (Type 1: Markaz Link & Product Extraction with Media Downloader) */}
+        {showAiBox && (
           <div className="mb-6 p-4 rounded-xl bg-gradient-to-br from-indigo-50/90 via-purple-50/50 to-pink-50/80 border-2 border-indigo-200 shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-lg">✨</span>
-                <span className="font-bold text-sm text-indigo-900">Markaz & E-Commerce AI Assistant</span>
-                <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-indigo-600 text-white">Gemini AI</span>
+                <span className="font-bold text-sm text-indigo-900">AI Product Importer & Media Downloader</span>
+                <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-indigo-600 text-white">Gemini + Image Sync</span>
               </div>
             </div>
             
             <p className="text-xs text-indigo-800 mb-3">
-              Paste any <strong>Markaz product link</strong>, <strong>website URL</strong>, or <strong>raw product text/description</strong>. Gemini will automatically extract title, price, description, category, and image URLs!
+              Paste any <strong>Markaz product link</strong>, <strong>store URL</strong>, or <strong>product description text</strong>. The assistant will automatically fetch product details, extract all images, and fill the form!
             </p>
 
             <div className="space-y-2">
               <textarea
                 rows={2}
-                placeholder="Paste Markaz app link (e.g. https://markaz.app/...) or product raw text here..."
+                placeholder="Paste Markaz app link (e.g. https://markaz.app/...) or store URL / product text here..."
                 value={aiInput}
                 onChange={(e) => setAiInput(e.target.value)}
                 disabled={isAiExtracting}
@@ -515,11 +608,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
                 >
                   {isAiExtracting ? (
                     <span className="flex items-center gap-1.5">
-                      <Spinner size="sm" /> Extracting Details...
+                      <Spinner size="sm" /> Extracting Images & Details...
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5">
-                      <span>✨</span> Auto-Fill with AI
+                      <span>☁️</span> Auto-Import & Extract Images
                     </span>
                   )}
                 </Button>
@@ -533,11 +626,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
           <div>
             <Input label="Custom Product ID (for Admin)" name="customId" value={formData.customId || ''} onChange={handleChange} placeholder="e.g., SKU-12345" />
             {isDuplicateId && (
-              <div className="mt-1.5 p-2.5 bg-amber-50 border border-amber-300 rounded-lg flex items-center justify-between gap-2 text-xs text-amber-900 font-medium animate-pulse">
+              <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-2 text-xs text-amber-900 font-medium">
                 <div className="flex items-center gap-2">
-                  <span className="text-amber-600 text-base">⚠️</span>
+                  <span className="text-amber-600 text-sm">ℹ️</span>
                   <span>
-                    <strong>This product is already added!</strong> (Yeh product Product ID <strong>"{formData.customId}"</strong> ke sath pehle se store mein added hai: <em>{duplicateProduct?.name}</em>)
+                    Product ID <strong>"{formData.customId}"</strong> matches existing item: <em>{duplicateProduct?.name}</em>. Saving will update this product.
                   </span>
                 </div>
               </div>
@@ -740,20 +833,64 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
               {imageInputMode === 'upload' ? (
                 <Input type="file" multiple onChange={handleFileUpload} accept="image/*,video/*" disabled={isUploading} />
               ) : (
-                <div className="flex gap-2">
-                  <Input 
-                    placeholder="Paste image preview URL (e.g. https://static.markaz.app/...)" 
-                    value={imageUrl} 
-                    onChange={(e) => setImageUrl(e.target.value)} 
-                    onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddImageUrl(); }}}
-                  />
-                  <Button type="button" onClick={handleAddImageUrl} className="self-end shrink-0">Add URL</Button>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Paste image preview URL (e.g. https://...)" 
+                      value={imageUrl} 
+                      onChange={(e) => setImageUrl(e.target.value)} 
+                      onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddImageUrl(false); }}}
+                    />
+                    <Button type="button" size="sm" onClick={() => handleAddImageUrl(false)} className="self-end shrink-0">Add URL</Button>
+                    <Button 
+                      type="button" 
+                      size="sm" 
+                      disabled={isDownloadingR2 || !imageUrl.trim()} 
+                      onClick={() => handleAddImageUrl(true)} 
+                      className="self-end shrink-0 bg-rose-600 hover:bg-rose-700 text-white font-bold"
+                    >
+                      {isDownloadingR2 ? <Spinner size="sm" /> : '☁️ Save to R2'}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
 
             {isUploading && <div className="mt-2"><Spinner size="sm" /></div>}
             {uploadError && <p className="mt-2 text-sm text-red-500">{uploadError}</p>}
+            
+            {/* Download & Save All External Image Links to Cloudflare R2 */}
+            {formData.images.some(img => img.startsWith('http://') || img.startsWith('https://')) && (
+              <div className="my-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+                <div className="text-xs text-rose-900 font-medium flex items-center gap-1.5">
+                  <span className="text-base">☁️</span>
+                  <span>
+                    <strong>Cloudflare R2:</strong> Convert {formData.images.filter(img => img.startsWith('http://') || img.startsWith('https://')).length} external image link(s) to permanent R2 storage.
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  size="xs"
+                  disabled={isDownloadingR2}
+                  onClick={() => handleDownloadImagesToR2()}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs"
+                >
+                  {isDownloadingR2 ? (
+                    <span className="flex items-center gap-1">
+                      <Spinner size="sm" /> Downloading & Saving to R2...
+                    </span>
+                  ) : (
+                    '☁️ Download All to R2'
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {r2DownloadMessage && (
+              <div className="my-1.5 p-2 bg-emerald-50 border border-emerald-300 rounded-lg text-xs font-semibold text-emerald-800 animate-fade-in">
+                {r2DownloadMessage}
+              </div>
+            )}
             
             {formData.images.length > 0 ? (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 mt-3 p-2 bg-gray-50 rounded-lg border border-gray-200">

@@ -427,14 +427,14 @@ const ManageOrders = () => {
 
     const handleDeleteScreenshot = async (orderId: string, fileUrl: string) => {
         try {
-            if (fileUrl && fileUrl.includes('cloudinary')) {
+            if (fileUrl) {
                 await deleteFile(fileUrl);
             }
             if (updateOrder) {
                 await updateOrder(orderId, { paymentProofUrl: '' });
             }
             setSelectedOrder(prev => prev && prev.id === orderId ? { ...prev, paymentProofUrl: '' } : prev);
-            alert("Payment screenshot deleted successfully from Cloudinary and order.");
+            alert("Payment screenshot deleted successfully.");
         } catch (err: any) {
             console.error("Screenshot deletion error:", err);
             alert("Failed to delete screenshot: " + (err.message || 'Error'));

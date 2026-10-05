@@ -271,16 +271,13 @@ async function scrapeAndParseProductUrl(targetUrl: string) {
     const filteredImages = Array.from(imageUrls).filter((img) => {
       if (
         img.includes("logo") ||
-        img.includes("icon") ||
+        img.includes("favicon") ||
         img.includes("avatar") ||
-        img.includes("banner")
+        img.includes("badge")
       ) {
         return false;
       }
-      if (productId && Array.from(imageUrls).some((u) => u.includes(productId))) {
-        return img.includes(productId);
-      }
-      return true;
+      return img.startsWith("http://") || img.startsWith("https://");
     });
 
     const sizeList = Array.from(extractedSizes);
@@ -304,7 +301,7 @@ async function scrapeAndParseProductUrl(targetUrl: string) {
       description:
         description ||
         (title ? `${title}. Cash on delivery available across Pakistan.` : ""),
-      image_urls: filteredImages.slice(0, 8),
+      image_urls: filteredImages.slice(0, 12),
       size_categories: sizeCategories,
       sku,
       delivery_time: deliveryTime,
@@ -425,6 +422,37 @@ Return ONLY valid JSON matching this structure:
             }
           } catch (e) {}
         }
+      }
+
+      // Automatically download images from product link and store into Cloudflare R2
+      const r2 = env.R2_BUCKET || env.IMAGES_BUCKET || env.BUCKET;
+      if (r2 && typeof r2.put === "function" && Array.isArray(productResult.image_urls) && productResult.image_urls.length > 0) {
+        const r2Images: string[] = [];
+        const publicBase = (env.R2_PUBLIC_URL || "").replace(/\/+$/, "");
+
+        for (let i = 0; i < productResult.image_urls.length; i++) {
+          const rawUrl = productResult.image_urls[i];
+          if (typeof rawUrl === "string" && (rawUrl.startsWith("http://") || rawUrl.startsWith("https://"))) {
+            try {
+              const imgResp = await fetch(rawUrl, {
+                headers: { "User-Agent": "Mozilla/5.0" }
+              });
+              if (imgResp.ok) {
+                const contentType = imgResp.headers.get("content-type") || "image/jpeg";
+                const ext = rawUrl.split("?")[0].split(".").pop() || "jpg";
+                const key = `products/${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}.${ext}`;
+                const arrayBuf = await imgResp.arrayBuffer();
+                await r2.put(key, arrayBuf, {
+                  httpMetadata: { contentType }
+                });
+                r2Images.push(publicBase ? `${publicBase}/${key}` : `/${key}`);
+                continue;
+              }
+            } catch (e) {}
+          }
+          r2Images.push(rawUrl);
+        }
+        productResult.image_urls = r2Images;
       }
 
       return new Response(

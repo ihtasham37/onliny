@@ -73,40 +73,6 @@ export const ManageUserDetails: React.FC = () => {
   useEffect(() => {
     fetchLiveCustomersAndOrders();
     loadOrders?.();
-
-    // Listen to real-time customer collection updates
-    const unsubCust = onSnapshot(collection(db, 'customers'), (snapshot) => {
-      const liveCustList: CustomerSummary[] = [];
-      snapshot.docs.forEach(docSnap => {
-        const data = docSnap.data();
-        if (data) {
-          liveCustList.push({
-            name: (data.name || 'Customer').trim(),
-            email: (data.email || '').trim().toLowerCase(),
-            phone: (data.phone || docSnap.id || '').trim(),
-            ordersCount: Number(data.ordersCount) || 1,
-            totalSpent: Number(data.totalSpent) || 0,
-            city: (data.city || '').trim(),
-            province: (data.province || '').trim(),
-            customerAddress: (data.customerAddress || '').trim(),
-            landmark: (data.landmark || '').trim(),
-            lastOrderDate: Number(data.lastOrderDate) || Date.now(),
-            firstOrderDate: Number(data.firstOrderDate) || Date.now(),
-            statusList: Array.isArray(data.statusList) ? data.statusList : []
-          });
-        }
-      });
-      if (liveCustList.length > 0) {
-        setFirestoreCustomers(liveCustList);
-      }
-      setIsLoadingCustomers(false);
-    }, (err) => {
-      console.warn("Real-time customers listener note:", err);
-    });
-
-    return () => {
-      unsubCust();
-    };
   }, [fetchLiveCustomersAndOrders, loadOrders]);
 
   // Merge direct Firestore customers collection with orders for 100% comprehensive customer detail collection

@@ -1,9 +1,9 @@
 // Cloudflare Pages Function: /api/upload
 interface Env {
-  CLOUDINARY_CLOUD_NAME?: string;
-  CLOUDINARY_API_KEY?: string;
-  CLOUDINARY_API_SECRET?: string;
-  CLOUDINARY_UPLOAD_PRESET?: string;
+  R2_BUCKET?: any;
+  IMAGES_BUCKET?: any;
+  BUCKET?: any;
+  R2_PUBLIC_URL?: string;
   [key: string]: any;
 }
 
@@ -20,14 +20,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
   "Access-Control-Max-Age": "86400",
 };
-
-async function generateSha1(str: string): Promise<string> {
-  const enc = new TextEncoder();
-  const hash = await crypto.subtle.digest("SHA-1", enc.encode(str));
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 export const onRequest = async (context: EventContext<Env>): Promise<Response> => {
   const { request, env } = context;
@@ -54,69 +46,36 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
       });
     }
 
-    const cloudName = env.CLOUDINARY_CLOUD_NAME || "";
-    const apiKey = env.CLOUDINARY_API_KEY || "";
-    const apiSecret = env.CLOUDINARY_API_SECRET || "";
-    const uploadPreset = env.CLOUDINARY_UPLOAD_PRESET || "";
+    // Method 1: Cloudflare R2 Bucket Binding (Direct Edge Storage)
+    const r2 = env.R2_BUCKET || env.IMAGES_BUCKET || env.BUCKET;
+    if (r2 && typeof r2.put === "function") {
+      const ext = file.name ? file.name.split(".").pop() || "jpg" : "jpg";
+      const key = `uploads/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+      const arrayBuffer = await file.arrayBuffer();
 
-    // Method 1: Signed Cloudinary Upload
-    if (cloudName && apiKey && apiSecret) {
-      const timestamp = Math.round(Date.now() / 1000).toString();
-      const folder = "atrya_shop";
-      const signatureString = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
-      const signature = await generateSha1(signatureString);
+      await r2.put(key, arrayBuffer, {
+        httpMetadata: {
+          contentType: file.type || "image/jpeg",
+        },
+      });
 
-      const cldFormData = new FormData();
-      cldFormData.append("file", file);
-      cldFormData.append("api_key", apiKey);
-      cldFormData.append("timestamp", timestamp);
-      cldFormData.append("signature", signature);
-      cldFormData.append("folder", folder);
+      const publicBase = (env.R2_PUBLIC_URL || "").replace(/\/+$/, "");
+      const finalUrl = publicBase ? `${publicBase}/${key}` : `/${key}`;
 
-      const cldRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+      return new Response(
+        JSON.stringify({
+          success: true,
+          url: finalUrl,
+          public_id: key,
+          resource_type: file.type?.startsWith("video") ? "video" : "image",
+        }),
         {
-          method: "POST",
-          body: cldFormData,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
-
-      if (cldRes.ok) {
-        const cldData = (await cldRes.json()) as any;
-        if (cldData && cldData.secure_url) {
-          return new Response(JSON.stringify({ url: cldData.secure_url }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-      }
     }
 
-    // Method 2: Unsigned Preset Cloudinary Upload
-    if (cloudName && uploadPreset) {
-      const cldFormData = new FormData();
-      cldFormData.append("file", file);
-      cldFormData.append("upload_preset", uploadPreset);
-      cldFormData.append("folder", "atrya_shop");
-
-      const cldRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
-        {
-          method: "POST",
-          body: cldFormData,
-        }
-      );
-
-      if (cldRes.ok) {
-        const cldData = (await cldRes.json()) as any;
-        if (cldData && cldData.secure_url) {
-          return new Response(JSON.stringify({ url: cldData.secure_url }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-      }
-    }
-
-    // Method 3: Resilient Base64 Data URI Fallback
+    // Method 2: Resilient Base64 Data URI Fallback (Instant & lightweight on edge)
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     let binary = "";
@@ -127,9 +86,17 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
     const mimeType = file.type || "image/jpeg";
     const dataUri = `data:${mimeType};base64,${base64}`;
 
-    return new Response(JSON.stringify({ url: dataUri }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        url: dataUri,
+        public_id: null,
+        resource_type: mimeType.startsWith("video") ? "video" : "image",
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err?.message || "Upload error" }), {
       status: 500,

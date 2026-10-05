@@ -259,6 +259,11 @@ export interface Settings {
     bannerProducts?: BannerProductItem[];
     globalReturnPolicy?: string; // Global return and refund policy (Markaz-style 7-day policy by default)
     isFirebaseLiveMode?: boolean; // Global Firebase Mode sync across all devices & admin logins
+    r2AccountId?: string; // Cloudflare R2 Account ID
+    r2AccessKeyId?: string; // Cloudflare R2 Access Key ID
+    r2SecretAccessKey?: string; // Cloudflare R2 Secret Access Key
+    r2BucketName?: string; // Cloudflare R2 Bucket Name (e.g. 'onliny-media')
+    r2PublicUrl?: string; // Cloudflare R2 Public Domain (e.g. 'https://pub-xxx.r2.dev' or 'https://media.onliny.co.uk')
 }
 
 export interface AppNotification {

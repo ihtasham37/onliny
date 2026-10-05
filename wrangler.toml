@@ -5,3 +5,8 @@ pages_build_output_dir = "dist"
 
 [vars]
 NODE_VERSION = "20"
+
+# Cloudflare R2 Bucket Binding (Configure in Cloudflare Dashboard > Pages > Settings > Functions > R2 bucket bindings)
+# [[r2_buckets]]
+# binding = "R2_BUCKET"
+# bucket_name = "your-bucket-name"

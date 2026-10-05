@@ -802,35 +802,33 @@ const Checkout = () => {
                 </div>
 
                 {/* Screenshot Upload Section */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-900">
-                      📸 Upload Payment Screenshot <span className="text-red-500">*</span>
+                      📸 Payment Screenshot <span className="text-red-500">*</span>
                     </label>
-                    <span className="text-[10px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200">
-                      Auto-compressed under 20KB
-                    </span>
                   </div>
                   
                   {isCompressingProof ? (
-                    <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-amber-400 bg-amber-50/50 rounded-xl">
-                      <Spinner size="md" />
-                      <p className="text-xs font-bold text-amber-900 mt-2">Compressing screenshot under 20KB...</p>
-                      <p className="text-[11px] text-slate-500">Optimizing resolution for fast upload & verification</p>
+                    <div className="flex flex-col items-center justify-center p-3.5 border border-dashed border-amber-400 bg-amber-50/50 rounded-xl">
+                      <Spinner size="sm" />
+                      <p className="text-xs font-semibold text-amber-900 mt-1.5">Optimizing screenshot (&lt; 20KB)...</p>
                     </div>
                   ) : !paymentProofPreview ? (
-                    <label className={`flex flex-col items-center justify-center p-4 sm:p-5 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                    <label className={`flex items-center justify-center gap-2.5 p-3.5 border border-dashed rounded-xl cursor-pointer transition-all ${
                       errors.paymentProof 
                         ? 'border-red-400 bg-red-50/50 hover:bg-red-50' 
                         : 'border-amber-300 hover:border-amber-500 bg-white hover:bg-amber-50/40'
                     }`}>
-                      <Icons.upload className={`w-8 h-8 mb-2 ${errors.paymentProof ? 'text-red-500' : 'text-amber-600'}`} />
-                      <span className="text-xs sm:text-sm font-bold text-slate-800 text-center">
-                        Click to select payment screenshot
-                      </span>
-                      <span className="text-[11px] text-slate-500 mt-0.5 text-center">
-                        PNG, JPG, or JPEG (Auto-compressed &lt; 20KB)
-                      </span>
+                      <Icons.upload className={`w-5 h-5 shrink-0 ${errors.paymentProof ? 'text-red-500' : 'text-amber-600'}`} />
+                      <div className="text-left">
+                        <span className="text-xs font-bold text-slate-800 block">
+                          Attach Transfer Receipt
+                        </span>
+                        <span className="text-[10px] text-slate-500 block">
+                          PNG or JPG (auto-compressed &lt; 20KB)
+                        </span>
+                      </div>
                       <input
                         type="file"
                         accept="image/*"
@@ -860,24 +858,21 @@ const Checkout = () => {
                       />
                     </label>
                   ) : (
-                    <div className="bg-white p-3 rounded-xl border-2 border-emerald-400 flex items-center justify-between gap-3 shadow-xs">
-                      <div className="flex items-center gap-3 min-w-0">
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-400 flex items-center justify-between gap-2.5 shadow-2xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <img
                           src={paymentProofPreview}
                           alt="Screenshot Preview"
-                          className="w-14 h-14 object-cover rounded-lg border border-slate-200 shrink-0"
+                          className="w-10 h-10 object-cover rounded-lg border border-slate-200 shrink-0"
                         />
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-emerald-800 flex items-center gap-1">
                             <Icons.checkCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            Screenshot Attached!
-                          </p>
-                          <p className="text-[11px] text-slate-600 truncate mt-0.5">
-                            {paymentProofFile?.name || 'receipt.jpg'}
+                            Receipt Attached
                           </p>
                           {paymentProofFile && (
-                            <span className="inline-block mt-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                              {(paymentProofFile.size / 1024).toFixed(1)} KB (Compressed &lt; 20KB ✓)
+                            <span className="text-[10px] font-semibold text-emerald-700">
+                              {(paymentProofFile.size / 1024).toFixed(1)} KB ✓
                             </span>
                           )}
                         </div>
@@ -902,11 +897,6 @@ const Checkout = () => {
                       {errors.paymentProof}
                     </p>
                   )}
-                </div>
-
-                {/* Important Notice in English */}
-                <div className="p-3 bg-amber-100/70 border border-amber-300 rounded-xl text-xs text-amber-900 leading-relaxed">
-                  <strong>⚠️ Important Notice:</strong> Please upload the genuine payment receipt screenshot after transfer. If a fake or incorrect receipt is uploaded, your order will be cancelled immediately. Once genuine payment is verified by our team, your parcel will be dispatched without delay.
                 </div>
               </div>
             )}

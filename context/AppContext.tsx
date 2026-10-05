@@ -87,7 +87,7 @@ export interface AppContextType {
   updateUpdatePost: (post: UpdatePost) => Promise<void>;
   deleteUpdatePost: (post: UpdatePost) => Promise<void>;
   toggleWishlist: (productId: string) => void;
-  uploadFile: (file: File) => Promise<string>;
+  uploadFile: (file: File, type?: 'banner' | 'category' | 'product' | { maxKb?: number; type?: string }) => Promise<string>;
   deleteFile: (fileUrl: string) => Promise<void>;
   login: (email: string, pass: string) => Promise<void>;
   register: (email: string, pass: string) => Promise<void>;
@@ -352,9 +352,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   });
   
-  const uploadFile = useCallback(async (file: File): Promise<string> => {
-    // Strictly compress image to < 20 KB
-    const processedFile = await compressImage(file);
+  const uploadFile = useCallback(async (
+    file: File, 
+    type?: 'banner' | 'category' | 'product' | { maxKb?: number; type?: string }
+  ): Promise<string> => {
+    // Strictly compress image: < 50 KB for banners/categories, < 30 KB for products
+    const processedFile = await compressImage(file, type);
     
     try {
       const formData = new FormData();
@@ -367,13 +370,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.warn('Backend/Edge upload endpoint note, using direct compressed asset:', apiErr);
     }
     
-    // Direct lightweight compressed Data URI fallback (< 20 KB data URI is ultra-fast and reliable)
+    // Direct lightweight compressed Data URI fallback (< 30 KB / 50 KB data URI is ultra-fast and reliable)
     return await fileToDataUri(processedFile);
   }, []);
 
   const deleteFile = useCallback(async (fileUrl: string): Promise<void> => {
-    if (!fileUrl?.includes('cloudinary')) return;
-    await apiRequest('/api/delete', safeJsonStringify({ fileUrl }));
+    if (!fileUrl) return;
+    await apiRequest('/api/delete', safeJsonStringify({ fileUrl })).catch(() => {});
   }, []);
   
   const addToCart = (product: Product, quantity: number, selectedSizes?: Record<string, string>, additionalInfo?: string) => {
@@ -907,6 +910,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
         }
 
+        // 4. Query by Order ID / Tracking ID if raw input is an ID
+        if (foundOrders.length === 0 && rawPhone) {
+          try {
+            const docSnap = await getDoc(doc(db, 'orders', rawPhone));
+            if (docSnap.exists()) {
+              foundOrders = [{ id: docSnap.id, ...docSnap.data() } as Order];
+            } else {
+              const qCustom = query(collection(db, 'orders'), where('customId', '==', rawPhone), limit(1));
+              const qSnap = await getDocs(qCustom);
+              if (!qSnap.empty) {
+                foundOrders = [{ id: qSnap.docs[0].id, ...qSnap.docs[0].data() } as Order];
+              }
+            }
+          } catch (e) {}
+        }
+
         if (foundOrders.length > 0) {
             if (inputEmail) {
                 const emailFiltered = foundOrders.filter(o => o.email?.toLowerCase() === inputEmail);
@@ -1222,16 +1241,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await loadCatalog(true);
   }, [loadCatalog]);
 
+  const lastCatalogTimestampRef = useRef<number>(0);
+
+  useEffect(() => {
+    lastCatalogTimestampRef.current = lastCatalogTimestamp;
+  }, [lastCatalogTimestamp]);
+
   // Periodically and on window focus, check for updated static catalog from server (0 Firestore reads!)
   useEffect(() => {
+    let isSubscribed = true;
+
     const checkCatalogUpdates = async () => {
       try {
         const res = await fetch(`/api/catalog-data?_t=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
-          if (json.success && json.data && Array.isArray(json.data.products)) {
+          if (isSubscribed && json.success && json.data && Array.isArray(json.data.products)) {
             const serverTimestamp = json.data.lastUpdated || 0;
-            if (serverTimestamp > lastCatalogTimestamp) {
+            if (serverTimestamp > lastCatalogTimestampRef.current) {
+              lastCatalogTimestampRef.current = serverTimestamp;
               applyBundleData(json.data);
               try {
                 sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(json.data));
@@ -1248,31 +1276,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     window.addEventListener('focus', handleFocus);
-    const interval = setInterval(checkCatalogUpdates, 15000);
-
-    // Real-time Firestore instant listener for catalog_bundle
-    // As soon as Admin clicks 'Sync Website Data', all customer screens update in < 200ms real-time
-    const unsubRealtimeBundle = onSnapshot(doc(db, 'settings', 'catalog_bundle'), (snapshot) => {
-      if (snapshot.exists()) {
-        const bundle = snapshot.data() as CatalogBundle;
-        if (bundle && Array.isArray(bundle.products)) {
-          applyBundleData(bundle);
-          try {
-            sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundle));
-            localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, safeJsonStringify({ cachedAt: Date.now(), data: bundle }));
-          } catch (e) {}
-        }
-      }
-    }, (err) => {
-      console.warn("Realtime catalog_bundle subscription note:", err);
-    });
+    const interval = setInterval(checkCatalogUpdates, 30000);
 
     return () => {
+      isSubscribed = false;
       window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
-      unsubRealtimeBundle();
     };
-  }, [lastCatalogTimestamp, applyBundleData]);
+  }, [applyBundleData]);
 
   const toggleFirebaseMode = useCallback((enabled?: boolean) => {
     setIsFirebaseLiveMode(prev => {

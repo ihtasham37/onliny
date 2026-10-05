@@ -217,16 +217,16 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
     const hasProof = Boolean(order.paymentProofUrl || order.status === OrderStatus.PaymentVerification);
 
     const steps = hasProof ? [
-        { key: 'verify', label: 'Verification', urdu: 'پیمنٹ تصدیق' },
-        { key: 'pending', label: 'Confirmed', urdu: 'آرڈر منظور' },
-        { key: 'packed', label: 'Packed', urdu: 'پیک ہو گیا' },
-        { key: 'ontheway', label: 'On The Way', urdu: 'راستے میں' },
-        { key: 'delivered', label: 'Delivered', urdu: 'پہنچ گیا' },
+        { key: 'verify', label: 'Verification', sublabel: 'Payment Review' },
+        { key: 'pending', label: 'Confirmed', sublabel: 'Order Approved' },
+        { key: 'packed', label: 'Packed', sublabel: 'Ready for Dispatch' },
+        { key: 'ontheway', label: 'In Transit', sublabel: 'Out for Delivery' },
+        { key: 'delivered', label: 'Delivered', sublabel: 'Completed' },
     ] : [
-        { key: 'pending', label: 'Confirmed', urdu: 'آرڈر منظور' },
-        { key: 'packed', label: 'Packed', urdu: 'پیک ہو گیا' },
-        { key: 'ontheway', label: 'On The Way', urdu: 'راستے میں' },
-        { key: 'delivered', label: 'Delivered', urdu: 'پہنچ گیا' },
+        { key: 'pending', label: 'Confirmed', sublabel: 'Order Approved' },
+        { key: 'packed', label: 'Packed', sublabel: 'Ready for Dispatch' },
+        { key: 'ontheway', label: 'In Transit', sublabel: 'Out for Delivery' },
+        { key: 'delivered', label: 'Delivered', sublabel: 'Completed' },
     ];
 
     let currentStepIndex = 0;
@@ -248,17 +248,17 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
     }
 
     return (
-        <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-rose-100 hover:border-rose-200 transition-all space-y-4">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200/90 hover:border-slate-300 transition-all space-y-4">
             {/* Header info */}
             <div className="flex justify-between items-start">
                 <div>
-                    <h3 className="font-bold text-base sm:text-lg text-slate-900">Your Order</h3>
+                    <h3 className="font-bold text-base sm:text-lg text-slate-900">Order #{getDisplayOrderId(order)}</h3>
                     {order.storeName && (
                         <p className="text-xs text-rose-600 font-semibold mb-0.5">
                             Store: <a href={storeDisplayLink} className="underline">{order.storeName}</a>
                         </p>
                     )}
-                    <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-xs text-slate-500">{new Date(order.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
                 <span className={`px-3 py-1 text-xs font-bold rounded-full ${
                     order.status === OrderStatus.Delivered ? 'bg-emerald-100 text-emerald-800' :
@@ -272,12 +272,9 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
 
             {/* Visual Multi-step Tracker */}
             {isCancelled ? (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-center gap-2">
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
                     <span className="font-bold text-sm">❌</span>
-                    <div>
-                        <strong>Order Cancelled (آرڈر کینسل ہو گیا ہے)</strong>
-                        <p className="text-[11px] text-red-600 mt-0.5">اگر پیمنٹ غلط یا غیر تصدیق شدہ تھی تو آرڈر منسوخ کر دیا جاتا ہے۔ کسٹمر سپورٹ سے رابطہ کریں۔</p>
-                    </div>
+                    <strong className="text-rose-900 font-bold text-sm">Order Cancelled</strong>
                 </div>
             ) : (
                 <div className="pt-2 pb-1">
@@ -313,8 +310,8 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
                                     }`}>
                                         {st.label}
                                     </span>
-                                    <span className="text-[9px] text-slate-500 hidden sm:block">
-                                        {st.urdu}
+                                    <span className="text-[9px] text-slate-400 hidden sm:block">
+                                        {st.sublabel}
                                     </span>
                                 </div>
                             );
@@ -326,9 +323,9 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
                         <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
                             <span className="text-base mt-0.5">⏳</span>
                             <div>
-                                <strong className="font-bold">پیمنٹ رسید تصدیق زیر التواء (Payment Under Verification)</strong>
+                                <strong className="font-bold">Payment Verification in Progress</strong>
                                 <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                                    ایڈمن آپ کے اپلوڈ کردہ اسکرین شاٹ کی تصدیق کر رہا ہے۔ جیسے ہی پیمنٹ کنفرم ہو گی، آرڈر اگلے مرحلے پر چلا جائے گا۔
+                                    Our team is verifying your payment screenshot. Your order will be confirmed immediately once verified.
                                 </p>
                             </div>
                         </div>
@@ -338,9 +335,9 @@ const OrderItemCard: React.FC<{ order: Order }> = ({ order }) => {
                         <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 flex items-start gap-2">
                             <span className="text-base mt-0.5">📦</span>
                             <div>
-                                <strong className="font-bold">آرڈر پیک ہو گیا ہے (Order Packed)</strong>
+                                <strong className="font-bold">Order Packed & Ready</strong>
                                 <p className="text-[11px] text-purple-800 mt-0.5 leading-relaxed">
-                                    آپ کا پارسل پیک کر کے تیار کر لیا گیا ہے۔ جلد کوریئر کے حوالے کر دیا جائے گا۔
+                                    Your parcel has been packed securely and scheduled for courier pickup.
                                 </p>
                             </div>
                         </div>
@@ -455,18 +452,8 @@ const TrackOrder = () => {
         const cleanPhone = phone.trim();
         const cleanEmail = email.trim().toLowerCase();
 
-        if (!cleanPhone) {
-            setError('Phone number is required (فون نمبر لکھنا ضروری ہے).');
-            return;
-        }
-
-        if (!cleanEmail) {
-            setError('Email address is required (ای میل ایڈریس لکھنا ضروری ہے).');
-            return;
-        }
-
-        if (!/\S+@\S+\.\S+/.test(cleanEmail)) {
-            setError('Please enter a valid email address (درست ای میل درج کریں).');
+        if (!cleanPhone && !cleanEmail) {
+            setError('Please enter your Phone Number or Order Tracking ID.');
             return;
         }
 
@@ -474,11 +461,11 @@ const TrackOrder = () => {
         try {
             const success = await trackWithEmailAndPhone(cleanEmail, cleanPhone);
             if (!success) {
-                setError('No orders found for this Phone Number and Email. Please check your details and try again.');
+                setError('No orders found matching the provided details. Please check your phone number or Tracking ID.');
             }
         } catch (err) {
             console.error("Tracking Error:", err);
-            setError("An error occurred while finding your order. Please try again.");
+            setError("Unable to retrieve order details at this moment. Please try again.");
         } finally {
             setIsLoading(false);
         }
@@ -486,15 +473,15 @@ const TrackOrder = () => {
 
     if (activeCustomer && customerOrders.length > 0) {
         return (
-            <div className="container mx-auto px-2 sm:px-4 max-w-4xl py-4 space-y-6">
-                <div className="bg-white p-5 rounded-2xl shadow-xs border border-rose-100 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div className="container mx-auto px-2 sm:px-4 max-w-4xl py-6 space-y-6">
+                <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-xs border border-slate-200/80 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                     <div>
                         <div className="flex items-center gap-2">
                             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                            <h1 className="text-2xl font-bold font-serif text-slate-900">Tracked Orders</h1>
+                            <h1 className="text-xl sm:text-2xl font-serif font-bold text-slate-900">Order Tracking History</h1>
                         </div>
                         <p className="text-xs text-slate-500 mt-1">
-                            Showing orders for Phone: <strong>{activeCustomer.phone}</strong> {activeCustomer.email ? `| Email: ${activeCustomer.email}` : ''}
+                            Orders linked to Phone: <strong className="text-slate-800">{activeCustomer.phone}</strong> {activeCustomer.email ? `• Email: ${activeCustomer.email}` : ''}
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -512,9 +499,9 @@ const TrackOrder = () => {
                             variant="outline" 
                             size="sm" 
                             onClick={customerLogout}
-                            className="text-xs font-semibold text-rose-600 border-rose-200 hover:bg-rose-50"
+                            className="text-xs font-semibold text-slate-600 border-slate-300 hover:bg-slate-50"
                         >
-                            Sign Out / Change
+                            Sign Out / Change Details
                         </Button>
                     </div>
                 </div>
@@ -535,43 +522,40 @@ const TrackOrder = () => {
     }
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 px-2 py-4">
-        <div className="w-full max-w-md p-6 sm:p-8 space-y-6 bg-white rounded-3xl shadow-xl border border-rose-100">
-            <div className="text-center space-y-3">
-                <div className="inline-block p-4 bg-gradient-to-tr from-rose-100 to-amber-100 rounded-2xl shadow-xs">
-                    <Icons.search className="w-10 h-10 text-rose-600" />
+      <div className="flex flex-col items-center justify-center min-h-[65vh] space-y-8 px-3 py-6">
+        <div className="w-full max-w-md p-6 sm:p-8 space-y-6 bg-white rounded-3xl shadow-sm border border-slate-200/90">
+            <div className="text-center space-y-2">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shadow-xs">
+                    <Icons.search className="w-7 h-7" />
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 font-serif">Track Your Order</h1>
-                <p className="text-xs sm:text-sm text-gray-500 max-w-xs mx-auto">
-                    Enter your Phone Number and Email Address to track your order status live.
+                <h1 className="text-2xl font-serif font-bold text-slate-900 tracking-tight">Track Your Order</h1>
+                <p className="text-xs sm:text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">
+                    Enter your phone number or Order Tracking ID to view real-time status updates.
                 </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <Input
-                        label="Phone Number / فون نمبر *"
-                        type="tel"
+                        label="Phone Number or Tracking ID"
+                        type="text"
                         name="phone"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         required
-                        placeholder="03001234567"
+                        placeholder="e.g. 03001234567 or ORD-12345"
                     />
-                    <p className="text-[11px] text-gray-400 mt-1">Order place karte waqt diya gaya mobile number.</p>
                 </div>
 
                 <div>
                     <Input
-                        label="Email Address / ای میل ایڈریس *"
+                        label="Email Address (Optional)"
                         type="email"
                         name="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        required
-                        placeholder="you@example.com"
+                        placeholder="you@example.com (optional)"
                     />
-                    <p className="text-[11px] text-gray-400 mt-1">Aapka email address jis par order confirmation bheji gayi.</p>
                 </div>
 
                 {error && (
@@ -583,7 +567,7 @@ const TrackOrder = () => {
                 <Button
                     type="submit"
                     variant="primary"
-                    className="w-full !py-3 !text-base bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 border-none shadow-md shadow-rose-200 font-bold rounded-xl"
+                    className="w-full !py-3 !text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-xs transition-all cursor-pointer"
                     size="lg"
                     disabled={isLoading}
                 >
@@ -593,7 +577,7 @@ const TrackOrder = () => {
                             <span>Tracking Order...</span>
                         </div>
                     ) : (
-                        <span>Track Order (آرڈر ٹریک کریں)</span>
+                        <span>Track Order</span>
                     )}
                 </Button>
             </form>

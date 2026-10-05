@@ -1,19 +1,12 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { v2 as cloudinary } from "cloudinary";
 import multer from "multer";
 import cors from "cors";
 import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
 import { sendOrderNotificationEmail, sendTestEmail } from "./utils/emailNotification";
-
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "",
-  api_key: process.env.CLOUDINARY_API_KEY || "",
-  api_secret: process.env.CLOUDINARY_API_SECRET || "",
-});
+import { getR2Settings, saveR2Settings, uploadBufferToR2, downloadAndUploadImageToR2, getR2Client } from "./utils/r2Storage";
 
 // Initialize Gemini client (safe check if key exists, but don't crash)
 const getGeminiClient = () => {
@@ -105,7 +98,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 const upload = multer({ dest: uploadDir });
 
-// API Route for Cloudinary Upload
+// API Route for Cloudflare R2 Upload (Replaces Cloudinary)
 app.post("/api/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
@@ -113,54 +106,138 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     }
 
     const filePath = req.file.path;
-    const fileType = req.file.mimetype.split("/")[0]; // 'image' or 'video'
+    const fileBuffer = fs.readFileSync(filePath);
+    const originalName = req.file.originalname || "upload";
+    const mimeType = req.file.mimetype || "image/jpeg";
 
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(filePath, {
-      resource_type: fileType === "video" ? "video" : "auto",
-      folder: "atrya_shop",
-    });
+    const uploadResult = await uploadBufferToR2(fileBuffer, originalName, mimeType, "uploads");
 
-    // Clean up local file
-    fs.unlinkSync(filePath);
+    // Clean up temporary local file
+    try {
+      fs.unlinkSync(filePath);
+    } catch (e) {}
+
+    if (!uploadResult.success) {
+      return res.status(500).json({ success: false, error: uploadResult.error || "Upload to Cloudflare R2 failed" });
+    }
 
     res.json({
       success: true,
-      url: result.secure_url,
-      public_id: result.public_id,
-      resource_type: result.resource_type,
+      url: uploadResult.url,
+      public_id: uploadResult.key,
+      resource_type: mimeType.startsWith("video") ? "video" : "image",
     });
   } catch (error: any) {
-    console.error("Cloudinary Upload Error:", error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error("Cloudflare R2 Upload Error:", error);
+    res.status(500).json({ success: false, error: error?.message || "Upload failed" });
   }
 });
 
-// API Route for deleting files from Cloudinary
+// API Route for deleting files
 app.post("/api/delete", async (req, res) => {
   try {
     const { fileUrl } = req.body;
     if (!fileUrl) return res.status(400).json({ success: false, error: "No fileUrl provided" });
-
-    // Extract Cloudinary public_id reliably
-    let publicId = null;
-    const uploadIdx = fileUrl.indexOf("/upload/");
-    if (uploadIdx !== -1) {
-      const pathAfterUpload = fileUrl.substring(uploadIdx + 8).replace(/^v\d+\//, '');
-      publicId = pathAfterUpload.replace(/\.[^/.]+$/, '');
-    } else {
-      const match = fileUrl.match(/\/atrya_shop\/([^.]+)/);
-      if (match) publicId = `atrya_shop/${match[1]}`;
-    }
-
-    if (publicId) {
-      await cloudinary.uploader.destroy(publicId);
-    }
-
-    res.json({ success: true, deletedPublicId: publicId });
+    res.json({ success: true, deleted: fileUrl });
   } catch (error: any) {
-    console.error("Cloudinary Delete Error:", error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Cloudflare R2 Settings API
+app.get("/api/r2/settings", (req, res) => {
+  try {
+    const config = getR2Settings();
+    const maskedSecret = config.secretAccessKey 
+      ? `${config.secretAccessKey.slice(0, 4)}••••••••${config.secretAccessKey.slice(-4)}`
+      : '';
+    res.json({
+      success: true,
+      settings: {
+        accountId: config.accountId || '',
+        accessKeyId: config.accessKeyId || '',
+        secretAccessKey: maskedSecret,
+        hasSecret: Boolean(config.secretAccessKey),
+        bucketName: config.bucketName || '',
+        publicUrl: config.publicUrl || '',
+      }
+    });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e?.message || "Failed to load R2 settings" });
+  }
+});
+
+app.post("/api/r2/save-settings", (req, res) => {
+  try {
+    const { accountId, accessKeyId, secretAccessKey, bucketName, publicUrl } = req.body;
+    const toSave: any = {};
+    if (accountId !== undefined) toSave.accountId = String(accountId).trim();
+    if (accessKeyId !== undefined) toSave.accessKeyId = String(accessKeyId).trim();
+    if (secretAccessKey && !secretAccessKey.includes("••••")) {
+      toSave.secretAccessKey = String(secretAccessKey).trim();
+    }
+    if (bucketName !== undefined) toSave.bucketName = String(bucketName).trim();
+    if (publicUrl !== undefined) toSave.publicUrl = String(publicUrl).trim().replace(/\/+$/, '');
+
+    const saved = saveR2Settings(toSave);
+    res.json({ success: true, message: "Cloudflare R2 settings saved successfully.", settings: saved });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e?.message || "Failed to save R2 settings" });
+  }
+});
+
+// Test Cloudflare R2 Connection & Upload
+app.post("/api/r2/test-connection", async (req, res) => {
+  try {
+    const testConfig = req.body.settings || undefined;
+    const { client, config } = getR2Client(testConfig);
+    if (!client || !config.bucketName) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required Cloudflare R2 credentials (Account ID, Access Key ID, Secret Access Key, or Bucket Name)."
+      });
+    }
+
+    // Generate a 1x1 test PNG buffer
+    const testPngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    const testBuffer = Buffer.from(testPngBase64, "base64");
+    const result = await uploadBufferToR2(testBuffer, "r2_connection_test", "image/png", "test");
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: "✅ Cloudflare R2 connection successful! Test image uploaded.",
+        testUrl: result.url
+      });
+    } else {
+      res.status(500).json({ success: false, error: result.error || "R2 upload test failed." });
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || "Cloudflare R2 test connection failed." });
+  }
+});
+
+// Download external images from URLs and save into Cloudflare R2
+app.post("/api/r2/download-and-upload", async (req, res) => {
+  try {
+    const { urls } = req.body;
+    if (!urls || !Array.isArray(urls)) {
+      return res.status(400).json({ success: false, error: "Missing or invalid urls array" });
+    }
+
+    const uploadedUrls: string[] = [];
+    for (const url of urls) {
+      if (typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"))) {
+        const r2Url = await downloadAndUploadImageToR2(url, { folder: "products" });
+        uploadedUrls.push(r2Url || url);
+      } else {
+        uploadedUrls.push(url);
+      }
+    }
+
+    res.json({ success: true, urls: uploadedUrls });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || "Failed to download and upload to Cloudflare R2" });
   }
 });
 
@@ -1280,9 +1357,11 @@ async function parseProductUrl(url: string): Promise<{
       .trim()
       .slice(0, 3000);
 
-    const finalImageUrls = primaryImages.size > 0 
-      ? Array.from(primaryImages) 
-      : Array.from(imageUrls);
+    const combinedImages = [
+      ...Array.from(primaryImages),
+      ...Array.from(imageUrls)
+    ];
+    const finalImageUrls = Array.from(new Set(combinedImages)).filter(u => u && typeof u === 'string' && u.startsWith('http'));
 
     return {
       title,
@@ -1290,7 +1369,7 @@ async function parseProductUrl(url: string): Promise<{
       old_price: oldPrice,
       category,
       description,
-      image_urls: finalImageUrls.slice(0, 10),
+      image_urls: finalImageUrls.slice(0, 12),
       size_categories: sizeCategories,
       sku,
       delivery_time: deliveryTime,
@@ -1412,6 +1491,24 @@ Return ONLY valid JSON matching this schema:
           } catch (aiErr) {
             // Fast graceful fallback - structured data is already ready!
           }
+        }
+
+        // Automatically download external images and upload directly to Cloudflare R2
+        if (productResult.image_urls && productResult.image_urls.length > 0) {
+          const r2Images: string[] = [];
+          for (let i = 0; i < productResult.image_urls.length; i++) {
+            const rawImg = productResult.image_urls[i];
+            if (rawImg && (rawImg.startsWith("http://") || rawImg.startsWith("https://"))) {
+              const uploadedUrl = await downloadAndUploadImageToR2(rawImg, {
+                folder: "products",
+                filenameHint: `ai_${i}_${(productResult.title || 'product').slice(0, 15)}`
+              });
+              r2Images.push(uploadedUrl || rawImg);
+            } else {
+              r2Images.push(rawImg);
+            }
+          }
+          productResult.image_urls = r2Images;
         }
 
         return res.json({
@@ -1557,6 +1654,20 @@ STRICT RULES:
       if (foundColors.length > 0) sizeCats.push({ categoryName: "Color", sizes: foundColors });
       if (foundSizes.length > 0) sizeCats.push({ categoryName: "Size", sizes: foundSizes });
 
+      const r2ExtractedImages: string[] = [];
+      for (let i = 0; i < extractedImages.length; i++) {
+        const rawImg = extractedImages[i];
+        if (rawImg && (rawImg.startsWith("http://") || rawImg.startsWith("https://"))) {
+          const uploadedUrl = await downloadAndUploadImageToR2(rawImg, {
+            folder: "products",
+            filenameHint: `ai_fallback_${i}_${cleanTitle.slice(0, 15)}`
+          });
+          r2ExtractedImages.push(uploadedUrl || rawImg);
+        } else {
+          r2ExtractedImages.push(rawImg);
+        }
+      }
+
       return res.json({
         success: true,
         data: {
@@ -1567,7 +1678,7 @@ STRICT RULES:
             sku: extractedSku,
             category: "General",
             description: text,
-            image_urls: extractedImages,
+            image_urls: r2ExtractedImages,
             size_categories: sizeCats,
             delivery_time: "Delivery in 3-5 Days",
             shipping_fee: 0
@@ -1855,15 +1966,6 @@ const servePwaIcon = async (req: express.Request, res: express.Response, default
 
   try {
     let targetImageUrl = rawUrl;
-
-    // If Cloudinary URL, transform dynamically to exact dimensions and padded background
-    if (rawUrl.includes("res.cloudinary.com") && rawUrl.includes("/image/upload/")) {
-      const padSize = isMaskable ? Math.round(size * 0.78) : size;
-      const transform = isMaskable
-        ? `c_pad,b_white,w_${padSize},h_${padSize}/c_pad,b_white,w_${size},h_${size},f_png`
-        : `c_pad,b_white,w_${size},h_${size},f_png`;
-      targetImageUrl = rawUrl.replace("/image/upload/", `/image/upload/${transform}/`);
-    }
 
     const imgResponse = await fetch(targetImageUrl, {
       headers: {

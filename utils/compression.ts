@@ -1,19 +1,37 @@
 /**
  * High-Efficiency Ultra-Lightweight Image Compressor
- * Guarantees output image size is strictly UNDER 20 KB (< 20,480 bytes)
- * Uses high-performance HTML5 Canvas with iterative downscaling and WebP/JPEG encoding.
+ * - Banners and Category Banners: Strictly compressed to < 50 KB (Target: ~48 KB)
+ * - Products & Other Images: Strictly compressed to < 30 KB (Target: ~29 KB)
+ * Uses high-performance HTML5 Canvas with adaptive quality and WebP/JPEG encoding.
  */
 
-const MAX_TARGET_BYTES = 19.5 * 1024; // ~19.9 KB (strictly < 20 KB)
+export interface CompressionOptions {
+  maxKb?: number;
+  type?: 'banner' | 'category' | 'product' | string;
+}
 
-export const compressImage = async (file: File): Promise<File> => {
+export const compressImage = async (
+  file: File,
+  options?: CompressionOptions | 'banner' | 'category' | 'product'
+): Promise<File> => {
   // If not an image, return original
   if (!file.type || !file.type.startsWith('image/')) {
     return file;
   }
 
-  // If already an image and strictly under 18 KB, we can use it, but converting to optimized webp is even better
-  if (file.size <= 18 * 1024 && file.type === 'image/webp') {
+  // Parse type & max target bytes
+  const optType = typeof options === 'string' ? options : options?.type;
+  const isBanner = optType === 'banner' || optType === 'category' || /banner|category/i.test(file.name);
+  
+  // Custom maxKb override or strict rule: < 50 KB for banners, < 30 KB for products
+  const maxKb = typeof options === 'object' && options?.maxKb 
+    ? options.maxKb 
+    : (isBanner ? 49 : 29);
+
+  const MAX_TARGET_BYTES = maxKb * 1024;
+
+  // If already WebP and strictly within target size, reuse as is
+  if (file.size <= (maxKb - 2) * 1024 && file.type === 'image/webp') {
     return file;
   }
 
@@ -27,9 +45,9 @@ export const compressImage = async (file: File): Promise<File> => {
           const originalWidth = img.naturalWidth || img.width;
           const originalHeight = img.naturalHeight || img.height;
 
-          // Start with appropriate dimension bound
-          let maxDimension = Math.min(800, Math.max(originalWidth, originalHeight));
-          let quality = 0.72;
+          // For banners, allow up to 1400px; for products, allow up to 900px
+          const maxDimension = isBanner ? 1400 : 900;
+          let quality = isBanner ? 0.80 : 0.72;
           let mimeType = 'image/webp';
 
           // Test if webp is supported on canvas
@@ -63,11 +81,11 @@ export const compressImage = async (file: File): Promise<File> => {
             return new Blob([ab], { type: mimeString });
           };
 
-          // Iterative reduction loop to guarantee size is STRICTLY < 20 KB
+          // Iterative reduction loop to guarantee size is STRICTLY within target
           let currentWidth = originalWidth;
           let currentHeight = originalHeight;
 
-          // Scale down initial dimensions
+          // Scale down initial dimensions if larger than maxDimension
           if (currentWidth > maxDimension || currentHeight > maxDimension) {
             if (currentWidth > currentHeight) {
               currentHeight = Math.round((currentHeight * maxDimension) / currentWidth);
@@ -89,17 +107,17 @@ export const compressImage = async (file: File): Promise<File> => {
             bestBlob = blob;
 
             if (blob.size <= MAX_TARGET_BYTES) {
-              // Target achieved! Under 20 KB
+              // Target achieved! Under target KB limit
               break;
             }
 
-            // If too large, reduce quality and dimensions
+            // If too large, step down quality first, then dimensions
             if (quality > 0.45) {
-              quality -= 0.12;
+              quality -= 0.10;
             } else {
-              // Scale down dimensions by 15%
-              currentWidth = Math.round(currentWidth * 0.85);
-              currentHeight = Math.round(currentHeight * 0.85);
+              // Scale down dimensions by 12%
+              currentWidth = Math.round(currentWidth * 0.88);
+              currentHeight = Math.round(currentHeight * 0.88);
               quality = Math.max(0.35, quality - 0.05);
             }
           }
@@ -113,13 +131,12 @@ export const compressImage = async (file: File): Promise<File> => {
             });
 
             console.log(
-              `[Image Compression] Original: ${(file.size / 1024).toFixed(1)} KB -> Compressed: ${(compressedFile.size / 1024).toFixed(1)} KB (Target < 20 KB achieved)`
+              `[Image Compression - ${isBanner ? 'Banner (<50KB)' : 'Product (<30KB)'}] Original: ${(file.size / 1024).toFixed(1)} KB -> Compressed: ${(compressedFile.size / 1024).toFixed(1)} KB (Target < ${maxKb} KB achieved)`
             );
             resolve(compressedFile);
             return;
           }
 
-          // Fallback to original
           resolve(file);
         } catch (err) {
           console.warn('[Image Compression] Error in canvas compression:', err);
@@ -142,14 +159,15 @@ export const compressImage = async (file: File): Promise<File> => {
   });
 };
 
-/**
- * Utility to convert a file directly to Base64 data URI
- */
 export const fileToDataUri = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (err) => reject(err);
+    reader.onload = (event) => {
+      resolve(event.target?.result as string);
+    };
+    reader.onerror = (error) => {
+      reject(error);
+    };
     reader.readAsDataURL(file);
   });
 };

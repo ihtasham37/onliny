@@ -150,11 +150,12 @@ const CategoriesPage: React.FC<CategoriesPageProps> = ({ isStandalone: isStandal
             </div>
 
             {categoriesToShow.length > 0 ? (
-                /* 2 categories per line on laptop/tablet (md:grid-cols-2), 1 per line on mobile */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                /* Editorial luxury cards stacked vertically with 16:9 aspect ratio matching home page banner */
+                <div className="max-w-4xl mx-auto space-y-3.5 sm:space-y-5 md:space-y-6">
                     {categoriesToShow.map((category, idx) => {
                         const bgImage = category.imageUrl || (category.bannerImageUrls && category.bannerImageUrls[0]) || '';
                         const productCount = getCategoryProductCount(category);
+                        const categoryDesc = (category as any).description || (category as any).subTitle || '';
                         const categoryUrl = isStandaloneMode && (standaloneType === 'vendor' || vendorId)
                             ? `/store/v/${encodeURIComponent(vendorId || category.vendorId || '')}?category=${encodeURIComponent(category.name)}`
                             : `/category/${category.id}`;
@@ -163,59 +164,52 @@ const CategoriesPage: React.FC<CategoriesPageProps> = ({ isStandalone: isStandal
                             <Link
                                 key={category.id}
                                 to={categoryUrl}
-                                className="group relative w-full aspect-[16/9] rounded-2xl sm:rounded-3xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-1 block border border-slate-200/80 bg-slate-900"
+                                className="group relative w-full aspect-[16/9] rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 block border border-slate-200/80 bg-slate-900 active:scale-[0.99]"
                             >
-                                {/* 16:9 Full Frame Background Image */}
+                                {/* Full Frame Background Image */}
                                 {bgImage ? (
                                     <img 
                                         src={bgImage} 
                                         alt={category.name}
-                                        loading={idx < 4 ? "eager" : "lazy"}
-                                        className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                                        loading={idx < 2 ? "eager" : "lazy"}
+                                        className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
                                         onError={(e) => {
                                             (e.target as HTMLImageElement).style.display = 'none';
                                         }}
                                     />
                                 ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-slate-800 via-rose-950 to-slate-900 flex items-center justify-center">
-                                        <Icons.sparkles className="w-16 h-16 text-white/20" />
+                                    <div className="w-full h-full bg-gradient-to-br from-slate-900 via-rose-950 to-slate-900 flex items-center justify-center">
+                                        <Icons.category className="w-14 h-14 text-white/30" />
                                     </div>
                                 )}
 
-                                {/* High-Contrast Cinematic Gradient Overlay */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10 group-hover:from-black/90 group-hover:via-black/45 transition-all duration-300" />
+                                {/* High-Contrast Luxury Gradient Overlays matching home page banner */}
+                                <div className="absolute inset-0 bg-black/35 group-hover:bg-black/45 transition-colors duration-300" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/35" />
 
-                                {/* Category Title & Info Overlaid on top */}
-                                <div className="absolute inset-0 flex flex-col justify-between p-4 sm:p-5 md:p-6 text-white">
-                                    {/* Top badge and share button */}
-                                    <div className="flex justify-between items-center z-10">
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-900/85 border border-white/30 text-white shadow-md">
-                                            <span>Collection</span>
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={(e) => handleShareCategory(e, category)}
-                                                aria-label={`Share ${category.name}`}
-                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-900/85 hover:bg-rose-600 text-white border border-white/30 hover:border-rose-400/50 shadow-md transition-all cursor-pointer active:scale-95"
-                                            >
-                                                <Icons.share2 className="w-3.5 h-3.5" />
-                                                <span className="hidden sm:inline">Share</span>
-                                            </button>
-                                            <div className="w-8 h-8 rounded-full bg-slate-900/85 border border-white/30 flex items-center justify-center text-white group-hover:bg-rose-600 group-hover:border-rose-500 group-hover:translate-x-1 transition-all duration-300 shadow-md">
-                                                <Icons.chevronRight className="w-4 h-4" />
-                                            </div>
-                                        </div>
-                                    </div>
+                                {/* Share button top-right - Crisp circular button with no blur box artifact */}
+                                <div className="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 z-20">
+                                    <button
+                                        onClick={(e) => handleShareCategory(e, category)}
+                                        aria-label={`Share ${category.name}`}
+                                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/60 hover:bg-rose-600 text-white flex items-center justify-center border border-white/20 shadow-md active:scale-90 transition-all cursor-pointer"
+                                    >
+                                        <Icons.share2 className="w-4 h-4 text-white" />
+                                    </button>
+                                </div>
 
-                                    {/* Bottom Main Category Title */}
-                                    <div>
-                                        <h2 className="text-lg sm:text-xl md:text-2xl font-black text-white tracking-wide drop-shadow-md group-hover:text-rose-200 transition-colors">
-                                            {category.name}
-                                        </h2>
-                                        <div className="mt-1 flex items-center gap-1.5 text-xs sm:text-sm text-slate-200 font-medium opacity-90 group-hover:opacity-100 transition-opacity">
-                                            <span>Explore Products</span>
-                                            <Icons.chevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                                        </div>
+                                {/* Center luxury typography & CTA button strictly matching home page banner */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-3.5 sm:p-6 md:p-8 z-10 pointer-events-none">
+                                    <h2 className="font-serif font-black text-lg sm:text-3xl md:text-4xl text-white uppercase tracking-[0.14em] drop-shadow-xl group-hover:scale-[1.02] transition-transform duration-300 max-w-xl">
+                                        {category.name}
+                                    </h2>
+                                    
+                                    <p className="font-serif italic text-xs sm:text-base md:text-lg text-white/95 drop-shadow-md mt-1 sm:mt-2 max-w-md line-clamp-1">
+                                        {categoryDesc ? `*${categoryDesc}*` : '*soft modest elegance.*'}
+                                    </p>
+
+                                    <div className="mt-2.5 sm:mt-4 md:mt-5 inline-flex items-center justify-center bg-white/95 group-hover:bg-white text-slate-900 font-serif text-[11px] sm:text-xs md:text-sm font-semibold tracking-wider px-4 sm:px-6 py-1.5 sm:py-2.5 shadow-md group-hover:shadow-xl transition-all duration-300">
+                                        <span>Explore More</span>
                                     </div>
                                 </div>
                             </Link>

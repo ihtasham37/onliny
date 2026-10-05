@@ -10,9 +10,9 @@ import { Product, BannerProductItem } from '../types';
 import { SEO } from '../components/SEO';
 import { shareContent } from '../utils/shareHelper';
 import { formatCurrency, matchCategory, normalizeCategoryName } from '../utils/helpers';
-import { fisherYatesShuffle } from '../utils/shuffle';
 import { BannerProductSlide } from '../components/ui/BannerProductSlide';
-import { VerticalScrollColumn, useBannerHeight } from '../components/ui/VerticalProductSlider';
+import { HorizontalCategorySlider } from '../components/ui/HorizontalCategorySlider';
+import { seededFisherYatesShuffle } from '../utils/shuffle';
 
 interface CategoryProductsPageProps {
     isStandalone?: boolean;
@@ -25,7 +25,8 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
     const { isStandalone: isStandaloneHook, standaloneCategory, standaloneType, vendorId, storeName, storeLogoUrl, homeUrl } = useStandaloneCategory();
     const [sortBy, setSortBy] = useState<'all' | 'price-low' | 'price-high'>('all');
     const [viewMode, setViewMode] = useState<'rows' | 'grid'>('rows');
-    const { bannerRef, bannerHeight } = useBannerHeight();
+    // Fresh random session shuffle seed created on each page refresh / category open
+    const [sessionShuffleSeed] = useState(() => Math.random().toString(36).substring(2, 9));
 
     const isStandaloneMode = Boolean(
         isStandalone || 
@@ -114,20 +115,17 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
 
     }, [products, allProducts, currentCategory, subCategories, isStandaloneMode, vendorId]);
 
-    const shuffledProducts = useMemo(() => {
-        if (!productsToShow || productsToShow.length === 0) return [];
-        return fisherYatesShuffle(productsToShow);
-    }, [productsToShow]);
-
+    // Fair & Random Category Discovery (Shuffles on each page refresh / category open, stable during session, 0 Firebase reads)
     const sortedProducts = useMemo(() => {
-        const list = [...shuffledProducts];
+        if (!productsToShow || productsToShow.length === 0) return [];
         if (sortBy === 'price-low') {
-            list.sort((a, b) => a.price - b.price);
-        } else if (sortBy === 'price-high') {
-            list.sort((a, b) => b.price - a.price);
+            return [...productsToShow].sort((a, b) => a.price - b.price);
         }
-        return list;
-    }, [shuffledProducts, sortBy]);
+        if (sortBy === 'price-high') {
+            return [...productsToShow].sort((a, b) => b.price - a.price);
+        }
+        return seededFisherYatesShuffle(productsToShow, `${sessionShuffleSeed}_${categoryId || 'cat'}`);
+    }, [productsToShow, sortBy, sessionShuffleSeed, categoryId]);
 
     // Product rows of 5 for horizontal swipeable display matching Home.tsx
     const productRows = useMemo(() => {
@@ -433,188 +431,132 @@ const CategoryProductsPage: React.FC<CategoryProductsPageProps> = ({ isStandalon
                 </div>
             </div>
 
-            {/* Desktop Hero Layout: Center 16:9 Banner + Left/Right Vertical Scrolling Product Lists (Strictly matching Banner Height) */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 items-start">
-                {/* Left Vertical Scrolling Column (Desktop Only - Strictly locked to Banner Height) */}
+            {/* Main 16:9 Category Banner Slider */}
+            <div className="w-full max-w-5xl mx-auto">
                 <div 
-                    className="hidden lg:block lg:col-span-3 min-h-0 overflow-hidden"
-                    style={{ height: bannerHeight ? `${bannerHeight}px` : undefined }}
+                    className="relative w-full aspect-[16/9] rounded-2xl sm:rounded-3xl overflow-hidden shadow-md group border border-rose-100 bg-slate-900"
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
                 >
-                    <VerticalScrollColumn
-                        title="Recommended"
-                        badge="For You"
-                        products={leftSideProducts}
-                        height={bannerHeight}
-                    />
-                </div>
-
-                {/* Center 16:9 Banner Slider (Matching Home.tsx exact aspect ratio & styling) */}
-                <div className="col-span-1 lg:col-span-6 min-h-0">
-                    <div 
-                        ref={bannerRef}
-                        className="relative w-full aspect-[16/9] rounded-2xl sm:rounded-3xl overflow-hidden shadow-md group border border-rose-100 bg-slate-900"
-                        onTouchStart={handleTouchStart}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
-                    >
-                        {bannerSlides.length > 0 ? (
-                            <div className="flex transition-transform duration-500 ease-in-out h-full w-full" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
-                                {bannerSlides.map((slide, index) => (
-                                    <div key={slide.id || index} className="w-full h-full flex-shrink-0 relative">
-                                        {slide.type === 'media' ? (
-                                            <MediaPreview 
-                                                src={slide.url} 
-                                                className="w-full h-full object-cover" 
-                                                autoPlay={true} 
-                                                loop={true} 
-                                                muted={true} 
-                                                controls={false} 
-                                            />
-                                        ) : (
-                                            <BannerProductSlide 
-                                                product={slide.product} 
-                                                bannerConfig={slide.bannerConfig} 
-                                            />
-                                        )}
-                                    </div>
-                                ))}
+                    {bannerSlides.length > 0 ? (
+                        <div className="flex transition-transform duration-500 ease-in-out h-full w-full" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
+                            {bannerSlides.map((slide, index) => (
+                                <div key={slide.id || index} className="w-full h-full flex-shrink-0 relative">
+                                    {slide.type === 'media' ? (
+                                        <MediaPreview 
+                                            src={slide.url} 
+                                            className="w-full h-full object-cover" 
+                                            autoPlay={true} 
+                                            loop={true} 
+                                            muted={true} 
+                                            controls={false} 
+                                        />
+                                    ) : (
+                                        <BannerProductSlide 
+                                            product={slide.product} 
+                                            bannerConfig={slide.bannerConfig} 
+                                        />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        /* Fallback when no banner uploaded: Premium branded 16:9 boutique hero */
+                        <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-rose-700 via-rose-600 to-amber-600 flex items-center justify-between p-4 sm:p-8 text-white">
+                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.25),transparent_60%)] pointer-events-none" />
+                            
+                            <div className="relative z-10 max-w-[70%]">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-100 border border-white/20">
+                                    <Icons.sparkles className="w-3 h-3 text-amber-200" />
+                                    <span>Official Storefront</span>
+                                </span>
+                                <h1 className="text-xl sm:text-3xl md:text-4xl font-serif font-black text-white mt-1.5 tracking-tight drop-shadow-sm leading-tight">
+                                    {currentDisplayName}
+                                </h1>
+                                <p className="text-[11px] sm:text-sm text-rose-100 font-medium mt-1 line-clamp-1">
+                                    {productsToShow.length > 0 
+                                         ? `Explore ${productsToShow.length} verified products with express delivery` 
+                                        : 'Handpicked styles & verified premium quality'}
+                                </p>
                             </div>
-                        ) : (
-                            /* Fallback when no banner uploaded: Premium branded 16:9 boutique hero */
-                            <div className="w-full h-full relative overflow-hidden bg-gradient-to-br from-rose-700 via-rose-600 to-amber-600 flex items-center justify-between p-4 sm:p-8 text-white">
-                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.25),transparent_60%)] pointer-events-none" />
-                                
-                                <div className="relative z-10 max-w-[70%]">
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-100 border border-white/20">
-                                        <Icons.sparkles className="w-3 h-3 text-amber-200" />
-                                        <span>Official Storefront</span>
+
+                            <div className="relative z-10 w-16 h-16 sm:w-24 sm:h-24 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-lg shrink-0 overflow-hidden">
+                                {currentDisplayLogo ? (
+                                    <img src={currentDisplayLogo} alt={currentDisplayName} className="w-full h-full object-cover" />
+                                ) : (
+                                    <Icons.sparkles className="w-8 h-8 sm:w-12 sm:h-12 text-amber-200" />
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Chic bottom banner title overlay only on media slides */}
+                    {bannerSlides.length > 0 && bannerSlides[currentIndex]?.type === 'media' && (
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-3 sm:p-4 flex items-end justify-between pointer-events-none">
+                            <div className="flex items-center gap-2">
+                                {currentDisplayLogo && (
+                                    <img src={currentDisplayLogo} alt={currentDisplayName} className="w-8 h-8 rounded-full border border-white/80 object-cover shadow-sm" />
+                                )}
+                                <div>
+                                    <span className="text-[10px] sm:text-xs uppercase tracking-widest text-amber-300 font-bold drop-shadow-sm block">
+                                        {isStandaloneMode ? 'Official Collection' : (parentCategory?.name || 'Collection')}
                                     </span>
-                                    <h1 className="text-xl sm:text-3xl md:text-4xl font-serif font-black text-white mt-1.5 tracking-tight drop-shadow-sm leading-tight">
+                                    <h1 className="text-base sm:text-xl font-black text-white tracking-tight drop-shadow-md">
                                         {currentDisplayName}
                                     </h1>
-                                    <p className="text-[11px] sm:text-sm text-rose-100 font-medium mt-1 line-clamp-1">
-                                        {productsToShow.length > 0 
-                                             ? `Explore ${productsToShow.length} verified products with express delivery` 
-                                            : 'Handpicked styles & verified premium quality'}
-                                    </p>
-                                </div>
-
-                                <div className="relative z-10 w-16 h-16 sm:w-24 sm:h-24 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-lg shrink-0 overflow-hidden">
-                                    {currentDisplayLogo ? (
-                                        <img src={currentDisplayLogo} alt={currentDisplayName} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <Icons.sparkles className="w-8 h-8 sm:w-12 sm:h-12 text-amber-200" />
-                                    )}
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        {/* Chic bottom banner title overlay only on media slides */}
-                        {bannerSlides.length > 0 && bannerSlides[currentIndex]?.type === 'media' && (
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-3 sm:p-4 flex items-end justify-between pointer-events-none">
-                                <div className="flex items-center gap-2">
-                                    {currentDisplayLogo && (
-                                        <img src={currentDisplayLogo} alt={currentDisplayName} className="w-8 h-8 rounded-full border border-white/80 object-cover shadow-sm" />
-                                    )}
-                                    <div>
-                                        <span className="text-[10px] sm:text-xs uppercase tracking-widest text-amber-300 font-bold drop-shadow-sm block">
-                                            {isStandaloneMode ? 'Official Collection' : (parentCategory?.name || 'Collection')}
-                                        </span>
-                                        <h1 className="text-base sm:text-xl font-black text-white tracking-tight drop-shadow-md">
-                                            {currentDisplayName}
-                                        </h1>
-                                    </div>
-                                </div>
+                    {/* Slider Navigation Dots & Controls (Exact same styling as Home.tsx) */}
+                    {bannerSlides.length > 1 && (
+                        <>
+                            <button 
+                                onClick={prevSlideManual} 
+                                className="absolute top-1/2 -translate-y-1/2 left-2 bg-black/40 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-xs z-20 cursor-pointer"
+                                aria-label="Previous slide"
+                            >
+                                <Icons.chevronLeft className="w-5 h-5" />
+                            </button>
+                            <button 
+                                onClick={nextSlideManual} 
+                                className="absolute top-1/2 -translate-y-1/2 right-2 bg-black/40 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-xs z-20 cursor-pointer"
+                                aria-label="Next slide"
+                            >
+                                <Icons.chevronRight className="w-5 h-5" />
+                            </button>
+                            <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+                                {bannerSlides.map((_, index) => (
+                                    <button 
+                                        key={index} 
+                                        onClick={() => goToSlide(index)} 
+                                        className={`w-2 h-2 rounded-full transition-all cursor-pointer ${index === currentIndex ? 'bg-white w-5' : 'bg-white/50 hover:bg-white/75'}`}
+                                        aria-label={`Go to slide ${index + 1}`}
+                                    />
+                                ))}
                             </div>
-                        )}
-
-                        {/* Slider Navigation Dots & Controls (Exact same styling as Home.tsx) */}
-                        {bannerSlides.length > 1 && (
-                            <>
-                                <button 
-                                    onClick={prevSlideManual} 
-                                    className="absolute top-1/2 -translate-y-1/2 left-2 bg-black/40 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-xs z-20 cursor-pointer"
-                                    aria-label="Previous slide"
-                                >
-                                    <Icons.chevronLeft className="w-5 h-5" />
-                                </button>
-                                <button 
-                                    onClick={nextSlideManual} 
-                                    className="absolute top-1/2 -translate-y-1/2 right-2 bg-black/40 hover:bg-black/70 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-xs z-20 cursor-pointer"
-                                    aria-label="Next slide"
-                                >
-                                    <Icons.chevronRight className="w-5 h-5" />
-                                </button>
-                                <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
-                                    {bannerSlides.map((_, index) => (
-                                        <button 
-                                            key={index} 
-                                            onClick={() => goToSlide(index)} 
-                                            className={`w-2 h-2 rounded-full transition-all cursor-pointer ${index === currentIndex ? 'bg-white w-5' : 'bg-white/50 hover:bg-white/75'}`}
-                                            aria-label={`Go to slide ${index + 1}`}
-                                        />
-                                    ))}
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-
-                {/* Right Vertical Scrolling Column (Desktop Only - Strictly locked to Banner Height) */}
-                <div 
-                    className="hidden lg:block lg:col-span-3 min-h-0 overflow-hidden"
-                    style={{ height: bannerHeight ? `${bannerHeight}px` : undefined }}
-                >
-                    <VerticalScrollColumn
-                        title="Trending Deals"
-                        badge="Top Picks"
-                        products={rightSideProducts}
-                        height={bannerHeight}
-                    />
+                        </>
+                    )}
                 </div>
             </div>
 
-            {/* Sub-categories Section: Only shown if NOT on standalone mode root (as user requested: sub-categories available via Categories tab) */}
-            {!isStandaloneMode && subCategories.length > 0 && (
-                <div className="space-y-2.5">
-                    <div className="flex items-center justify-between px-1">
-                        <h2 className="text-sm sm:text-base font-extrabold text-slate-800 tracking-tight">
-                            Sub-categories
-                        </h2>
-                        <span className="text-[11px] text-slate-400 font-medium">Swipe to explore →</span>
-                    </div>
-
-                    <div className="flex items-center gap-3.5 sm:gap-4 md:gap-5 overflow-x-auto pb-2 pt-1 -mx-2 px-2 sm:mx-0 sm:px-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden snap-x">
-                        {subCategories.map(subCat => {
-                            return (
-                                <Link 
-                                    key={subCat.id} 
-                                    to={`/category/${subCat.id}`} 
-                                    className="group shrink-0 flex flex-col items-center gap-2 w-20 sm:w-24 md:w-28 text-center snap-start transition-transform active:scale-95"
-                                >
-                                    {/* Clean Circular Avatar Container matching Home page style */}
-                                    <div className="relative p-[2.5px] rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-rose-400 shadow-2xs border border-pink-100/80 group-hover:scale-105 transition-all duration-300">
-                                        <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full overflow-hidden bg-slate-100 border border-white flex items-center justify-center">
-                                            {subCat.imageUrl ? (
-                                                <MediaPreview 
-                                                    src={subCat.imageUrl} 
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                                                    controls={false} 
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full bg-gradient-to-br from-rose-50 to-pink-50 rounded-full flex items-center justify-center text-rose-500">
-                                                    <Icons.sparkles className="w-6 h-6 sm:w-8 sm:h-8" />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <span className="text-[11px] sm:text-xs md:text-sm font-bold text-slate-800 group-hover:text-rose-600 line-clamp-1 max-w-full leading-tight">
-                                        {subCat.name}
-                                    </span>
-                                </Link>
-                            );
-                        })}
-                    </div>
+            {/* Sub-categories Section: Single horizontal row, 2 categories visible in view with 16:9 aspect ratio */}
+            {subCategories.length > 0 && (
+                <div className="pt-1">
+                    <HorizontalCategorySlider
+                        categories={subCategories}
+                        title="Shop by Sub-category"
+                        viewAllUrl=""
+                        getProductCount={(sub) => {
+                            const targetCats = [sub];
+                            const sourceProducts = sub.vendorId
+                                ? (allProducts || []).filter(p => p.vendorId === sub.vendorId)
+                                : products;
+                            return sourceProducts.filter(p => p.isVisible !== false && targetCats.some(t => matchCategory(p.category, t))).length;
+                        }}
+                    />
                 </div>
             )}
 

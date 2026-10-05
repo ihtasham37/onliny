@@ -230,7 +230,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return jsonResponse({ success: true, message: "Settings saved." });
     }
 
-    // 2. Image & File Upload Handler (/api/upload)
+    // 2. Image & File Upload Handler (/api/upload - Cloudflare R2 Storage)
     if (pathname === "/api/upload" && request.method === "POST") {
       try {
         const formData = await request.formData();
@@ -240,41 +240,28 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           return jsonResponse({ success: false, error: "No file provided in form data" }, 400);
         }
 
-        const cloudName = env.CLOUDINARY_CLOUD_NAME || "";
-        const apiKey = env.CLOUDINARY_API_KEY || "";
-        const apiSecret = env.CLOUDINARY_API_SECRET || "";
+        // Method 1: Cloudflare R2 Bucket Binding
+        const r2 = env.R2_BUCKET || env.IMAGES_BUCKET || env.BUCKET;
+        if (r2 && typeof r2.put === "function") {
+          const ext = file.name ? file.name.split(".").pop() || "jpg" : "jpg";
+          const key = `uploads/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+          const arrayBuffer = await file.arrayBuffer();
 
-        // Try signed Cloudinary upload if credentials are present
-        if (cloudName && apiKey && apiSecret) {
-          const timestamp = Math.round(Date.now() / 1000);
-          const folder = "atrya_shop";
-          const stringToSign = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
-          const signature = await generateSha1(stringToSign);
-
-          const cldFormData = new FormData();
-          cldFormData.append("file", file);
-          cldFormData.append("api_key", apiKey);
-          cldFormData.append("timestamp", String(timestamp));
-          cldFormData.append("folder", folder);
-          cldFormData.append("signature", signature);
-
-          const cldRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-            method: "POST",
-            body: cldFormData,
+          await r2.put(key, arrayBuffer, {
+            httpMetadata: {
+              contentType: file.type || "image/jpeg",
+            },
           });
 
-          if (cldRes.ok) {
-            const cldData = (await cldRes.json()) as any;
-            return jsonResponse({
-              success: true,
-              url: cldData.secure_url,
-              public_id: cldData.public_id,
-              resource_type: cldData.resource_type || "image",
-            });
-          } else {
-            const errText = await cldRes.text().catch(() => "");
-            console.warn("Cloudinary upload failed on edge, falling back to compressed base64:", errText);
-          }
+          const publicBase = (env.R2_PUBLIC_URL || "").replace(/\/+$/, "");
+          const finalUrl = publicBase ? `${publicBase}/${key}` : `/${key}`;
+
+          return jsonResponse({
+            success: true,
+            url: finalUrl,
+            public_id: key,
+            resource_type: file.type?.startsWith("video") ? "video" : "image",
+          });
         }
 
         // Lightweight Fallback: Read file as Base64 Data URI (<20KB is lightweight and fast)
@@ -302,39 +289,65 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
     }
 
-    // 3. File Deletion Handler (/api/delete & /api/delete-file)
+    // 2.1 Download external images from URLs and save directly into Cloudflare R2
+    if (pathname === "/api/r2/download-and-upload" && request.method === "POST") {
+      try {
+        const body = (await request.json().catch(() => ({}))) as any;
+        const urls = body?.urls;
+        if (!urls || !Array.isArray(urls)) {
+          return jsonResponse({ success: false, error: "Missing or invalid urls array" }, 400);
+        }
+
+        const r2 = env.R2_BUCKET || env.IMAGES_BUCKET || env.BUCKET;
+        const uploadedUrls: string[] = [];
+        const publicBase = (env.R2_PUBLIC_URL || "").replace(/\/+$/, "");
+
+        for (let i = 0; i < urls.length; i++) {
+          const rawUrl = urls[i];
+          if (typeof rawUrl === "string" && (rawUrl.startsWith("http://") || rawUrl.startsWith("https://"))) {
+            if (r2 && typeof r2.put === "function") {
+              try {
+                const imgResp = await fetch(rawUrl, {
+                  headers: { "User-Agent": "Mozilla/5.0" }
+                });
+                if (imgResp.ok) {
+                  const contentType = imgResp.headers.get("content-type") || "image/jpeg";
+                  const ext = rawUrl.split("?")[0].split(".").pop() || "jpg";
+                  const key = `products/${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}.${ext}`;
+                  const arrayBuf = await imgResp.arrayBuffer();
+                  await r2.put(key, arrayBuf, {
+                    httpMetadata: { contentType }
+                  });
+                  uploadedUrls.push(publicBase ? `${publicBase}/${key}` : `/${key}`);
+                  continue;
+                }
+              } catch (e) {}
+            }
+          }
+          uploadedUrls.push(rawUrl);
+        }
+
+        return jsonResponse({ success: true, urls: uploadedUrls });
+      } catch (err: any) {
+        return jsonResponse({ success: false, error: err?.message || "R2 download and upload error" }, 500);
+      }
+    }
+
+    // 3. File Deletion Handler (/api/delete & /api/delete-file - Cloudflare R2)
     if ((pathname === "/api/delete" || pathname === "/api/delete-file") && request.method === "POST") {
       try {
         const body = (await request.json().catch(() => ({}))) as any;
         const fileUrl = body?.fileUrl;
 
-        const cloudName = env.CLOUDINARY_CLOUD_NAME || "";
-        const apiKey = env.CLOUDINARY_API_KEY || "";
-        const apiSecret = env.CLOUDINARY_API_SECRET || "";
-
-        if (fileUrl && fileUrl.includes("cloudinary") && cloudName && apiKey && apiSecret) {
-          const publicIdMatch = fileUrl.match(/\/atrya_shop\/(.+)\./);
-          const publicId = publicIdMatch ? `atrya_shop/${publicIdMatch[1]}` : null;
-
-          if (publicId) {
-            const timestamp = Math.round(Date.now() / 1000);
-            const stringToSign = `public_id=${publicId}&timestamp=${timestamp}${apiSecret}`;
-            const signature = await generateSha1(stringToSign);
-
-            const cldFormData = new FormData();
-            cldFormData.append("public_id", publicId);
-            cldFormData.append("api_key", apiKey);
-            cldFormData.append("timestamp", String(timestamp));
-            cldFormData.append("signature", signature);
-
-            await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/destroy`, {
-              method: "POST",
-              body: cldFormData,
-            }).catch(() => {});
+        const r2 = env.R2_BUCKET || env.IMAGES_BUCKET || env.BUCKET;
+        if (fileUrl && r2 && typeof r2.delete === "function") {
+          const key = fileUrl.replace(/^https?:\/\/[^\/]+\//, "").replace(/^\//, "");
+          if (key) {
+            await r2.delete(key).catch(() => {});
           }
         }
 
-        return jsonResponse({ success: true });
+        return jsonResponse({ success: true, deleted: fileUrl });
       } catch (err: any) {
         return jsonResponse({ success: true }); // Graceful resolution
       }

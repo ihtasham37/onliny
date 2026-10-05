@@ -87,6 +87,28 @@ const Settings = () => {
     const [isSavingEmail, setIsSavingEmail] = useState(false);
     const [emailSaveSuccess, setEmailSaveSuccess] = useState(false);
 
+    // Cloudflare R2 Object Storage state
+    const [r2Settings, setR2Settings] = useState<{
+        accountId: string;
+        accessKeyId: string;
+        secretAccessKey: string;
+        bucketName: string;
+        publicUrl: string;
+        hasSecret: boolean;
+    }>({
+        accountId: '',
+        accessKeyId: '',
+        secretAccessKey: '',
+        bucketName: '',
+        publicUrl: '',
+        hasSecret: false,
+    });
+    const [isSavingR2, setIsSavingR2] = useState(false);
+    const [isTestingR2, setIsTestingR2] = useState(false);
+    const [r2TestResult, setR2TestResult] = useState<{ success: boolean; message: string; testUrl?: string } | null>(null);
+    const [showR2Secret, setShowR2Secret] = useState(false);
+    const [r2SaveSuccess, setR2SaveSuccess] = useState(false);
+
     // Initial mount: Automatically fetch fresh settings from Firestore Cloud to prevent stale session overwrites
     useEffect(() => {
         let isMounted = true;
@@ -124,8 +146,19 @@ const Settings = () => {
             } catch (err) {}
         };
 
+        const fetchR2Settings = async () => {
+            try {
+                const res = await fetch('/api/r2/settings');
+                const data = await res.json();
+                if (data.success && data.settings && isMounted) {
+                    setR2Settings(data.settings);
+                }
+            } catch (err) {}
+        };
+
         autoFetchFirestore();
         fetchEmailSettings();
+        fetchR2Settings();
         return () => { isMounted = false; };
     }, [fetchLatestSettingsFromFirestore]);
     

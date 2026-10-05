@@ -10,10 +10,10 @@ import { Button } from '../components/ui/Button';
 import { Coupon, Product, BannerProductItem } from '../types';
 import { PopupBanners } from '../components/ui/PopupBanners';
 import { SEO } from '../components/SEO';
-import { formatCurrency } from '../utils/helpers';
-import { fisherYatesShuffle } from '../utils/shuffle';
+import { formatCurrency, matchCategory } from '../utils/helpers';
 import { BannerProductSlide } from '../components/ui/BannerProductSlide';
-import { VerticalScrollColumn, useBannerHeight } from '../components/ui/VerticalProductSlider';
+import { HorizontalCategorySlider } from '../components/ui/HorizontalCategorySlider';
+import { seededFisherYatesShuffle } from '../utils/shuffle';
 
 const CouponBannerCard: React.FC<{coupon: Coupon}> = ({ coupon }) => (
     <div className="w-full h-full flex-shrink-0 bg-gradient-to-br from-fuchsia-600 via-rose-600 to-amber-500 text-white flex flex-col items-center justify-center p-4 text-center">
@@ -111,7 +111,8 @@ const getCategoryAvatar = (catName: string, customImg?: string) => {
 const Home = () => {
   const { products, settings, coupons, isLoading, banners: dbBanners } = useStore();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const { bannerRef, bannerHeight } = useBannerHeight();
+  // Fresh random session shuffle seed created on each page refresh / app reopen
+  const [sessionShuffleSeed] = useState(() => Math.random().toString(36).substring(2, 9));
   
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
@@ -217,25 +218,26 @@ const Home = () => {
     );
   }, [settings?.categories]);
 
-  // Fisher-Yates shuffled product ordering for home page discovery (fair & random, stable during session)
+  const getCategoryProductCount = useCallback((category: any) => {
+    const allCats = settings?.categories || [];
+    const targetCategories: { id: string; name: string }[] = [category];
+    const queue = [category.id];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      allCats.filter(c => c.parentId === cur).forEach(c => {
+        targetCategories.push(c);
+        queue.push(c.id);
+      });
+    }
+    return (products || []).filter(p => p.isVisible !== false && targetCategories.some(target => matchCategory(p.category, target))).length;
+  }, [settings?.categories, products]);
+
+  // Fair & Random Product Discovery (Shuffles on each page refresh / app reopen, stable during current session, 0 Firebase reads)
   const displayProducts = useMemo(() => {
     const visible = (products || []).filter(p => p && p.isVisible !== false);
-    if (visible.length === 0) return [];
-    return fisherYatesShuffle(visible);
-  }, [products]);
-
-  // Left & Right Side Columns (Desktop auto-sliding columns strictly constrained to banner height)
-  const leftSideProducts = useMemo(() => {
-    if (displayProducts.length === 0) return [];
-    if (displayProducts.length <= 4) return displayProducts;
-    return displayProducts.slice(0, Math.ceil(displayProducts.length / 2));
-  }, [displayProducts]);
-
-  const rightSideProducts = useMemo(() => {
-    if (displayProducts.length === 0) return [];
-    if (displayProducts.length <= 4) return [...displayProducts].reverse();
-    return displayProducts.slice(Math.ceil(displayProducts.length / 2));
-  }, [displayProducts]);
+    if (visible.length <= 1) return visible;
+    return seededFisherYatesShuffle(visible, sessionShuffleSeed);
+  }, [products, sessionShuffleSeed]);
 
   const displayItems = useMemo(() => {
     return displayProducts;
@@ -401,157 +403,87 @@ const Home = () => {
         ]}
       />
 
-      {/* Desktop Hero Layout: Center Banner + Left/Right Vertical Scrolling Product Lists (Strictly matching Banner Height) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 items-start">
-        {/* Left Vertical Scrolling Column (Desktop Only - Strictly locked to Banner Height) */}
-        <div 
-          className="hidden lg:block lg:col-span-3 min-h-0 overflow-hidden"
-          style={{ height: bannerHeight ? `${bannerHeight}px` : undefined }}
-        >
-          <VerticalScrollColumn
-            title="Recommended"
-            badge="For You"
-            products={leftSideProducts}
-            height={bannerHeight}
-          />
-        </div>
-
-        {/* Center Banner Slider */}
-        <div className="col-span-1 lg:col-span-6 min-h-0">
-          {bannerSlides.length > 0 && (
-            <div 
-              ref={bannerRef}
-              className="relative w-full aspect-[16/9] overflow-hidden rounded-2xl sm:rounded-3xl shadow-sm group bg-slate-900 border border-slate-100"
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-            >
-              <div className="flex transition-transform duration-500 ease-in-out h-full" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
-                {bannerSlides.map((slide, index) => (
-                  <div key={slide.id || index} className="w-full h-full flex-shrink-0 relative">
-                    {slide.type === 'media' ? (
-                      slide.redirectUrl ? (
-                        <Link to={slide.redirectUrl} className="block w-full h-full">
-                          <MediaPreview src={slide.url} className="w-full h-full object-cover" autoPlay={true} loop={true} muted={true} controls={false} />
-                        </Link>
-                      ) : (
+      {/* Main 16:9 Banner Slider */}
+      <div className="w-full max-w-5xl mx-auto">
+        {bannerSlides.length > 0 && (
+          <div 
+            className="relative w-full aspect-[16/9] overflow-hidden rounded-2xl sm:rounded-3xl shadow-sm group bg-slate-900 border border-slate-100"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="flex transition-transform duration-500 ease-in-out h-full" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
+              {bannerSlides.map((slide, index) => (
+                <div key={slide.id || index} className="w-full h-full flex-shrink-0 relative">
+                  {slide.type === 'media' ? (
+                    slide.redirectUrl ? (
+                      <Link to={slide.redirectUrl} className="block w-full h-full">
                         <MediaPreview src={slide.url} className="w-full h-full object-cover" autoPlay={true} loop={true} muted={true} controls={false} />
-                      )
-                    ) : slide.type === 'product' ? (
-                      <BannerProductSlide 
-                        product={slide.product} 
-                        bannerConfig={slide.bannerConfig} 
-                      />
+                      </Link>
                     ) : (
-                      <CouponBannerCard coupon={slide.coupon} />
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {bannerSlides.length > 1 && (
-                <>
-                  {/* Left Arrow Button */}
-                  <button 
-                    onClick={prevSlide} 
-                    className="absolute top-1/2 -translate-y-1/2 left-2.5 sm:left-4 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs transition-all z-20 cursor-pointer shadow-md opacity-90 group-hover:opacity-100 active:scale-95" 
-                    aria-label="Previous slide"
-                  >
-                    <Icons.chevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </button>
-
-                  {/* Right Arrow Button */}
-                  <button 
-                    onClick={nextSlideManual} 
-                    className="absolute top-1/2 -translate-y-1/2 right-2.5 sm:right-4 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs transition-all z-20 cursor-pointer shadow-md opacity-90 group-hover:opacity-100 active:scale-95" 
-                    aria-label="Next slide"
-                  >
-                    <Icons.chevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </button>
-
-                  {/* Dots with pink active pill */}
-                  <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20">
-                    {bannerSlides.map((_, index) => (
-                      <button 
-                        key={index} 
-                        onClick={() => goToSlide(index)} 
-                        className={`h-2 rounded-full transition-all cursor-pointer ${
-                          index === currentIndex 
-                            ? 'bg-pink-500 w-5 sm:w-6 shadow-xs' 
-                            : 'bg-white/60 hover:bg-white w-2'
-                        }`} 
-                        aria-label={`Go to slide ${index + 1}`}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
+                      <MediaPreview src={slide.url} className="w-full h-full object-cover" autoPlay={true} loop={true} muted={true} controls={false} />
+                    )
+                  ) : slide.type === 'product' ? (
+                    <BannerProductSlide 
+                      product={slide.product} 
+                      bannerConfig={slide.bannerConfig} 
+                    />
+                  ) : (
+                    <CouponBannerCard coupon={slide.coupon} />
+                  )}
+                </div>
+              ))}
             </div>
-          )}
-        </div>
 
-        {/* Right Vertical Scrolling Column (Desktop Only - Strictly locked to Banner Height) */}
-        <div 
-          className="hidden lg:block lg:col-span-3 min-h-0 overflow-hidden"
-          style={{ height: bannerHeight ? `${bannerHeight}px` : undefined }}
-        >
-          <VerticalScrollColumn
-            title="Trending Deals"
-            badge="Top Picks"
-            products={rightSideProducts}
-            height={bannerHeight}
-          />
-        </div>
+            {bannerSlides.length > 1 && (
+              <>
+                {/* Left Arrow Button */}
+                <button 
+                  onClick={prevSlide} 
+                  className="absolute top-1/2 -translate-y-1/2 left-2.5 sm:left-4 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs transition-all z-20 cursor-pointer shadow-md opacity-90 group-hover:opacity-100 active:scale-95" 
+                  aria-label="Previous slide"
+                >
+                  <Icons.chevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+
+                {/* Right Arrow Button */}
+                <button 
+                  onClick={nextSlideManual} 
+                  className="absolute top-1/2 -translate-y-1/2 right-2.5 sm:right-4 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-xs transition-all z-20 cursor-pointer shadow-md opacity-90 group-hover:opacity-100 active:scale-95" 
+                  aria-label="Next slide"
+                >
+                  <Icons.chevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+
+                {/* Dots with pink active pill */}
+                <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20">
+                  {bannerSlides.map((_, index) => (
+                    <button 
+                      key={index} 
+                      onClick={() => goToSlide(index)} 
+                      className={`h-2 rounded-full transition-all cursor-pointer ${
+                        index === currentIndex 
+                          ? 'bg-pink-500 w-5 sm:w-6 shadow-xs' 
+                          : 'bg-white/60 hover:bg-white w-2'
+                      }`} 
+                      aria-label={`Go to slide ${index + 1}`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Categories from Collection Page (Circular layout with shining glow, direct link to category page, no All button) */}
+      {/* Categories Horizontal Slider (Single row, 2 categories visible per view in 16:9 aspect ratio) */}
       {categoriesToShow.length > 0 && (
-        <div className="pt-0.5 pb-0">
-          <div className="flex items-center justify-between mb-2 sm:mb-2.5 px-1">
-            <h2 className="text-lg sm:text-xl font-extrabold font-serif text-slate-900 px-1 border-l-4 border-rose-600 pl-3 tracking-tight">
-              Explore Categories
-            </h2>
-            <Link 
-              to="/categories" 
-              className="text-xs font-bold text-pink-600 hover:text-pink-700 flex items-center gap-0.5 group"
-            >
-              <span>View All</span>
-              <Icons.chevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-          </div>
-
-          {/* Horizontal Scrollable Glowing Circular Categories */}
-          <div className="flex items-center gap-3.5 sm:gap-5 md:gap-6 lg:gap-8 xl:gap-10 overflow-x-auto pb-2 pt-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            {categoriesToShow.map((cat) => {
-              const avatarUrl = getCategoryAvatar(cat.name, cat.imageUrl);
-
-              return (
-                <Link
-                  key={cat.id}
-                  to={`/category/${encodeURIComponent(cat.id)}`}
-                  className="flex flex-col items-center gap-2 shrink-0 group cursor-pointer text-center outline-none"
-                >
-                  {/* Clean Circular Avatar Container */}
-                  <div className="relative p-[2.5px] rounded-full bg-gradient-to-tr from-rose-500 via-pink-500 to-rose-400 shadow-xs border border-pink-100/80 group-hover:scale-105 transition-all duration-300">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 lg:w-28 lg:h-28 xl:w-32 xl:h-32 rounded-full overflow-hidden bg-slate-100 border border-white">
-                      <img
-                        src={avatarUrl}
-                        alt={cat.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        loading="lazy"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Category Label */}
-                  <span className="text-xs sm:text-xs md:text-sm lg:text-base font-extrabold text-slate-800 group-hover:text-pink-600 transition-colors tracking-tight text-center max-w-[72px] sm:max-w-[85px] md:max-w-[105px] lg:max-w-[135px] xl:max-w-[155px] truncate">
-                    {cat.name}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
+        <HorizontalCategorySlider
+          categories={categoriesToShow}
+          title="Shop by category"
+          viewAllUrl="/categories"
+          getProductCount={getCategoryProductCount}
+        />
       )}
 
       {/* Products Section with Luxury Heading */}
