@@ -55,9 +55,8 @@ async function callGeminiWithFallback(ai: GoogleGenAI, params: {
   }
 
   const models = [
-    "gemini-3.8-flash",
-    "gemini-flash-latest",
     "gemini-3.1-flash-lite",
+    "gemini-flash-latest",
     "gemini-3.1-pro-preview"
   ];
 
@@ -217,6 +216,42 @@ app.post("/api/r2/test-connection", async (req, res) => {
   }
 });
 
+// Proxy external images with CORS headers so client can download, compress, and save to Firebase
+app.get("/api/proxy-image", async (req, res) => {
+  try {
+    const targetUrl = req.query.url as string;
+    if (!targetUrl) {
+      return res.status(400).json({ error: "Missing url parameter" });
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+
+    const remoteRes = await fetch(targetUrl, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      },
+    });
+    clearTimeout(timeout);
+
+    if (!remoteRes.ok) {
+      return res.status(remoteRes.status).json({ error: `Remote image returned status ${remoteRes.status}` });
+    }
+
+    const contentType = remoteRes.headers.get("content-type") || "image/jpeg";
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "public, max-age=604800");
+
+    const arrayBuffer = await remoteRes.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Failed to proxy image" });
+  }
+});
+
 // Download external images from URLs and save into Cloudflare R2
 app.post("/api/r2/download-and-upload", async (req, res) => {
   try {
@@ -331,7 +366,7 @@ app.post("/api/send-order-email", async (req, res) => {
       gmailUser: (credentials?.gmailUser || stored.gmailUser || process.env.GMAIL_USER || '').trim(),
       gmailAppPassword: (credentials?.gmailAppPassword || stored.gmailAppPassword || process.env.GMAIL_APP_PASSWORD || '').trim(),
       adminNotificationEmail: (credentials?.adminNotificationEmail || stored.adminNotificationEmail || process.env.ADMIN_NOTIFICATION_EMAIL || '').trim(),
-      appName: credentials?.appName || stored.appName || 'onliny',
+      appName: credentials?.appName || stored.appName || 'Onliny',
     };
 
     const result = await sendOrderNotificationEmail(order, effectiveCredentials);
@@ -1491,24 +1526,6 @@ Return ONLY valid JSON matching this schema:
           } catch (aiErr) {
             // Fast graceful fallback - structured data is already ready!
           }
-        }
-
-        // Automatically download external images and upload directly to Cloudflare R2
-        if (productResult.image_urls && productResult.image_urls.length > 0) {
-          const r2Images: string[] = [];
-          for (let i = 0; i < productResult.image_urls.length; i++) {
-            const rawImg = productResult.image_urls[i];
-            if (rawImg && (rawImg.startsWith("http://") || rawImg.startsWith("https://"))) {
-              const uploadedUrl = await downloadAndUploadImageToR2(rawImg, {
-                folder: "products",
-                filenameHint: `ai_${i}_${(productResult.title || 'product').slice(0, 15)}`
-              });
-              r2Images.push(uploadedUrl || rawImg);
-            } else {
-              r2Images.push(rawImg);
-            }
-          }
-          productResult.image_urls = r2Images;
         }
 
         return res.json({

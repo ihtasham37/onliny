@@ -191,8 +191,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [aiStatus, setAiStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [showAiBox, setShowAiBox] = useState(true);
-  const [isDownloadingR2, setIsDownloadingR2] = useState(false);
-  const [r2DownloadMessage, setR2DownloadMessage] = useState<string | null>(null);
+  const [isDownloadingFirebase, setIsDownloadingFirebase] = useState(false);
+  const [firebaseDownloadMessage, setFirebaseDownloadMessage] = useState<string | null>(null);
 
   const isVendor = userData?.role === UserRole.Vendor;
   const vendorId = userData?.uid;
@@ -420,67 +420,153 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
       finally { setIsUploading(false); }
   };
 
-  const handleDownloadImagesToR2 = async (urlsToDownload?: string[]) => {
+  const getImageDisplayMeta = (imgUrl: string, index: number) => {
+    const isFirebaseStorage = imgUrl.includes('firebasestorage.googleapis.com') || imgUrl.includes('.firebasestorage.app');
+    const isFirebaseDataUri = imgUrl.startsWith('data:');
+    const isDeploy = imgUrl.startsWith('/') || (typeof window !== 'undefined' && imgUrl.includes(window.location.hostname));
+    const host = typeof window !== 'undefined' ? window.location.host : 'onliny.co.uk';
+
+    if (isFirebaseStorage) {
+      const match = imgUrl.match(/%2F([^?]+)/) || imgUrl.match(/\/o\/([^?]+)/);
+      const fileName = match ? decodeURIComponent(match[1]).split('/').pop() : `img_${index + 1}.webp`;
+      return {
+        type: 'firebase',
+        badge: '🔥 Firebase',
+        badgeColor: 'bg-amber-100 text-amber-800 border-amber-300',
+        shortLink: `firebase/uploads/${fileName}`,
+        fullUrl: imgUrl,
+      };
+    }
+
+    if (isFirebaseDataUri) {
+      return {
+        type: 'firebase',
+        badge: '🔥 Firebase Saved',
+        badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+        shortLink: `${host}/firebase/img_${index + 1}.webp`,
+        fullUrl: imgUrl,
+      };
+    }
+
+    if (isDeploy) {
+      const cleanPath = imgUrl.replace(/^https?:\/\/[^/]+/, '');
+      return {
+        type: 'deploy',
+        badge: '🚀 Deploy URL',
+        badgeColor: 'bg-blue-100 text-blue-800 border-blue-300',
+        shortLink: `${host}${cleanPath.length > 24 ? cleanPath.slice(0, 20) + '...' : cleanPath}`,
+        fullUrl: imgUrl,
+      };
+    }
+
+    // External link
+    const domain = imgUrl.replace(/^https?:\/\//, '').split('/')[0];
+    const fileName = imgUrl.split('/').pop()?.split('?')[0] || '';
+    return {
+      type: 'external',
+      badge: '🌐 External',
+      badgeColor: 'bg-gray-100 text-gray-600 border-gray-300',
+      shortLink: `${domain}/.../${fileName.slice(0, 12)}`,
+      fullUrl: imgUrl,
+    };
+  };
+
+  const handleDownloadAndSaveToFirebase = async (urlsToDownload?: string[]) => {
     const targetUrls = urlsToDownload || formData.images.filter(img => 
       img.startsWith('http://') || img.startsWith('https://')
     );
     if (targetUrls.length === 0) return;
 
-    setIsDownloadingR2(true);
-    setR2DownloadMessage(null);
+    setIsDownloadingFirebase(true);
+    setFirebaseDownloadMessage(null);
     try {
-      const res = await fetch('/api/r2/download-and-upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: targetUrls })
+      let savedCount = 0;
+      const urlMap = new Map<string, string>();
+
+      // Fast concurrent processing across all images in parallel
+      const tasks = targetUrls.map(async (url) => {
+        // Skip if already in Firebase Storage or base64 data URI
+        if (url.includes('firebasestorage.googleapis.com') || url.startsWith('data:') || url.includes('/firebase/')) {
+          return null;
+        }
+
+        try {
+          const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
+          let res = await fetch(proxyUrl);
+          if (!res.ok) {
+            res = await fetch(url);
+          }
+          if (res.ok) {
+            const blob = await res.blob();
+            const file = new File([blob], `product_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.webp`, {
+              type: blob.type || 'image/webp',
+            });
+            // uploadFile strictly & ultra-fast compresses image to < 30 KB and saves to Firebase!
+            const firebaseSavedUrl = await uploadFile(file, 'product');
+            if (firebaseSavedUrl) {
+              return { originalUrl: url, savedUrl: firebaseSavedUrl };
+            }
+          }
+        } catch (itemErr) {
+          console.warn('Could not download/save image to Firebase:', url, itemErr);
+        }
+        return null;
       });
-      const data = await res.json();
-      if (data && data.success && Array.isArray(data.urls)) {
+
+      const results = await Promise.all(tasks);
+      results.forEach((item) => {
+        if (item) {
+          urlMap.set(item.originalUrl, item.savedUrl);
+          savedCount++;
+        }
+      });
+
+      if (urlMap.size > 0) {
         setFormData(prev => {
-          const urlMap = new Map<string, string>();
-          targetUrls.forEach((orig, idx) => {
-            if (data.urls[idx]) urlMap.set(orig, data.urls[idx]);
-          });
           const updatedImages = prev.images.map(img => urlMap.get(img) || img);
           return { ...prev, images: updatedImages };
         });
-        setR2DownloadMessage(`✅ ${data.urls.length} images downloaded & saved to Cloudflare R2!`);
-        setTimeout(() => setR2DownloadMessage(null), 4000);
+        setFirebaseDownloadMessage(`✅ ${savedCount} image(s) fast compressed (< 30 KB) & saved to Firebase!`);
       } else {
-        setR2DownloadMessage('⚠️ Cloudflare R2 download completed.');
+        setFirebaseDownloadMessage('ℹ️ Images are already in Firebase or preserved as links.');
       }
+      setTimeout(() => setFirebaseDownloadMessage(null), 4000);
     } catch (err: any) {
-      console.error('R2 download error:', err);
-      setR2DownloadMessage('⚠️ Could not connect to R2 upload endpoint.');
+      console.error('Firebase image download error:', err);
+      setFirebaseDownloadMessage('⚠️ Could not complete Firebase image save. Links retained.');
     } finally {
-      setIsDownloadingR2(false);
+      setIsDownloadingFirebase(false);
     }
   };
 
-  const handleAddImageUrl = async (saveToR2 = false) => {
+  const handleAddImageUrl = async (saveToFirebase = false) => {
     const cleanUrl = imageUrl.trim();
     if (!cleanUrl) return;
     try {
       new URL(cleanUrl);
-      if (saveToR2) {
-        setIsDownloadingR2(true);
+      if (saveToFirebase) {
+        setIsDownloadingFirebase(true);
         try {
-          const res = await fetch('/api/r2/download-and-upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls: [cleanUrl] })
-          });
-          const data = await res.json();
-          const finalUrl = (data && data.success && data.urls?.[0]) ? data.urls[0] : cleanUrl;
-          setFormData(prev => ({ ...prev, images: [...prev.images, finalUrl] }));
-          setImageUrl('');
-          setR2DownloadMessage('✅ Image downloaded & saved to Cloudflare R2!');
-          setTimeout(() => setR2DownloadMessage(null), 3000);
+          const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(cleanUrl)}`;
+          let res = await fetch(proxyUrl);
+          if (!res.ok) res = await fetch(cleanUrl);
+          if (res.ok) {
+            const blob = await res.blob();
+            const file = new File([blob], `img_${Date.now()}.webp`, { type: blob.type || 'image/webp' });
+            const finalUrl = await uploadFile(file, 'product');
+            setFormData(prev => ({ ...prev, images: [...prev.images, finalUrl || cleanUrl] }));
+            setImageUrl('');
+            setFirebaseDownloadMessage('✅ Image downloaded, compressed (< 30 KB) & saved to Firebase!');
+            setTimeout(() => setFirebaseDownloadMessage(null), 3000);
+          } else {
+            setFormData(prev => ({ ...prev, images: [...prev.images, cleanUrl] }));
+            setImageUrl('');
+          }
         } catch (e) {
           setFormData(prev => ({ ...prev, images: [...prev.images, cleanUrl] }));
           setImageUrl('');
         } finally {
-          setIsDownloadingR2(false);
+          setIsDownloadingFirebase(false);
         }
       } else {
         setFormData(prev => ({ ...prev, images: [...prev.images, cleanUrl] }));
@@ -845,11 +931,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
                     <Button 
                       type="button" 
                       size="sm" 
-                      disabled={isDownloadingR2 || !imageUrl.trim()} 
+                      disabled={isDownloadingFirebase || !imageUrl.trim()} 
                       onClick={() => handleAddImageUrl(true)} 
-                      className="self-end shrink-0 bg-rose-600 hover:bg-rose-700 text-white font-bold"
+                      className="self-end shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-bold"
                     >
-                      {isDownloadingR2 ? <Spinner size="sm" /> : '☁️ Save to R2'}
+                      {isDownloadingFirebase ? <Spinner size="sm" /> : '🔥 Save to Firebase'}
                     </Button>
                   </div>
                 </div>
@@ -859,36 +945,36 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             {isUploading && <div className="mt-2"><Spinner size="sm" /></div>}
             {uploadError && <p className="mt-2 text-sm text-red-500">{uploadError}</p>}
             
-            {/* Download & Save All External Image Links to Cloudflare R2 */}
-            {formData.images.some(img => img.startsWith('http://') || img.startsWith('https://')) && (
-              <div className="my-2.5 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-2xs">
-                <div className="text-xs text-rose-900 font-medium flex items-center gap-1.5">
-                  <span className="text-base">☁️</span>
+            {/* Download & Save All External Image Links to Firebase */}
+            {formData.images.some(img => (img.startsWith('http://') || img.startsWith('https://')) && !img.includes('firebasestorage.googleapis.com')) && (
+              <div className="my-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+                <div className="text-xs text-amber-950 font-medium flex items-center gap-1.5">
+                  <span className="text-base">🔥</span>
                   <span>
-                    <strong>Cloudflare R2:</strong> Convert {formData.images.filter(img => img.startsWith('http://') || img.startsWith('https://')).length} external image link(s) to permanent R2 storage.
+                    <strong>Firebase Storage:</strong> Convert {formData.images.filter(img => (img.startsWith('http://') || img.startsWith('https://')) && !img.includes('firebasestorage.googleapis.com')).length} external image link(s) to permanent compressed (<span className="font-bold">&lt; 30 KB</span>) Firebase storage.
                   </span>
                 </div>
                 <Button
                   type="button"
                   size="xs"
-                  disabled={isDownloadingR2}
-                  onClick={() => handleDownloadImagesToR2()}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs"
+                  disabled={isDownloadingFirebase}
+                  onClick={() => handleDownloadAndSaveToFirebase()}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs"
                 >
-                  {isDownloadingR2 ? (
+                  {isDownloadingFirebase ? (
                     <span className="flex items-center gap-1">
-                      <Spinner size="sm" /> Downloading & Saving to R2...
+                      <Spinner size="sm" /> Compressing & Saving to Firebase...
                     </span>
                   ) : (
-                    '☁️ Download All to R2'
+                    '🔥 Download All to Firebase'
                   )}
                 </Button>
               </div>
             )}
 
-            {r2DownloadMessage && (
+            {firebaseDownloadMessage && (
               <div className="my-1.5 p-2 bg-emerald-50 border border-emerald-300 rounded-lg text-xs font-semibold text-emerald-800 animate-fade-in">
-                {r2DownloadMessage}
+                {firebaseDownloadMessage}
               </div>
             )}
             

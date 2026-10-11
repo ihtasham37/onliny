@@ -364,23 +364,29 @@ export const onRequest = async (context: EventContext<Env>): Promise<Response> =
         };
       }
 
-      // If Gemini API Key exists, use Gemini to polish & format description
+      // Fast optimization: if scraped structured product data already contains title and images, return immediately or fast refine
+      const hasDirectStructuredData = Boolean(
+        productResult.title &&
+        productResult.title !== "Imported Product" &&
+        productResult.image_urls &&
+        productResult.image_urls.length > 0
+      );
+
+      // If Gemini API Key exists and we need refinement (or quick polish), call fastest model with strict 3.5s timeout
       if (apiKey) {
         const candidateModels = [
-          "gemini-3.8-flash",
-          "gemini-flash-latest",
           "gemini-3.1-flash-lite",
-          "gemini-3.1-pro-preview",
+          "gemini-flash-latest",
         ];
 
         const prompt = `You are an expert e-commerce catalog assistant.
 Extract and clean product info into valid JSON:
-Input: "${trimmedInput}"
+Input: "${trimmedInput.slice(0, 500)}"
 Title: "${productResult.title}"
 Price: ${productResult.price || "null"}
 Category: "${productResult.category}"
 
-Return ONLY valid JSON matching this structure:
+Return ONLY valid JSON:
 {
   "type": "product_extraction",
   "product": {
@@ -393,10 +399,14 @@ Return ONLY valid JSON matching this structure:
 
         for (const model of candidateModels) {
           try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 3500);
+
             const res = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
               {
                 method: "POST",
+                signal: controller.signal,
                 headers: {
                   "Content-Type": "application/json",
                   "x-goog-api-key": apiKey,
@@ -407,52 +417,25 @@ Return ONLY valid JSON matching this structure:
                 }),
               }
             );
+            clearTimeout(timeout);
 
             if (res.ok) {
               const data: any = await res.json();
               const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
               const parsed = cleanAndParseJson(text);
               if (parsed?.product) {
-                if (parsed.product.title) productResult.title = parsed.product.title;
+                if (parsed.product.title && parsed.product.title !== "Imported Product") productResult.title = parsed.product.title;
                 if (parsed.product.category) productResult.category = parsed.product.category;
                 if (parsed.product.description) productResult.description = parsed.product.description;
                 if (parsed.product.price && !productResult.price) productResult.price = parsed.product.price;
                 break;
               }
             }
-          } catch (e) {}
-        }
-      }
-
-      // Automatically download images from product link and store into Cloudflare R2
-      const r2 = env.R2_BUCKET || env.IMAGES_BUCKET || env.BUCKET;
-      if (r2 && typeof r2.put === "function" && Array.isArray(productResult.image_urls) && productResult.image_urls.length > 0) {
-        const r2Images: string[] = [];
-        const publicBase = (env.R2_PUBLIC_URL || "").replace(/\/+$/, "");
-
-        for (let i = 0; i < productResult.image_urls.length; i++) {
-          const rawUrl = productResult.image_urls[i];
-          if (typeof rawUrl === "string" && (rawUrl.startsWith("http://") || rawUrl.startsWith("https://"))) {
-            try {
-              const imgResp = await fetch(rawUrl, {
-                headers: { "User-Agent": "Mozilla/5.0" }
-              });
-              if (imgResp.ok) {
-                const contentType = imgResp.headers.get("content-type") || "image/jpeg";
-                const ext = rawUrl.split("?")[0].split(".").pop() || "jpg";
-                const key = `products/${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}.${ext}`;
-                const arrayBuf = await imgResp.arrayBuffer();
-                await r2.put(key, arrayBuf, {
-                  httpMetadata: { contentType }
-                });
-                r2Images.push(publicBase ? `${publicBase}/${key}` : `/${key}`);
-                continue;
-              }
-            } catch (e) {}
+          } catch (e) {
+            // If timed out or errored and we already have structured data, break immediately
+            if (hasDirectStructuredData) break;
           }
-          r2Images.push(rawUrl);
         }
-        productResult.image_urls = r2Images;
       }
 
       return new Response(

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icons } from '../icons/Icons';
+import { resolveImageUrl, DEFAULT_PLACEHOLDER_IMAGE } from '../../utils/imageResolver';
 
 interface MediaPreviewProps {
   src: string;
@@ -20,26 +21,28 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
   muted = true,
   showVideoBadge = true
 }) => {
-  if (!src || typeof src !== 'string') {
+  const resolvedSrc = resolveImageUrl(src);
+
+  if (!resolvedSrc) {
     return (
-      <div className={`${className} flex items-center justify-center bg-gray-100 text-gray-400 rounded`}>
-        <Icons.image className="w-8 h-8" />
+      <div className={`${className || 'w-full h-full'} flex items-center justify-center bg-gray-100 text-gray-400 rounded`}>
+        <Icons.image className="w-8 h-8 opacity-60" />
       </div>
     );
   }
 
   const isVideo = Boolean(
-    src.match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || 
-    src.includes('video/upload') ||
-    src.includes('/videos/') ||
-    src.includes('type=video')
+    resolvedSrc.match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || 
+    resolvedSrc.includes('video/upload') ||
+    resolvedSrc.includes('/videos/') ||
+    resolvedSrc.includes('type=video')
   );
 
   if (isVideo) {
     return (
       <div className={`relative overflow-hidden ${className || 'w-full h-full'}`}>
         <video
-          src={src}
+          src={resolvedSrc}
           className="w-full h-full object-cover rounded"
           controls={controls}
           autoPlay={autoPlay}
@@ -67,12 +70,19 @@ export const MediaPreview: React.FC<MediaPreviewProps> = ({
 
   return (
     <img
-      src={src}
-      className={`${className} object-cover rounded`}
+      src={resolvedSrc}
+      className={`${className || 'w-full h-full'} object-cover rounded`}
       loading="lazy"
       referrerPolicy="no-referrer"
       onError={(e) => {
-        (e.target as HTMLImageElement).src = '/placeholder.svg';
+        const target = e.target as HTMLImageElement;
+        if (target.src && target.src.startsWith('http') && !target.src.includes('/api/proxy-image') && !target.src.includes(window.location.origin)) {
+          target.src = `/api/proxy-image?url=${encodeURIComponent(target.src)}`;
+          return;
+        }
+        if (target.src !== window.location.origin + DEFAULT_PLACEHOLDER_IMAGE && !target.src.endsWith(DEFAULT_PLACEHOLDER_IMAGE)) {
+          target.src = DEFAULT_PLACEHOLDER_IMAGE;
+        }
       }}
     />
   );

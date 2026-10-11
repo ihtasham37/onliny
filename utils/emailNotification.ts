@@ -32,6 +32,8 @@ export interface EmailCredentials {
   gmailAppPassword?: string;
   adminNotificationEmail?: string;
   appName?: string;
+  storeWhatsappNumber?: string;
+  storeOrigin?: string;
 }
 
 export const getMailTransporter = (creds: EmailCredentials = {}) => {
@@ -89,7 +91,7 @@ export const sendOrderNotificationEmail = async (
       };
     }
 
-    const appName = creds.appName || 'Online store';
+    const appName = (creds.appName && creds.appName.trim()) ? creds.appName.trim() : 'Onliny';
     const orderDate = order.createdAt ? new Date(order.createdAt).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' }) : new Date().toLocaleString();
     const cleanPhone = (order.customerPhone || '').replace(/\D/g, '');
     const waPhone = cleanPhone.startsWith('0') ? '92' + cleanPhone.slice(1) : cleanPhone;
@@ -299,10 +301,107 @@ export const sendOrderNotificationEmail = async (
 
     const info = await transporter.sendMail({
       from: `"${appName}" <${sender}>`,
+      sender: `"${appName}" <${sender}>`,
+      replyTo: order.email ? `"${order.customerName}" <${order.email}>` : `"${appName}" <${sender}>`,
       to: finalTo,
-      subject: `🔔 New Order #Rs.${Number(order.total).toLocaleString()} from ${order.customerName} - ${appName}`,
+      subject: `🛒 [${appName}] New Order: Rs. ${Number(order.total).toLocaleString()} - ${order.customerName}`,
       html: htmlContent,
     });
+
+    // If customer provided an email, send them a clean customer confirmation receipt
+    if (order.email && order.email.includes('@') && order.email.trim().toLowerCase() !== finalTo.toLowerCase()) {
+      try {
+        const storeWhatsappRaw = (creds.storeWhatsappNumber || '').trim();
+        const storeOrigin = (creds.storeOrigin || '').replace(/\/+$/, '');
+        const trackingUrl = storeOrigin ? `${storeOrigin}/#/track-order?id=${order.id}` : '#';
+
+        let storeWhatsappHtml = '';
+        if (storeWhatsappRaw) {
+          const cleanWa = storeWhatsappRaw.replace(/\D/g, '');
+          const fullWa = cleanWa.startsWith('0') ? '92' + cleanWa.slice(1) : cleanWa;
+          if (fullWa) {
+            const waLink = `https://wa.me/${fullWa}?text=${encodeURIComponent(`Salam, regarding my order #${order.id.slice(-6).toUpperCase()} on ${appName}`)}`;
+            storeWhatsappHtml = `
+            <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px; margin-top: 20px; text-align: center;">
+              <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #166534;">💬 Need Help or Have Questions?</p>
+              <a href="${waLink}" target="_blank" style="display: inline-block; background-color: #25D366; color: #ffffff; padding: 9px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px;">
+                Chat on WhatsApp (${storeWhatsappRaw})
+              </a>
+            </div>`;
+          }
+        }
+
+        const customerHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #0f172a;">
+          <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+            <div style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); padding: 26px 20px; text-align: center; color: #ffffff;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: 800;">${appName}</h1>
+              <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.95; font-weight: 600;">🎉 Order Confirmed! (آپ کا آرڈر موصول ہو گیا ہے)</p>
+            </div>
+            <div style="padding: 24px;">
+              <div style="margin-bottom: 20px;">
+                <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #0f172a;">Salam ${order.customerName || "Customer"},</p>
+                <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.5;">${appName} se shopping karne ka shukriya! Aap ka order kamyabi se book ho gaya hai.</p>
+              </div>
+              <div style="background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 14px 16px; margin-bottom: 22px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                  <span style="font-size: 12px; color: #9f1239; font-weight: 600;">ORDER #</span>
+                  <span style="font-size: 14px; font-weight: 800; color: #e11d48;">#${order.id.slice(-6).toUpperCase()}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="font-size: 12px; color: #9f1239; font-weight: 600;">PAYMENT</span>
+                  <span style="font-size: 13px; font-weight: 700; color: #0f172a;">${order.paymentMethod || "Cash on Delivery (COD)"}</span>
+                </div>
+              </div>
+              <h3 style="font-size: 13px; font-weight: 700; color: #334155; margin: 0 0 10px 0; text-transform: uppercase;">Ordered Items (${order.items?.length || 0})</h3>
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tbody>${itemsHtml}</tbody>
+              </table>
+              <div style="background-color: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #f1f5f9; margin-bottom: 22px;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
+                  <span>Subtotal:</span>
+                  <span>Rs. ${Number(order.total - (order.shippingFee || 0)).toLocaleString()}</span>
+                </div>
+                ${order.shippingFee !== undefined ? `
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
+                  <span>Delivery Charges:</span>
+                  <span>${Number(order.shippingFee) === 0 ? "FREE Delivery" : `Rs. ${Number(order.shippingFee).toLocaleString()}`}</span>
+                </div>` : ''}
+                <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; color: #0f172a; border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 6px;">
+                  <span>Total Amount:</span>
+                  <span style="color: #e11d48;">Rs. ${Number(order.total).toLocaleString()}</span>
+                </div>
+              </div>
+              ${storeOrigin ? `
+              <div style="text-align: center; margin: 24px 0 16px 0;">
+                <a href="${trackingUrl}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #ffffff; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 800; font-size: 14px; box-shadow: 0 4px 12px rgba(225,29,72,0.25);">
+                  📦 Track Your Order (آرڈر ٹریک کریں)
+                </a>
+              </div>` : ''}
+              ${storeWhatsappHtml}
+            </div>
+            <div style="background-color: #f1f5f9; padding: 14px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0;">Official Order Receipt from <strong>${appName}</strong>.</p>
+            </div>
+          </div>
+        </body>
+        </html>`;
+
+        await transporter.sendMail({
+          from: `"${appName}" <${sender}>`,
+          sender: `"${appName}" <${sender}>`,
+          replyTo: `"${appName}" <${sender}>`,
+          to: order.email.trim(),
+          subject: `🛍️ Order Confirmed #${order.id.slice(-6).toUpperCase()} - ${appName}`,
+          html: customerHtml,
+        });
+      } catch (custErr) {
+        console.warn('[Google SMTP] Customer copy delivery note:', custErr);
+      }
+    }
 
     console.log(`[Google SMTP] Order email sent to ${finalTo}. MessageId: ${info.messageId}`);
     return {
@@ -345,7 +444,7 @@ export const sendTestEmail = async (
       };
     }
 
-    const appName = creds.appName || 'Online store';
+    const appName = (creds.appName && creds.appName.trim()) ? creds.appName.trim() : 'Onliny';
     const sender = (creds.gmailUser || process.env.GMAIL_USER || toEmail).trim();
     const recipient = (toEmail || creds.adminNotificationEmail || sender).trim();
 

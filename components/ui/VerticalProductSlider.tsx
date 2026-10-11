@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Product } from '../../types';
 import { MediaPreview } from './MediaPreview';
 import { formatCurrency } from '../../utils/helpers';
+import { getPrimaryProductImage } from '../../utils/imageResolver';
 
 // Hook to measure and track the exact height of the central banner
 export const useBannerHeight = () => {
@@ -55,7 +56,7 @@ export const SideProductCard: React.FC<{ product: Product }> = ({ product }) => 
     >
       <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-rose-50 shrink-0 border border-rose-100/50">
         <MediaPreview
-          src={product.images?.[0]}
+          src={getPrimaryProductImage(product)}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           controls={false}
           autoPlay={true}

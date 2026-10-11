@@ -12,6 +12,7 @@ import { Textarea } from '../components/ui/Textarea';
 import { Accordion } from '../components/ui/Accordion';
 import { Product, AppUser } from '../types';
 import { ImageWithFallback } from '../components/ui/ImageWithFallback';
+import { getPrimaryProductImage, getAllProductImages, resolveImageUrl } from '../utils/imageResolver';
 import { SEO } from '../components/SEO';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 import { getSmartShareUrl, shareContent, copyToClipboard } from '../utils/shareHelper';
@@ -473,58 +474,68 @@ const ProductDetail = () => {
 
         <div className="grid md:grid-cols-2 gap-2">
           {/* Image Gallery */}
-          <div className="space-y-1 max-w-[280px] mx-auto md:max-w-none">
-            <div className="relative">
-                <div className="border border-rose-100 rounded-2xl overflow-hidden aspect-square shadow-sm bg-white relative">
-                  <MediaPreview 
-                    key={mainImage} 
-                    src={mainImage || product.images?.[0]} 
-                    className="w-full h-full" 
-                    controls={true}
-                    autoPlay={false}
-                    muted={false}
-                  />
-                  {(mainImage || product.images?.[0]) && ((mainImage || product.images?.[0]).match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || (mainImage || product.images?.[0]).includes('video/upload')) && (
-                    <div className="absolute top-2 left-2 pointer-events-none z-10 flex items-center gap-1 bg-black/75 backdrop-blur-xs text-white px-2.5 py-1 rounded-full text-[11px] font-bold shadow-md border border-white/20">
-                      <Icons.video className="w-3.5 h-3.5 text-rose-400" />
-                      <span>Product Video</span>
-                    </div>
-                  )}
-                </div>
-                 <button 
-                    onClick={handleToggleWishlist}
-                    title={isInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
-                    aria-label={isInWishlist ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
-                    className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-2 text-slate-700 hover:text-rose-600 hover:scale-110 shadow-sm transition-all duration-200 z-10"
-                >
-                    <Icons.diamond className={`w-5 h-5 transition-all ${isInWishlist ? 'fill-rose-600 stroke-rose-600' : 'fill-none'}`} />
-                </button>
-            </div>
-            {product.images && product.images.length > 1 && (
-              <div className="grid grid-cols-5 gap-1.5 pt-1">
-                {product.images.map((img, index) => {
-                  const isImgVideo = img.match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || img.includes('video/upload');
-                  return (
-                    <button 
-                      key={index} 
-                      onClick={() => setMainImage(img)} 
-                      className={`relative flex-shrink-0 aspect-square border-2 rounded-xl overflow-hidden transition-all duration-200 focus:outline-none ring-offset-2 ring-rose-400 ${mainImage === img ? 'border-rose-600 scale-105 ring-2 shadow-xs' : 'border-rose-100 hover:border-rose-300'}`}
-                      aria-label={`View media ${index + 1}`}
-                    >
-                      <MediaPreview src={img} className="w-full h-full" controls={false} />
-                      {isImgVideo && (
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none">
-                          <div className="w-6 h-6 rounded-full bg-rose-600/90 text-white flex items-center justify-center shadow-xs">
-                            <Icons.play className="w-2.5 h-2.5 fill-white ml-0.5" />
-                          </div>
+          {(() => {
+            const allImages = getAllProductImages(product);
+            const primaryImg = getPrimaryProductImage(product);
+            const currentDisplayMedia = mainImage || primaryImg;
+            const isMediaVideo = currentDisplayMedia && (currentDisplayMedia.match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || currentDisplayMedia.includes('video/upload'));
+
+            return (
+              <div className="space-y-1 max-w-[280px] mx-auto md:max-w-none">
+                <div className="relative">
+                    <div className="border border-rose-100 rounded-2xl overflow-hidden aspect-square shadow-sm bg-white relative">
+                      <MediaPreview 
+                        key={currentDisplayMedia} 
+                        src={currentDisplayMedia} 
+                        className="w-full h-full" 
+                        controls={true}
+                        autoPlay={false}
+                        muted={false}
+                      />
+                      {isMediaVideo && (
+                        <div className="absolute top-2 left-2 pointer-events-none z-10 flex items-center gap-1 bg-black/75 backdrop-blur-xs text-white px-2.5 py-1 rounded-full text-[11px] font-bold shadow-md border border-white/20">
+                          <Icons.video className="w-3.5 h-3.5 text-rose-400" />
+                          <span>Product Video</span>
                         </div>
                       )}
+                    </div>
+                     <button 
+                        onClick={handleToggleWishlist}
+                        title={isInWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
+                        aria-label={isInWishlist ? `Remove ${product.name} from wishlist` : `Add ${product.name} to wishlist`}
+                        className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-full p-2 text-slate-700 hover:text-rose-600 hover:scale-110 shadow-sm transition-all duration-200 z-10"
+                    >
+                        <Icons.diamond className={`w-5 h-5 transition-all ${isInWishlist ? 'fill-rose-600 stroke-rose-600' : 'fill-none'}`} />
                     </button>
-                  );
-                })}
+                </div>
+                {allImages.length > 1 && (
+                  <div className="grid grid-cols-5 gap-1.5 pt-1">
+                    {allImages.map((img, index) => {
+                      const isImgVideo = img.match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || img.includes('video/upload');
+                      const isActive = (mainImage ? mainImage === img : index === 0);
+                      return (
+                        <button 
+                          key={index} 
+                          onClick={() => setMainImage(img)} 
+                          className={`relative flex-shrink-0 aspect-square border-2 rounded-xl overflow-hidden transition-all duration-200 focus:outline-none ring-offset-2 ring-rose-400 ${isActive ? 'border-rose-600 scale-105 ring-2 shadow-xs' : 'border-rose-100 hover:border-rose-300'}`}
+                          aria-label={`View media ${index + 1}`}
+                        >
+                          <MediaPreview src={img} className="w-full h-full" controls={false} />
+                          {isImgVideo && (
+                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none">
+                              <div className="w-6 h-6 rounded-full bg-rose-600/90 text-white flex items-center justify-center shadow-xs">
+                                <Icons.play className="w-2.5 h-2.5 fill-white ml-0.5" />
+                              </div>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
 
           {/* Product Info */}
           <div className="flex flex-col space-y-2 p-0 sm:p-1">

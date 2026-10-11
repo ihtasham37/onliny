@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getAuth, setPersistence, browserSessionPersistence } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCnVWIVy4szPh5mtgqZR7o7FU1NdZKhDBM",
@@ -19,7 +20,6 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 let db: any;
 try {
   db = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
     ignoreUndefinedProperties: true
   });
 } catch (e) {
@@ -27,6 +27,12 @@ try {
 }
 
 const auth = getAuth(app);
+let storage: any;
+try {
+  storage = getStorage(app);
+} catch (e) {
+  console.warn("Firebase storage initialization note:", e);
+}
 
 // Set session persistence for authentication
 if (typeof window !== 'undefined') {
@@ -36,5 +42,5 @@ if (typeof window !== 'undefined') {
     });
 }
 
-export { db, auth };
+export { db, auth, storage };
 

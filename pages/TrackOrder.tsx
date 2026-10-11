@@ -452,8 +452,13 @@ const TrackOrder = () => {
         const cleanPhone = phone.trim();
         const cleanEmail = email.trim().toLowerCase();
 
-        if (!cleanPhone && !cleanEmail) {
+        if (!cleanPhone) {
             setError('Please enter your Phone Number or Order Tracking ID.');
+            return;
+        }
+
+        if (!cleanEmail || !cleanEmail.includes('@')) {
+            setError('Please enter a valid Email Address. Both phone number and email are required to track your order.');
             return;
         }
 
@@ -461,7 +466,7 @@ const TrackOrder = () => {
         try {
             const success = await trackWithEmailAndPhone(cleanEmail, cleanPhone);
             if (!success) {
-                setError('No orders found matching the provided details. Please check your phone number or Tracking ID.');
+                setError('No orders found matching both the provided Phone Number and Email. Please verify your details.');
             }
         } catch (err) {
             console.error("Tracking Error:", err);
@@ -549,12 +554,13 @@ const TrackOrder = () => {
 
                 <div>
                     <Input
-                        label="Email Address (Optional)"
+                        label="Email Address *"
                         type="email"
                         name="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@example.com (optional)"
+                        required
+                        placeholder="you@example.com (Required for tracking)"
                     />
                 </div>
 

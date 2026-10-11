@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Product } from '../types';
 import { formatCurrency } from '../utils/helpers';
 import { MediaPreview } from './ui/MediaPreview';
+import { getPrimaryProductImage } from '../utils/imageResolver';
 import { useStore } from '../hooks/useStore';
 import { Icons } from './icons/Icons';
 
@@ -55,7 +56,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       {/* Product Image Area */}
       <div className="relative aspect-square overflow-hidden bg-gradient-to-b from-rose-50/50 via-pink-50/20 to-white">
         <MediaPreview
-          src={product.images?.[0]}
+          src={getPrimaryProductImage(product)}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           controls={false}
           autoPlay={true}
@@ -64,7 +65,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         />
 
         {/* Video Icon Badge Indicator if first media or any media is a video */}
-        {product.images?.[0] && (product.images[0].match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || product.images[0].includes('video/upload')) && (
+        {getPrimaryProductImage(product) && (getPrimaryProductImage(product).match(/\.(mp4|webm|ogg|mov|avi|m4v)($|\?)/i) || getPrimaryProductImage(product).includes('video/upload')) && (
           <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1 bg-black/70 backdrop-blur-xs text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-md border border-white/20">
             <Icons.play className="w-2.5 h-2.5 fill-white text-white" />
             <span>Video</span>

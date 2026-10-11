@@ -1,5 +1,6 @@
 // Cloudflare Pages Function: /api/* Universal Edge API Route Handler
 import { sendUniversalEmail } from "../utils/smtpClient";
+import rawCatalog from "../../data/staticCatalog.json";
 
 type PagesFunction<Env = Record<string, any>> = (context: {
   request: Request;
@@ -81,7 +82,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           return jsonResponse({ success: false, error: "Missing order payload" }, 400);
         }
 
-        const appName = env.APP_NAME || credentials.appName || order.storeName || "Zivio Store";
+        const appName = env.APP_NAME || credentials.appName || order.storeName || "Onliny";
         const gmailUser = (env.GMAIL_USER || env.SENDER_EMAIL || env.SMTP_USER || credentials.gmailUser || "").trim();
         const gmailAppPassword = (env.GMAIL_APP_PASSWORD || env.GMAIL_PASS || env.SMTP_PASS || credentials.gmailAppPassword || "").trim();
         const adminEmail = (env.ADMIN_NOTIFICATION_EMAIL || env.RECEIVER_EMAIL || env.ADMIN_EMAIL || credentials.adminNotificationEmail || credentials.adminEmail || gmailUser || "ali10cart@gmail.com").trim();
@@ -110,11 +111,92 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           </tr>
         `).join('');
 
-        const cleanPhone = String(order.customerPhone || '').replace(/\D/g, '');
-        const waPhone = cleanPhone.startsWith('0') ? '92' + cleanPhone.slice(1) : cleanPhone;
-        const whatsappUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(`Salam ${order.customerName}, this is regarding your order #${orderIdShort} on ${appName}.`)}`;
+        const storeWhatsappRaw = (credentials.storeWhatsappNumber || env.STORE_WHATSAPP || "").trim();
+        const storeOrigin = (credentials.storeOrigin || env.STORE_ORIGIN || "https://onliny.co.uk").replace(/\/+$/, "");
+        const trackingUrl = `${storeOrigin}/#/track-order?id=${order.id}`;
 
-        const htmlContent = `
+        let storeWhatsappUrl = "";
+        let displayStoreWa = storeWhatsappRaw;
+        if (storeWhatsappRaw) {
+          const cleanWaDigits = storeWhatsappRaw.replace(/\D/g, "");
+          const fullWaNumber = cleanWaDigits.startsWith("0") ? "92" + cleanWaDigits.slice(1) : cleanWaDigits;
+          if (fullWaNumber) {
+            storeWhatsappUrl = `https://wa.me/${fullWaNumber}?text=${encodeURIComponent(`Salam, I have an inquiry about my order #${orderIdShort} on ${appName}.`)}`;
+          }
+        }
+
+        const cleanCustomerPhone = String(order.customerPhone || '').replace(/\D/g, '');
+        const waCustomerPhone = cleanCustomerPhone.startsWith('0') ? '92' + cleanCustomerPhone.slice(1) : cleanCustomerPhone;
+        const adminCustomerWhatsappUrl = `https://wa.me/${waCustomerPhone}?text=${encodeURIComponent(`Salam ${order.customerName}, this is regarding your order #${orderIdShort} on ${appName}.`)}`;
+
+        // Customer Confirmation Email (Only item details, price, tracking link, store WhatsApp if added)
+        const customerHtmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #0f172a;">
+          <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+            <div style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); padding: 26px 20px; text-align: center; color: #ffffff;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: 800;">${appName}</h1>
+              <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.95; font-weight: 600;">🎉 Order Confirmed! (آپ کا آرڈر موصول ہو گیا ہے)</p>
+            </div>
+            <div style="padding: 24px;">
+              <div style="margin-bottom: 20px;">
+                <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: #0f172a;">Salam ${order.customerName || "Customer"},</p>
+                <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.5;">${appName} se shopping karne ka shukriya! Aap ka order kamyabi se book ho gaya hai.</p>
+              </div>
+              <div style="background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 14px 16px; margin-bottom: 22px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                  <span style="font-size: 12px; color: #9f1239; font-weight: 600;">ORDER #</span>
+                  <span style="font-size: 14px; font-weight: 800; color: #e11d48;">#${orderIdShort}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="font-size: 12px; color: #9f1239; font-weight: 600;">PAYMENT</span>
+                  <span style="font-size: 13px; font-weight: 700; color: #0f172a;">${order.paymentMethod || "Cash on Delivery (COD)"}</span>
+                </div>
+              </div>
+              <h3 style="font-size: 13px; font-weight: 700; color: #334155; margin: 0 0 10px 0; text-transform: uppercase;">Ordered Items (${order.items?.length || 0})</h3>
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tbody>${itemsTableHtml}</tbody>
+              </table>
+              <div style="background-color: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #f1f5f9; margin-bottom: 22px;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
+                  <span>Subtotal:</span>
+                  <span>Rs. ${Number(order.subtotal || order.total || 0).toLocaleString()}</span>
+                </div>
+                ${order.shippingFee !== undefined ? `
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-bottom: 4px;">
+                  <span>Delivery Charges:</span>
+                  <span>${Number(order.shippingFee) === 0 ? "FREE Delivery" : `Rs. ${Number(order.shippingFee).toLocaleString()}`}</span>
+                </div>` : ''}
+                <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; color: #0f172a; border-top: 1px solid #e2e8f0; padding-top: 8px; margin-top: 6px;">
+                  <span>Total Amount:</span>
+                  <span style="color: #e11d48;">Rs. ${formattedTotal}</span>
+                </div>
+              </div>
+              <div style="text-align: center; margin: 24px 0 16px 0;">
+                <a href="${trackingUrl}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #ffffff; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 800; font-size: 14px; box-shadow: 0 4px 12px rgba(225,29,72,0.25);">
+                  📦 Track Your Order (آرڈر ٹریک کریں)
+                </a>
+              </div>
+              ${storeWhatsappUrl ? `
+              <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px; margin-top: 18px; text-align: center;">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #166534;">💬 Need Help or Have Questions?</p>
+                <a href="${storeWhatsappUrl}" target="_blank" style="display: inline-block; background-color: #25D366; color: #ffffff; padding: 9px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px;">
+                  Chat on WhatsApp (${displayStoreWa})
+                </a>
+              </div>` : ''}
+            </div>
+            <div style="background-color: #f1f5f9; padding: 14px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0;">Official Order Receipt from <strong>${appName}</strong>.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+        `;
+
+        // Admin Email (Full customer delivery details, phone, address, notes)
+        const adminHtmlContent = `
         <!DOCTYPE html>
         <html>
         <head><meta charset="utf-8"></head>
@@ -122,7 +204,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
             <div style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); padding: 24px; text-align: center; color: #ffffff;">
               <h1 style="margin: 0; font-size: 22px; font-weight: 800;">${appName}</h1>
-              <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.9;">🎉 New Order Received!</p>
+              <p style="margin: 6px 0 0 0; font-size: 14px; opacity: 0.9;">🚨 New Order Received! (نیا آرڈر موصول ہوا ہے)</p>
             </div>
             <div style="padding: 24px 24px 16px 24px;">
               <div style="background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
@@ -141,8 +223,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
                 ${order.email ? `<div>✉️ <strong>Email:</strong> ${order.email}</div>` : ''}
                 ${order.city ? `<div>🏙️ <strong>City:</strong> ${order.city}</div>` : ''}
                 <div>📍 <strong>Address:</strong> ${order.shippingAddress || 'N/A'}</div>
+                ${order.deliveryNotes ? `<div>📝 <strong>Note:</strong> ${order.deliveryNotes}</div>` : ''}
                 <div style="margin-top: 10px; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
-                  <a href="${whatsappUrl}" target="_blank" style="display: inline-block; background-color: #25D366; color: white; padding: 8px 14px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 12px;">💬 Open WhatsApp Chat</a>
+                  <a href="${adminCustomerWhatsappUrl}" target="_blank" style="display: inline-block; background-color: #25D366; color: white; padding: 8px 14px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 12px;">💬 Open WhatsApp Chat with Customer (${order.customerPhone})</a>
                 </div>
               </div>
               <h3 style="font-size: 14px; font-weight: 700; color: #334155; margin: 0 0 12px 0;">Ordered Items (${order.items?.length || 0})</h3>
@@ -157,30 +240,57 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               </div>
             </div>
             <div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 11px; color: #64748b;">
-              <p style="margin: 0;">Automated order notification from <strong>${appName}</strong>.</p>
+              <p style="margin: 0;">Automated order notification for <strong>${appName} Admin</strong>.</p>
             </div>
           </div>
         </body>
         </html>
         `;
 
-        const emailResult = await sendUniversalEmail({
-          from: gmailUser || "notifications@onliny.co.uk",
-          fromName: appName,
-          to: recipientList,
-          subject: `🛍️ New Order #${orderIdShort} (${order.customerName || "Customer"}) - Rs. ${formattedTotal}`,
-          html: htmlContent,
-          gmailUser,
-          gmailAppPassword,
-          brevoApiKey: env.BREVO_API_KEY,
-          resendApiKey: env.RESEND_API_KEY,
-          sendgridApiKey: env.SENDGRID_API_KEY,
-        });
+        let customerSent = false;
+        let adminSent = false;
+
+        if (customerEmail && customerEmail.includes("@")) {
+          try {
+            const custRes = await sendUniversalEmail({
+              from: gmailUser || "notifications@onliny.co.uk",
+              fromName: appName,
+              to: [customerEmail],
+              subject: `🛍️ Order Confirmed #${orderIdShort} - ${appName}`,
+              html: customerHtmlContent,
+              gmailUser,
+              gmailAppPassword,
+              brevoApiKey: env.BREVO_API_KEY,
+              resendApiKey: env.RESEND_API_KEY,
+              sendgridApiKey: env.SENDGRID_API_KEY,
+            });
+            customerSent = custRes.success;
+          } catch (e) {}
+        }
+
+        if (adminEmail && adminEmail.includes("@")) {
+          try {
+            const adminRes = await sendUniversalEmail({
+              from: gmailUser || "notifications@onliny.co.uk",
+              fromName: appName,
+              to: [adminEmail],
+              subject: `🚨 New Order Alert #${orderIdShort} (${order.customerName || "Customer"}) - Rs. ${formattedTotal}`,
+              html: adminHtmlContent,
+              gmailUser,
+              gmailAppPassword,
+              brevoApiKey: env.BREVO_API_KEY,
+              resendApiKey: env.RESEND_API_KEY,
+              sendgridApiKey: env.SENDGRID_API_KEY,
+            });
+            adminSent = adminRes.success;
+          } catch (e) {}
+        }
 
         return jsonResponse({
-          success: emailResult.success,
-          provider: emailResult.provider,
-          message: emailResult.message || `Order email processed for ${recipientList.join(", ")}`,
+          success: customerSent || adminSent,
+          customerSent,
+          adminSent,
+          message: `Order emails processed (Customer: ${customerSent ? "Sent" : "Skipped"}, Admin: ${adminSent ? "Sent" : "Skipped"})`,
           orderId: order.id,
         });
       } catch (err: any) {
@@ -228,6 +338,36 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     // 1.3 Save Email Settings (/api/save-email-settings)
     if (pathname === "/api/save-email-settings" && request.method === "POST") {
       return jsonResponse({ success: true, message: "Settings saved." });
+    }
+
+    // 1.4 Proxy Image with CORS for client-side download, compression & Firebase storage
+    if (pathname === "/api/proxy-image" && request.method === "GET") {
+      try {
+        const targetUrl = url.searchParams.get("url");
+        if (!targetUrl) {
+          return jsonResponse({ error: "Missing url parameter" }, 400);
+        }
+        const imgResp = await fetch(targetUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "image/*,*/*;q=0.8",
+          },
+        });
+        if (!imgResp.ok) {
+          return jsonResponse({ error: `Remote image returned ${imgResp.status}` }, imgResp.status);
+        }
+        const contentType = imgResp.headers.get("content-type") || "image/jpeg";
+        return new Response(imgResp.body, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": contentType,
+            "Cache-Control": "public, max-age=604800, s-maxage=604800",
+          },
+        });
+      } catch (err: any) {
+        return jsonResponse({ error: err?.message || "Failed to proxy image" }, 500);
+      }
     }
 
     // 2. Image & File Upload Handler (/api/upload - Cloudflare R2 Storage)
@@ -867,6 +1007,18 @@ ${preferredType ? `HINT: The current screen prefers '${preferredType}'.` : ""}
           }
         });
       }
+    }
+
+    // 5.9 Static Catalog endpoint with edge CDN caching (reduces worker executions)
+    if (pathname === "/api/catalog-data" && request.method === "GET") {
+      return new Response(JSON.stringify({ success: true, data: rawCatalog }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+          "Cache-Control": "public, max-age=600, s-maxage=3600",
+        },
+      });
     }
 
     // 6. Save Catalog endpoint

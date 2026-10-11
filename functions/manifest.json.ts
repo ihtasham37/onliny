@@ -72,7 +72,7 @@ export const onRequestGet = async (context: { request: Request; env: Env }): Pro
   return new Response(JSON.stringify(manifest, null, 2), {
     headers: {
       "Content-Type": "application/manifest+json; charset=utf-8",
-      "Cache-Control": "public, max-age=60, must-revalidate",
+      "Cache-Control": "public, max-age=86400, s-maxage=86400",
       "Access-Control-Allow-Origin": "*"
     }
   });

@@ -325,7 +325,7 @@ const Settings = () => {
                         gmailUser: formData.gmailUser.trim(),
                         gmailAppPassword: formData.gmailAppPassword.trim(),
                         adminNotificationEmail: sendTo,
-                        appName: formData.appName || 'Zivio Store',
+                        appName: formData.appName || 'Onliny',
                     },
                 }),
             });
@@ -1346,7 +1346,10 @@ const Settings = () => {
                                     value={formData.adminNotificationEmail || ''} 
                                     onChange={e => setFormData({...formData, adminNotificationEmail: e.target.value})} 
                                 />
-                                <p className="text-xs text-slate-400 mt-1">Agar khali choren ge to order alerts upar wali Gmail par hi deliver hon gi.</p>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    💡 <strong>Sender Display Name:</strong> Emails hamesha <strong>"Onliny"</strong> ke name se jaati hain. 
+                                    Agar aap usi Gmail account mein email open karte hain jis se email send hui thi, to Gmail aapko <em>"me"</em> dikhata hai kyunki sender aur receiver dono aap hi hain. Customer aur doosri emails par 100% <strong>"Onliny"</strong> hi show hota hai!
+                                </p>
                             </div>
                         </div>
 
@@ -1356,7 +1359,7 @@ const Settings = () => {
                             <p>1. Apne Google Account Security mein jayein: <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" className="text-rose-600 font-semibold underline">myaccount.google.com/security</a></p>
                             <p>2. Check karein ke <strong>2-Step Verification</strong> ON hai (agar ON nahi hai to ON karein).</p>
                             <p>3. Search bar mein <strong>"App Passwords"</strong> likh kar open karein (ya 2-Step Verification ke page par sab se neeche App Passwords par click karein).</p>
-                            <p>4. App name mein <strong>"Zivio Store"</strong> likhein aur <em>Create</em> dabayein. Google aapko 16 letters ka password show karega (maslan: <code className="bg-white px-1.5 py-0.5 rounded border border-amber-300 font-mono text-amber-900">abcd efgh ijkl mnop</code>). Woh password yahan paste karein aur neeche <strong>Save Settings</strong> dabayein!</p>
+                            <p>4. App name mein <strong>"Onliny"</strong> likhein aur <em>Create</em> dabayein. Google aapko 16 letters ka password show karega (maslan: <code className="bg-white px-1.5 py-0.5 rounded border border-amber-300 font-mono text-amber-900">abcd efgh ijkl mnop</code>). Woh password yahan paste karein aur neeche <strong>Save Settings</strong> dabayein!</p>
                         </div>
 
                         {/* Test Email Button and Status */}

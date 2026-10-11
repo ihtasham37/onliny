@@ -344,7 +344,9 @@ const Checkout = () => {
             gmailUser: settings?.gmailUser || '',
             gmailAppPassword: settings?.gmailAppPassword || '',
             adminNotificationEmail: settings?.adminNotificationEmail || settings?.adminEmail || settings?.gmailUser || '',
-            appName: settings?.appName || 'onliny'
+            appName: settings?.appName || 'Onliny',
+            storeWhatsappNumber: (settings?.whatsappNumber || '').trim(),
+            storeOrigin: window.location.origin || ''
           }
         }),
       }).catch((emailErr) => {

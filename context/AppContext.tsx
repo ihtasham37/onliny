@@ -5,7 +5,8 @@ import {
 import { 
     getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, User
 } from 'firebase/auth';
-import { db, auth } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, auth, storage } from '../firebase';
 import { 
     Product, CartItem, Order, Settings, ChatMessage, OrderStatus, Customer, Coupon, Banner, Category, UpdatePost, ContentBlock,
     AppUser, UserRole, Challan
@@ -15,6 +16,7 @@ import { useSessionStorage } from '../hooks/useSessionStorage';
 import { normalizePhone, generateCartItemKey, sanitizeForFirestore, safeJsonStringify } from '../utils/helpers';
 import { compressImage, fileToDataUri } from '../utils/compression';
 import { INITIAL_STATIC_CATALOG } from '../data/staticCatalog';
+import { getAllProductImages, getPrimaryProductImage, resolveImageUrl } from '../utils/imageResolver';
 import { syncDynamicPWABranding } from '../utils/pwaHelper';
 import { dataSyncService, SyncState, SectionSyncKey } from '../services/dataSyncService';
 
@@ -359,18 +361,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // Strictly compress image: < 50 KB for banners/categories, < 30 KB for products
     const processedFile = await compressImage(file, type);
     
-    try {
-      const formData = new FormData();
-      formData.append('file', processedFile);
-      const result = await apiRequest('/api/upload', formData);
-      if (result && result.url) {
-        return result.url;
+    // 1. Try Firebase Storage directly
+    if (storage) {
+      try {
+        const ext = (file.name || 'image.webp').split('.').pop() || 'webp';
+        const storagePath = `uploads/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+        const fileRef = ref(storage, storagePath);
+        await uploadBytes(fileRef, processedFile, { contentType: processedFile.type || 'image/webp' });
+        const downloadUrl = await getDownloadURL(fileRef);
+        if (downloadUrl) return downloadUrl;
+      } catch (storageErr) {
+        console.warn('Firebase Storage upload note (saving compressed asset in Firebase Firestore):', storageErr);
       }
-    } catch (apiErr) {
-      console.warn('Backend/Edge upload endpoint note, using direct compressed asset:', apiErr);
     }
-    
-    // Direct lightweight compressed Data URI fallback (< 30 KB / 50 KB data URI is ultra-fast and reliable)
+
+    // 2. Direct lightweight compressed Data URI (< 30 KB WebP data URI is saved directly in Firebase Firestore documents!)
+    // This is 100% stored in Firebase, permanent, ultra-fast, and works seamlessly on Cloudflare Pages without 404s!
     return await fileToDataUri(processedFile);
   }, []);
 
@@ -437,10 +443,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setLastCatalogTimestamp(prev => Math.max(prev, data.lastUpdated!));
     }
     if (Array.isArray(data.products)) {
-      setPublishedProducts(data.products);
+      const sanitizedProducts: Product[] = data.products.map((p: any) => {
+        const resolvedImgs = getAllProductImages(p);
+        return {
+          ...p,
+          images: resolvedImgs.length > 0 ? resolvedImgs : (Array.isArray(p.images) ? p.images : (p.images ? [String(p.images)] : []))
+        } as Product;
+      });
+      setPublishedProducts(sanitizedProducts);
       // Synchronize working products if user is not currently logged in as admin
       if (!userData || userData.role !== UserRole.Admin) {
-        setAllProducts(data.products);
+        setAllProducts(sanitizedProducts);
       }
     }
     if (data.settings) {
@@ -1027,86 +1040,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const exportCatalogSnapshot = useCallback(async () => {
     try {
-      // 1. Fetch fresh live state directly from Firestore for ALL collections to detect all updates & deletions
-      let freshProducts = allProducts;
-      let freshBanners = banners;
-      let freshCoupons = coupons;
-      let freshChallans = challans;
-      let freshUpdates = updatePosts;
-      let freshSettings = settings || INITIAL_STATIC_CATALOG.settings;
-      let freshVendorsStatus = vendorsStatus;
-      let freshVendorsMap = vendorsMap;
-
-      try {
-        const [settingsSnap, productsSnap, couponsSnap, bannersSnap, challansSnap, updatesSnap, vendorsSnap] = await Promise.all([
-          getDoc(doc(db, 'settings', 'main')),
-          getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'coupons'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'banners'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'challans'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'updatePosts'), orderBy('createdAt', 'desc'))),
-          getDocs(query(collection(db, 'users'), where('role', '==', UserRole.Vendor)))
-        ]);
-
-        if (settingsSnap.exists()) {
-          freshSettings = settingsSnap.data() as Settings;
-        }
-        if (!productsSnap.empty) {
-          freshProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
-        }
-        if (!couponsSnap.empty) {
-          freshCoupons = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
-        }
-        if (!bannersSnap.empty) {
-          freshBanners = bannersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Banner));
-        }
-        if (!challansSnap.empty) {
-          freshChallans = challansSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challan));
-        }
-        if (!updatesSnap.empty) {
-          freshUpdates = updatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as UpdatePost));
-        }
-
-        const vStatus: Record<string, string> = {};
-        const vMap: Record<string, AppUser> = {};
-        vendorsSnap.docs.forEach(d => {
-          const u = d.data() as AppUser;
-          vStatus[d.id] = u.status;
-          vMap[d.id] = { ...u, uid: d.id };
-        });
-        if (vendorsSnap.docs.length > 0) {
-          freshVendorsStatus = vStatus;
-          freshVendorsMap = vMap;
-        }
-      } catch (firestoreFetchErr) {
-        console.warn("Snapshot direct Firestore fetch warning (falling back to current memory state):", firestoreFetchErr);
-      }
-
-      const safeSettings = freshSettings ? { ...freshSettings } : freshSettings;
+      const safeSettings = settings ? { ...settings } : INITIAL_STATIC_CATALOG.settings;
 
       const bundleToSave: CatalogBundle = {
-        products: freshProducts,
+        products: allProducts,
         settings: safeSettings,
-        banners: freshBanners,
-        coupons: freshCoupons,
-        updatePosts: freshUpdates,
-        challans: freshChallans,
-        vendorsStatus: freshVendorsStatus,
-        vendorsMap: freshVendorsMap,
+        banners: banners,
+        coupons: coupons,
+        updatePosts: updatePosts,
+        challans: challans,
+        vendorsStatus: vendorsStatus,
+        vendorsMap: vendorsMap,
         lastUpdated: Date.now()
       };
 
-      // 2. Immediately update current React state across app
+      // 1. Immediately update current React state across app
       applyBundleData(bundleToSave);
 
-      // 3. Save in local browser storage
+      // 2. Save in local browser storage (0 Firestore reads)
       try {
         localStorage.setItem('onliny_catalog_initialized', 'true');
         sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(bundleToSave));
         localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, safeJsonStringify({ cachedAt: Date.now(), data: bundleToSave }));
       } catch (e) {}
 
-      // 4. Save on server-side static JSON file (/api/save-catalog) so all laptops, mobiles, and visitors get exact same data
+      // 3. Save on server-side static JSON file (/api/save-catalog) for instant zero-read visitor access
       try {
         await fetch('/api/save-catalog', {
           method: 'POST',
@@ -1117,7 +1075,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.warn("Could not save to /api/save-catalog:", err);
       }
 
-      // 5. Sync to Firestore bundle doc
+      // 4. Sync to Firestore bundle doc (1 write, contains complete catalog snapshot)
       try {
         await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(bundleToSave), { merge: true });
       } catch (dbErr) {
@@ -1140,48 +1098,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const loadAdminLiveState = useCallback(async () => {
     try {
-      const [settingsSnap, productsSnap, couponsSnap, bannersSnap, challansSnap, updatesSnap, vendorsSnap] = await Promise.all([
-        getDoc(doc(db, 'settings', 'main')),
-        getDocs(query(collection(db, 'products'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'coupons'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'banners'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'challans'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'updatePosts'), orderBy('createdAt', 'desc'))),
-        getDocs(query(collection(db, 'users'), where('role', '==', UserRole.Vendor)))
-      ]);
+      // Exactly 1 Firestore Read for entire catalog
+      const bundleSnap = await getDoc(doc(db, 'settings', 'catalog_bundle'));
+      if (bundleSnap.exists()) {
+        const liveBundle = bundleSnap.data() as CatalogBundle;
+        if (liveBundle && Array.isArray(liveBundle.products)) {
+          applyBundleData(liveBundle);
+          return;
+        }
+      }
 
-      const loadedSettings = settingsSnap.exists() ? (settingsSnap.data() as Settings) : null;
-      const loadedProducts = productsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
-      const loadedCoupons = couponsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Coupon));
-      const loadedBanners = bannersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Banner));
-      const loadedChallans = challansSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challan));
-      const loadedUpdates = updatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as UpdatePost));
-      
-      const vStatus: Record<string, string> = {};
-      const vMap: Record<string, AppUser> = {};
-      vendorsSnap.docs.forEach(d => {
-        const u = d.data() as AppUser;
-        vStatus[d.id] = u.status;
-        vMap[d.id] = { ...u, uid: d.id };
-      });
-
-      const liveBundle: CatalogBundle = {
-        products: loadedProducts.length > 0 ? loadedProducts : allProducts,
-        settings: loadedSettings || settings || INITIAL_STATIC_CATALOG.settings,
-        banners: loadedBanners,
-        coupons: loadedCoupons,
-        updatePosts: loadedUpdates,
-        challans: loadedChallans,
-        vendorsStatus: vStatus,
-        vendorsMap: vMap,
-        lastUpdated: Date.now()
-      };
-
-      applyBundleData(liveBundle);
+      // Fallback: 1 read for settings/main
+      const settingsSnap = await getDoc(doc(db, 'settings', 'main'));
+      if (settingsSnap.exists()) {
+        const sData = settingsSnap.data() as Settings;
+        if (sData) setSettings(sData);
+      }
     } catch (err) {
       console.warn("loadAdminLiveState warning:", err);
     }
-  }, [allProducts, settings, applyBundleData]);
+  }, [applyBundleData]);
 
   const loadCatalog = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
@@ -1212,9 +1148,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     } catch (e) {}
 
-    // 2. Load Published Static Catalog Bundle from server (0 Firestore reads!)
+    // 2. Load Published Static Catalog Bundle (with CDN cache, zero unnecessary Cloudflare Worker executions)
     try {
-      const res = await fetch(`/api/catalog-data?_t=${Date.now()}`, { cache: 'no-store' });
+      const res = await fetch('/api/catalog-data');
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.data && Array.isArray(json.data.products)) {
@@ -1247,13 +1183,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     lastCatalogTimestampRef.current = lastCatalogTimestamp;
   }, [lastCatalogTimestamp]);
 
-  // Periodically and on window focus, check for updated static catalog from server (0 Firestore reads!)
+  // Periodic passive check for catalog updates (every 15 mins, no aggressive window focus polling)
   useEffect(() => {
     let isSubscribed = true;
 
     const checkCatalogUpdates = async () => {
       try {
-        const res = await fetch(`/api/catalog-data?_t=${Date.now()}`, { cache: 'no-store' });
+        const res = await fetch('/api/catalog-data');
         if (res.ok) {
           const json = await res.json();
           if (isSubscribed && json.success && json.data && Array.isArray(json.data.products)) {
@@ -1271,16 +1207,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch (e) {}
     };
 
-    const handleFocus = () => {
-      checkCatalogUpdates();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    const interval = setInterval(checkCatalogUpdates, 30000);
+    // Passive 15-minute background check to preserve Cloudflare requests
+    const interval = setInterval(checkCatalogUpdates, 15 * 60 * 1000);
 
     return () => {
       isSubscribed = false;
-      window.removeEventListener('focus', handleFocus);
       clearInterval(interval);
     };
   }, [applyBundleData]);

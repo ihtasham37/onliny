@@ -8,6 +8,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Icons } from '../../components/icons/Icons';
 import { formatCurrency, matchCategory, normalizeCategoryName } from '../../utils/helpers';
 import { ImageWithFallback } from '../../components/ui/ImageWithFallback';
+import { getPrimaryProductImage } from '../../utils/imageResolver';
 import { ProductModal } from '../../components/admin/ProductModal';
 import { MoveCopyProductModal } from '../../components/admin/MoveCopyProductModal';
 import { EditCategoryModal } from '../../components/admin/EditCategoryModal';
@@ -316,7 +317,7 @@ const CategoryProducts = () => {
                 ) : filteredProducts.map(product => (
                     <tr key={product.id} className="hover:bg-gray-50 text-sm">
                     <td className="p-3">
-                    <ImageWithFallback src={product.images?.[0]} className="w-12 h-12 object-cover rounded" />
+                    <ImageWithFallback src={getPrimaryProductImage(product)} alt={product.name} className="w-12 h-12 object-cover rounded shadow-xs" />
                     </td>
                     <td className="p-3">
                         <span className="text-xs font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
