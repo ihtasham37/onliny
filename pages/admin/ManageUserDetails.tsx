@@ -24,15 +24,25 @@ export interface CustomerSummary {
   statusList: string[];
 }
 
+let cachedCustomersList: CustomerSummary[] | null = null;
+let lastCustomerFetchTimestamp = 0;
+
 export const ManageUserDetails: React.FC = () => {
   const { myOrders: storeOrders, loadOrders } = useStore();
-  const [firestoreCustomers, setFirestoreCustomers] = useState<CustomerSummary[]>([]);
+  const [firestoreCustomers, setFirestoreCustomers] = useState<CustomerSummary[]>(() => cachedCustomersList || []);
   const [directOrders, setDirectOrders] = useState<Order[]>([]);
-  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(() => !cachedCustomersList);
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const fetchLiveCustomersAndOrders = useCallback(async () => {
+  const fetchLiveCustomersAndOrders = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && cachedCustomersList && (now - lastCustomerFetchTimestamp < 10 * 60 * 1000)) {
+      setFirestoreCustomers(cachedCustomersList);
+      setIsLoadingCustomers(false);
+      return;
+    }
+
     setIsLoadingCustomers(true);
     try {
       // 1. Fetch from dedicated Firestore 'customers' collection
@@ -57,23 +67,27 @@ export const ManageUserDetails: React.FC = () => {
           });
         }
       });
+      cachedCustomersList = fetchedCustList;
+      lastCustomerFetchTimestamp = now;
       setFirestoreCustomers(fetchedCustList);
 
-      // 2. Fetch from Firestore 'orders' collection
-      const ordSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(200)));
-      const fetchedOrders = ordSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
-      setDirectOrders(fetchedOrders);
+      // Re-use store orders instead of making another redundant 200-read order query!
+      if (storeOrders && storeOrders.length > 0) {
+        setDirectOrders(storeOrders);
+      }
     } catch (err) {
       console.warn("Fetch live customers error:", err);
     } finally {
       setIsLoadingCustomers(false);
     }
-  }, []);
+  }, [storeOrders]);
 
   useEffect(() => {
-    fetchLiveCustomersAndOrders();
-    loadOrders?.();
-  }, [fetchLiveCustomersAndOrders, loadOrders]);
+    fetchLiveCustomersAndOrders(false);
+    if (!storeOrders || storeOrders.length === 0) {
+      loadOrders?.();
+    }
+  }, [fetchLiveCustomersAndOrders, loadOrders, storeOrders]);
 
   // Merge direct Firestore customers collection with orders for 100% comprehensive customer detail collection
   const customers = useMemo(() => {
@@ -233,7 +247,7 @@ export const ManageUserDetails: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-3">
           <Button
-            onClick={fetchLiveCustomersAndOrders}
+            onClick={() => fetchLiveCustomersAndOrders(true)}
             disabled={isLoadingCustomers}
             className="bg-slate-800 hover:bg-slate-900 text-white shadow-xs flex items-center gap-2 text-xs sm:text-sm font-semibold px-3.5 py-2.5 rounded-xl transition-all"
           >

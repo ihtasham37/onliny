@@ -442,12 +442,14 @@ const ManageOrders = () => {
     };
 
     useEffect(() => {
-        loadOrders?.();
-    }, [loadOrders]);
+        if (!orders || orders.length === 0) {
+            loadOrders?.(50, false);
+        }
+    }, [loadOrders, orders?.length]);
 
     const handleRefresh = async () => {
         setIsRefreshing(true);
-        await loadOrders?.();
+        await loadOrders?.(100, true);
         setIsRefreshing(false);
     };
 

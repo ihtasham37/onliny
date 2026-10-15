@@ -979,23 +979,49 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, pro
             )}
             
             {formData.images.length > 0 ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 mt-3 p-2 bg-gray-50 rounded-lg border border-gray-200">
-                {formData.images.map((img, i) => (
-                  <div key={i} className="relative group bg-white p-1 rounded-md border border-gray-200 shadow-sm flex flex-col items-center">
-                    <MediaPreview src={img} className="w-full h-24 object-cover rounded" />
-                    <span className="text-[10px] text-gray-400 truncate w-full px-1 mt-1 block" title={img}>
-                      {img.replace(/^https?:\/\//, '')}
-                    </span>
-                    <button 
-                      type="button" 
-                      onClick={() => setFormData({ ...formData, images: formData.images.filter((_, idx) => idx !== i) })} 
-                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1 shadow transition-opacity opacity-80 group-hover:opacity-100"
-                      title="Remove image"
-                    >
-                      <Icons.trash className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mt-3 p-2.5 bg-gray-50 rounded-xl border border-gray-200">
+                {formData.images.map((img, i) => {
+                  const meta = getImageDisplayMeta(img, i);
+                  return (
+                    <div key={i} className="relative group bg-white p-2 rounded-lg border border-gray-200 shadow-xs flex flex-col justify-between">
+                      <div className="relative w-full">
+                        <MediaPreview src={img} className="w-full h-24 object-cover rounded-md" />
+                        <button 
+                          type="button" 
+                          onClick={() => setFormData({ ...formData, images: formData.images.filter((_, idx) => idx !== i) })} 
+                          className="absolute top-1.5 right-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full p-1 shadow-md transition-opacity opacity-80 group-hover:opacity-100 cursor-pointer"
+                          title="Remove image"
+                        >
+                          <Icons.trash className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Short Link & Source Badge */}
+                      <div className="w-full mt-2 pt-1.5 border-t border-gray-100 flex flex-col gap-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-sm border shrink-0 ${meta.badgeColor}`}>
+                            {meta.badge}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(meta.fullUrl || img);
+                              setFirebaseDownloadMessage(`Copied link for Image #${i + 1}`);
+                              setTimeout(() => setFirebaseDownloadMessage(null), 2500);
+                            }}
+                            className="text-[10px] text-teal-700 hover:text-teal-900 font-semibold cursor-pointer shrink-0"
+                            title="Copy link"
+                          >
+                            📋 Copy
+                          </button>
+                        </div>
+                        <span className="text-[10px] font-mono text-gray-500 truncate w-full block bg-gray-50 px-1 py-0.5 rounded border border-gray-100" title={meta.fullUrl || img}>
+                          {meta.shortLink}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-xs text-gray-400 mt-1 italic">No images added yet. Paste a product link in the AI box or add URLs above.</p>

@@ -534,15 +534,15 @@ const TrackOrder = () => {
                     <Icons.search className="w-7 h-7" />
                 </div>
                 <h1 className="text-2xl font-serif font-bold text-slate-900 tracking-tight">Track Your Order</h1>
-                <p className="text-xs sm:text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">
-                    Enter your phone number or Order Tracking ID to view real-time status updates.
+                <p className="text-xs sm:text-sm text-slate-600 max-w-xs mx-auto leading-relaxed font-medium">
+                    Enter both your Phone Number and Email Address to track your order. (آرڈر ٹریکنگ کے لیے فون نمبر اور ای میل دونوں لازمی ہیں)
                 </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <Input
-                        label="Phone Number or Tracking ID"
+                        label="Phone Number or Tracking ID *"
                         type="text"
                         name="phone"
                         value={phone}

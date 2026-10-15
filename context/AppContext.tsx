@@ -58,7 +58,7 @@ export interface AppContextType {
   exportCatalogSnapshot: () => Promise<{ success: boolean; message: string; data?: CatalogBundle }>;
   syncCatalogBundle: (overrides?: Partial<CatalogBundle>) => Promise<void>;
   refreshCatalog: () => Promise<void>;
-  loadOrders: (limitCount?: number) => Promise<void>;
+  loadOrders: (limitCount?: number, force?: boolean) => Promise<void>;
   trackOrderById: (orderId: string) => Promise<Order | null>;
 
   addToCart: (product: Product, quantity: number, selectedSizes?: Record<string, string>, additionalInfo?: string) => void;
@@ -361,14 +361,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // Strictly compress image: < 50 KB for banners/categories, < 30 KB for products
     const processedFile = await compressImage(file, type);
     
-    // 1. Try Firebase Storage directly
+    // 1. Try Firebase Storage directly with 1200ms timeout so unprovisioned buckets never freeze or spin forever
     if (storage) {
       try {
         const ext = (file.name || 'image.webp').split('.').pop() || 'webp';
         const storagePath = `uploads/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
         const fileRef = ref(storage, storagePath);
-        await uploadBytes(fileRef, processedFile, { contentType: processedFile.type || 'image/webp' });
-        const downloadUrl = await getDownloadURL(fileRef);
+
+        const downloadUrl = await Promise.race([
+          (async () => {
+            await uploadBytes(fileRef, processedFile, { contentType: processedFile.type || 'image/webp' });
+            return await getDownloadURL(fileRef);
+          })(),
+          new Promise<null>((_, reject) => 
+            setTimeout(() => reject(new Error('Firebase storage timeout')), 1200)
+          )
+        ]).catch(() => null);
+
         if (downloadUrl) return downloadUrl;
       } catch (storageErr) {
         console.warn('Firebase Storage upload note (saving compressed asset in Firebase Firestore):', storageErr);
@@ -1077,7 +1086,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       // 4. Sync to Firestore bundle doc (1 write, contains complete catalog snapshot)
       try {
-        await setDoc(doc(db, 'settings', 'catalog_bundle'), sanitizeForFirestore(bundleToSave), { merge: true });
+        let bundlePayload = sanitizeForFirestore(bundleToSave);
+        const estimatedSize = JSON.stringify(bundlePayload).length;
+        if (estimatedSize > 950000) {
+          // Compact description text if approaching Firestore 1MB document ceiling
+          const compactProducts = bundleToSave.products.map(p => ({
+            ...p,
+            description: (p.description || '').slice(0, 400)
+          }));
+          bundlePayload = sanitizeForFirestore({ ...bundleToSave, products: compactProducts });
+        }
+        await setDoc(doc(db, 'settings', 'catalog_bundle'), bundlePayload, { merge: true });
       } catch (dbErr) {
         console.warn("Firestore bundle doc sync skipped:", dbErr);
       }
@@ -1122,7 +1141,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadCatalog = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
 
-    // 1. Instant Cache Render (renders immediately from session/local cache)
+    // 1. Instant Cache Render (renders immediately from session/local cache, 0 reads)
     let hasLoadedData = false;
     try {
       const cached = sessionStorage.getItem(CATALOG_SESSION_CACHE_KEY);
@@ -1159,8 +1178,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(json.data));
             localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, safeJsonStringify({ cachedAt: Date.now(), data: json.data }));
           } catch (e) {}
-          setIsLoading(false);
-          return;
+          hasLoadedData = true;
         }
       }
     } catch (staticErr) {
@@ -1170,6 +1188,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!hasLoadedData) {
       applyBundleData(INITIAL_STATIC_CATALOG);
     }
+
+    // 3. Exactly 1-Read Session Sync with Firestore catalog_bundle
+    // Allows newly added/edited products & images in Firebase to appear immediately for visitors on Cloudflare Pages
+    // Strictly checked only once per visitor session so it never incurs repeated reads!
+    try {
+      const sessionLiveChecked = sessionStorage.getItem('ali_catalog_live_checked');
+      if (!sessionLiveChecked || forceRefresh) {
+        sessionStorage.setItem('ali_catalog_live_checked', 'true');
+        const bundleSnap = await getDoc(doc(db, 'settings', 'catalog_bundle'));
+        if (bundleSnap.exists()) {
+          const liveBundle = bundleSnap.data() as CatalogBundle;
+          if (liveBundle && Array.isArray(liveBundle.products) && liveBundle.products.length > 0) {
+            applyBundleData(liveBundle);
+            try {
+              sessionStorage.setItem(CATALOG_SESSION_CACHE_KEY, safeJsonStringify(liveBundle));
+              localStorage.setItem(CATALOG_LOCAL_CACHE_KEY, safeJsonStringify({ cachedAt: Date.now(), data: liveBundle }));
+            } catch (e) {}
+          }
+        }
+      }
+    } catch (liveErr) {
+      console.warn("Live bundle check note:", liveErr);
+    }
+
     setIsLoading(false);
   }, [applyBundleData]);
 
@@ -1317,16 +1359,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  // On-demand Orders Fetch for Admin
-  const loadOrders = useCallback(async (limitCount = 150) => {
+  const ordersLoadedRef = useRef(false);
+  const lastOrdersFetchRef = useRef<number>(0);
+
+  // On-demand Orders Fetch for Admin with intelligent 5-minute session cache (Prevents reads on sidebar tab navigation)
+  const loadOrders = useCallback(async (limitCount = 50, force = false) => {
+    const now = Date.now();
+    if (!force && ordersLoadedRef.current && (now - lastOrdersFetchRef.current < 5 * 60 * 1000) && orders.length > 0) {
+      return;
+    }
     try {
       const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(limitCount));
       const snap = await getDocs(q);
       setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
+      ordersLoadedRef.current = true;
+      lastOrdersFetchRef.current = now;
     } catch (err) {
       console.warn("loadOrders error:", err);
     }
-  }, []);
+  }, [orders.length]);
 
   useEffect(() => {
     // 1-Read Visit Fetch: Loads bundle once per visit
